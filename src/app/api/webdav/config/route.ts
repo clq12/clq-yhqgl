@@ -6,6 +6,7 @@ export interface WebDAVConfigRequest {
   url: string
   username: string
   password: string
+  pushplusToken?: string
 }
 
 // 获取配置
@@ -17,13 +18,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, configured: false })
     }
 
-    // 不返回密码
+    // 脱敏处理 PushPlus Token
+    const maskedPushPlusToken = config.pushplusToken
+      ? config.pushplusToken.substring(0, 4) + "****" + config.pushplusToken.substring(config.pushplusToken.length - 4)
+      : ""
+
+    // 不返回密码，但返回脱敏后的 Token
     return NextResponse.json({
       success: true,
       configured: true,
       config: {
         url: config.url,
         username: config.username,
+        pushplusToken: maskedPushPlusToken,
+        hasPushPlusToken: !!config.pushplusToken && config.pushplusToken.length > 0,
       },
     })
   } catch (error) {
@@ -58,6 +66,7 @@ export async function POST(request: NextRequest) {
       url,
       username: body.username.trim(),
       password: body.password,
+      pushplusToken: body.pushplusToken?.trim() || "",
     }
 
     // 测试连接

@@ -25,6 +25,7 @@ export default function WebDAVConfig() {
   const [isSaving, setIsSaving] = useState(false)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [configUrl, setConfigUrl] = useState("")
+  const [hasPushPlusToken, setHasPushPlusToken] = useState(false)
 
   const form = useForm<WebDAVConfigForm>({
     resolver: zodResolver(webdavConfigSchema),
@@ -46,6 +47,7 @@ export default function WebDAVConfig() {
       if (result.success && result.configured) {
         setIsConfigured(true)
         setConfigUrl(result.config.url)
+        setHasPushPlusToken(result.config.hasPushPlusToken || false)
       }
     } catch (error) {
       console.error("检查配置失败:", error)
@@ -98,6 +100,7 @@ export default function WebDAVConfig() {
       if (result.success) {
         setIsConfigured(false)
         setConfigUrl("")
+        setHasPushPlusToken(false)
         form.reset()
         setMessage({ type: "success", text: "配置已清除" })
       } else {
@@ -119,14 +122,28 @@ export default function WebDAVConfig() {
               <CardDescription>
                 已连接到: {configUrl}
               </CardDescription>
+              {hasPushPlusToken && (
+                <div className="flex items-center gap-2 mt-2 text-sm text-green-600 dark:text-green-400">
+                  <CheckCircle className="h-4 w-4" />
+                  PushPlus 微信推送已启用
+                </div>
+              )}
+              {!hasPushPlusToken && (
+                <div className="flex items-center gap-2 mt-2 text-sm text-amber-600 dark:text-amber-400">
+                  <Info className="h-4 w-4" />
+                  PushPlus 未配置（可选）
+                </div>
+              )}
             </div>
             <CheckCircle className="h-8 w-8 text-green-600" />
           </div>
         </CardHeader>
         <CardContent>
-          <Button variant="outline" onClick={handleClearConfig}>
-            清除配置
-          </Button>
+          <div className="space-y-2">
+            <Button variant="outline" onClick={handleClearConfig}>
+              清除配置
+            </Button>
+          </div>
         </CardContent>
       </Card>
     )

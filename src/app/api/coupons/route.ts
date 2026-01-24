@@ -85,8 +85,10 @@ export async function POST(request: NextRequest) {
     // 创建优惠券对象
     const coupon = {
       ...validated,
+      endHour: body.endHour || null, // 添加endHour字段
       id: crypto.randomUUID(),
       isReminded: false,
+      remindedDays: [], // 初始化提醒天数数组
       createdAt: new Date().toISOString(),
       updatedAt: null,
     }

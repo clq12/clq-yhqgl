@@ -51,6 +51,9 @@ export default function Home() {
   const [isRemindStatusOpen, setIsRemindStatusOpen] = useState(false)
   const [remindStatus, setRemindStatus] = useState<RemindStatusItem[]>([])
   const [loadingRemindStatus, setLoadingRemindStatus] = useState(false)
+  const [sortBy, setSortBy] = useState<'discount' | 'remaining' | 'name' | null>(null)
+  const [sortByOrder, setSortByOrder] = useState<'asc' | 'desc'>('desc')
+  const [filterExpiring, setFilterExpiring] = useState<'1day' | '3day' | '7day' | 'all'>('all')
 
   // 检查 WebDAV 配置
   const checkWebDAVConfig = async () => {
@@ -188,24 +191,50 @@ export default function Home() {
     }
   }
 
-  // 计算剩余天数
-  const getDaysRemaining = (endDate: Date | string) => {
-    const end = new Date(endDate)
+  // 计算剩余天数和小时数（考虑endHour）
+  const getDaysRemaining = (coupon: Coupon) => {
+    const endDate = new Date(coupon.endDate)
+    const endHour = (coupon as any).endHour
+
+    // 设置截止时间的小时数
+    if (endHour !== null && endHour !== undefined) {
+      endDate.setHours(endHour, 0, 0, 0)
+    } else {
+      endDate.setHours(24, 0, 0, 0) // 默认24点（次日0点）
+    }
+
     const now = new Date()
-    const diff = end.getTime() - now.getTime()
+    const diff = endDate.getTime() - now.getTime()
     const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
     return days
   }
 
+  // 获取剩余小时数（用于更精确的排序）
+  const getRemainingHours = (coupon: Coupon) => {
+    const endDate = new Date(coupon.endDate)
+    const endHour = (coupon as any).endHour
+
+    // 设置截止时间的小时数
+    if (endHour !== null && endHour !== undefined) {
+      endDate.setHours(endHour, 0, 0, 0)
+    } else {
+      endDate.setHours(24, 0, 0, 0)
+    }
+
+    const now = new Date()
+    const diff = endDate.getTime() - now.getTime()
+    return diff / (1000 * 60 * 60) // 返回小时数
+  }
+
   // 判断是否即将到期（7天内）
-  const isExpiringSoon = (endDate: Date | string) => {
-    const days = getDaysRemaining(endDate)
+  const isExpiringSoon = (coupon: Coupon) => {
+    const days = getDaysRemaining(coupon)
     return days <= 7 && days >= 0
   }
 
   // 判断是否已过期
-  const isExpired = (endDate: Date | string) => {
-    const days = getDaysRemaining(endDate)
+  const isExpired = (coupon: Coupon) => {
+    const days = getDaysRemaining(coupon)
     return days < 0
   }
 
@@ -222,6 +251,42 @@ export default function Home() {
 
     const dayText = remindedDays.sort((a: number, b: number) => a - b).join("天、")
     return { text: `已提醒（${dayText}天）`, color: "blue" }
+  }
+
+  // 应用排序和筛选
+  const getFilteredAndSortedCoupons = () => {
+    let filtered = [...coupons]
+
+    // 应用筛选
+    if (filterExpiring !== 'all') {
+      const days = filterExpiring === '1day' ? 1 : filterExpiring === '3day' ? 3 : 7
+      filtered = filtered.filter(c => {
+        const remaining = getDaysRemaining(c)
+        return remaining >= 0 && remaining <= days
+      })
+    }
+
+    // 应用排序
+    if (sortBy) {
+      filtered.sort((a, b) => {
+        if (sortBy === 'discount') {
+          const aDiscount = a.discountAmount ?? 999
+          const bDiscount = b.discountAmount ?? 999
+          return sortByOrder === 'asc' ? aDiscount - bDiscount : bDiscount - aDiscount
+        } else if (sortBy === 'remaining') {
+          const aHours = getRemainingHours(a)
+          const bHours = getRemainingHours(b)
+          return sortByOrder === 'asc' ? aHours - bHours : bHours - aHours
+        } else if (sortBy === 'name') {
+          return sortByOrder === 'asc'
+            ? a.title.localeCompare(b.title)
+            : b.title.localeCompare(a.title)
+        }
+        return 0
+      })
+    }
+
+    return filtered
   }
 
   useEffect(() => {
@@ -357,22 +422,116 @@ export default function Home() {
         <div className="grid grid-cols-3 gap-4 mb-6">
           <Card className="p-4">
             <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              {coupons.filter((c) => !isExpired(c.endDate)).length}
+              {coupons.filter((c) => !isExpired(c)).length}
             </div>
             <div className="text-sm text-gray-600 dark:text-gray-400">有效优惠</div>
           </Card>
           <Card className="p-4">
             <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-              {coupons.filter((c) => isExpiringSoon(c.endDate) && !isExpired(c.endDate)).length}
+              {coupons.filter((c) => isExpiringSoon(c) && !isExpired(c)).length}
             </div>
             <div className="text-sm text-gray-600 dark:text-gray-400">即将到期</div>
           </Card>
           <Card className="p-4">
             <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-              {coupons.filter((c) => isExpired(c.endDate)).length}
+              {coupons.filter((c) => isExpired(c)).length}
             </div>
             <div className="text-sm text-gray-600 dark:text-gray-400">已过期</div>
           </Card>
+        </div>
+
+        {/* 排序和筛选工具栏 */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-6 border">
+          <div className="flex flex-wrap gap-3 items-center">
+            {/* 排序 */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">排序：</span>
+              <Button
+                size="sm"
+                variant={sortBy === 'discount' ? 'default' : 'outline'}
+                onClick={() => {
+                  if (sortBy === 'discount') {
+                    setSortByOrder(sortByOrder === 'asc' ? 'desc' : 'asc')
+                  } else {
+                    setSortBy('discount')
+                    setSortByOrder('desc')
+                  }
+                }}
+                className="text-xs"
+              >
+                折扣力度 {sortBy === 'discount' && (sortByOrder === 'asc' ? '↑' : '↓')}
+              </Button>
+              <Button
+                size="sm"
+                variant={sortBy === 'remaining' ? 'default' : 'outline'}
+                onClick={() => {
+                  if (sortBy === 'remaining') {
+                    setSortByOrder(sortByOrder === 'asc' ? 'desc' : 'asc')
+                  } else {
+                    setSortBy('remaining')
+                    setSortByOrder('asc')
+                  }
+                }}
+                className="text-xs"
+              >
+                剩余时间 {sortBy === 'remaining' && (sortByOrder === 'asc' ? '↑' : '↓')}
+              </Button>
+              <Button
+                size="sm"
+                variant={sortBy === 'name' ? 'default' : 'outline'}
+                onClick={() => {
+                  if (sortBy === 'name') {
+                    setSortByOrder(sortByOrder === 'asc' ? 'desc' : 'asc')
+                  } else {
+                    setSortBy('name')
+                    setSortByOrder('asc')
+                  }
+                }}
+                className="text-xs"
+              >
+                名称 {sortBy === 'name' && (sortByOrder === 'asc' ? '↑' : '↓')}
+              </Button>
+            </div>
+
+            <div className="h-6 w-px bg-gray-300 dark:bg-gray-600"></div>
+
+            {/* 筛选 */}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">筛选：</span>
+              <Button
+                size="sm"
+                variant={filterExpiring === 'all' ? 'default' : 'outline'}
+                onClick={() => setFilterExpiring('all')}
+                className="text-xs"
+              >
+                全部
+              </Button>
+              <Button
+                size="sm"
+                variant={filterExpiring === '1day' ? 'default' : 'outline'}
+                onClick={() => setFilterExpiring('1day')}
+                className="text-xs"
+              >
+                1天内
+              </Button>
+              <Button
+                size="sm"
+                variant={filterExpiring === '3day' ? 'default' : 'outline'}
+                onClick={() => setFilterExpiring('3day')}
+                className="text-xs"
+              >
+                3天内
+              </Button>
+              <Button
+                size="sm"
+                variant={filterExpiring === '7day' ? 'default' : 'outline'}
+                onClick={() => setFilterExpiring('7day')}
+                className="text-xs"
+              >
+                7天内
+              </Button>
+            </div>
+          </div>
         </div>
 
         {/* 优惠券列表 */}
@@ -405,7 +564,7 @@ export default function Home() {
         ) : (
           <div className="space-y-4">
             {/* 即将到期提示 */}
-            {coupons.filter((c) => isExpiringSoon(c.endDate) && !isExpired(c.endDate) && !c.isReminded).length > 0 && (
+            {getFilteredAndSortedCoupons().filter((c) => isExpiringSoon(c) && !isExpired(c) && !c.isReminded).length > 0 && (
               <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4 mb-4">
                 <div className="flex items-start gap-3">
                   <AlertCircle className="h-5 w-5 text-orange-600 dark:text-orange-400 mt-0.5" />
@@ -415,8 +574,8 @@ export default function Home() {
                     </h4>
                     <p className="text-sm text-orange-700 dark:text-orange-300">
                       您有{" "}
-                      {coupons.filter(
-                        (c) => isExpiringSoon(c.endDate) && !isExpired(c.endDate) && !c.isReminded
+                      {getFilteredAndSortedCoupons().filter(
+                        (c) => isExpiringSoon(c) && !isExpired(c) && !c.isReminded
                       ).length}{" "}
                       张优惠券将在7天内到期，请尽快使用！
                     </p>
@@ -426,10 +585,14 @@ export default function Home() {
             )}
 
             {/* 优惠券卡片 */}
-            {coupons.map((coupon) => {
-              const daysRemaining = getDaysRemaining(coupon.endDate)
-              const expired = isExpired(coupon.endDate)
-              const expiringSoon = isExpiringSoon(coupon.endDate) && !expired
+            {getFilteredAndSortedCoupons().map((coupon) => {
+              const daysRemaining = getDaysRemaining(coupon)
+              const expired = isExpired(coupon)
+              const expiringSoon = isExpiringSoon(coupon) && !expired
+              const endHour = (coupon as any).endHour
+              const timeText = endHour !== null && endHour !== undefined
+                ? `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${endHour}点`
+                : `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} 24点`
 
               return (
                 <Card
@@ -480,7 +643,7 @@ export default function Home() {
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
                           <span>
-                            截止：{new Date(coupon.endDate).toLocaleDateString("zh-CN")}
+                            截止：{timeText}
                           </span>
                         </div>
                         {daysRemaining >= 0 && (

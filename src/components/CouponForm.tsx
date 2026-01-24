@@ -29,6 +29,7 @@ const couponSchema = z.object({
   discountAmount: z.number().optional(),
   startDate: z.date({ message: "开始日期不能为空" }),
   endDate: z.date({ message: "截止日期不能为空" }),
+  endHour: z.number().min(0).max(23).nullable().optional(), // 截止小时，0-23，null表示24点
   notes: z.string().optional(),
 }).refine((data) => data.endDate >= data.startDate, {
   message: "截止日期必须晚于或等于开始日期",
@@ -55,6 +56,7 @@ export default function CouponForm({ coupon, onSubmit, onCancel }: CouponFormPro
           discountAmount: coupon.discountAmount || undefined,
           startDate: new Date(coupon.startDate),
           endDate: new Date(coupon.endDate),
+          endHour: (coupon as any).endHour || null,
           notes: coupon.notes || "",
         }
       : {
@@ -63,6 +65,7 @@ export default function CouponForm({ coupon, onSubmit, onCancel }: CouponFormPro
           discountAmount: undefined,
           startDate: new Date(),
           endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 默认30天后
+          endHour: null, // 默认24点
           notes: "",
         },
   })
@@ -212,6 +215,35 @@ export default function CouponForm({ coupon, onSubmit, onCancel }: CouponFormPro
             )}
           />
         </div>
+
+        <FormField
+          control={form.control}
+          name="endHour"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>截止小时（可选）</FormLabel>
+              <FormControl>
+                <select
+                  {...field}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    field.onChange(value === "" ? null : parseInt(value))
+                  }}
+                  value={field.value ?? ""}
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <option value="">24点（默认）</option>
+                  {Array.from({ length: 24 }, (_, i) => (
+                    <option key={i} value={i}>
+                      {i}点
+                    </option>
+                  ))}
+                </select>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <FormField
           control={form.control}

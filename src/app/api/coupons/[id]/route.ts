@@ -65,8 +65,14 @@ export async function PUT(
     // 验证数据
     const validated = updateCouponSchema.parse(body)
 
+    // 添加endHour字段支持
+    const updates = {
+      ...validated,
+      ...(body.endHour !== undefined && { endHour: body.endHour || null }),
+    }
+
     initWebDAVClient(config)
-    const coupon = await updateCoupon(id, validated as any)
+    const coupon = await updateCoupon(id, updates as any)
 
     if (!coupon) {
       return NextResponse.json(

@@ -17,6 +17,7 @@ export interface WebDAVCoupon {
   startDate: string // ISO 字符串
   endDate: string // ISO 字符串
   isReminded: boolean
+  remindedDays: number[] // 记录已经提醒过的天数，如[7, 3, 1]
   notes: string | null
   createdAt: string // ISO 字符串
   updatedAt: string | null // ISO 字符串

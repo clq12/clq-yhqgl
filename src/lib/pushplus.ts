@@ -45,25 +45,62 @@ export function generateExpiringMessage(coupons: any[], days: number): string {
     return ""
   }
 
-  let html = `<h3>🎉 您有 ${coupons.length} 张优惠券即将到期（${days}天）</h3>`
-  html += "<ul>"
+  const today = new Date().toLocaleDateString("zh-CN")
 
-  coupons.forEach((coupon) => {
+  let html = `
+    <div style="font-family: 'Microsoft YaHei', sans-serif; padding: 20px; background-color: #f5f5f5;">
+      <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <h2 style="color: #e11d48; margin: 0 0 16px 0; font-size: 24px;">
+          🔔 优惠券即将到期提醒
+        </h2>
+        <p style="color: #666; margin: 0 0 20px 0;">
+          今天是 ${today}，您有 <strong style="color: #e11d48; font-size: 18px;">${coupons.length}</strong> 张优惠券将在 <strong>${days}</strong> 天后到期
+        </p>
+        <div style="border-top: 1px solid #eee; padding-top: 20px;">
+  `
+
+  coupons.forEach((coupon, index) => {
     const endDate = new Date(coupon.endDate).toLocaleDateString("zh-CN")
     const discount = coupon.discountAmount
       ? `${coupon.discountAmount}元`
-      : "查看详情"
+      : coupon.description || "查看详情"
 
-    html += `<li>
-      <strong>${coupon.title}</strong><br/>
-      到期时间：${endDate}<br/>
-      优惠力度：${discount}<br/>
-      ${coupon.description ? `备注：${coupon.description}` : ""}
-    </li>`
+    html += `
+      <div style="background: #fff5f5; border-left: 4px solid #e11d48; padding: 16px; margin-bottom: 16px; border-radius: 4px;">
+        <h3 style="color: #333; margin: 0 0 8px 0; font-size: 18px;">
+          ${index + 1}. ${coupon.title}
+        </h3>
+        <div style="color: #666; font-size: 14px; line-height: 1.8;">
+          <div style="margin-bottom: 4px;">📅 到期时间：<strong style="color: #e11d48;">${endDate}</strong></div>
+          <div style="margin-bottom: 4px;">💰 优惠力度：<strong style="color: #e11d48;">${discount}</strong></div>
+          ${coupon.notes ? `<div style="margin-bottom: 4px;">📝 备注：${coupon.notes}</div>` : ""}
+        </div>
+      </div>
+    `
   })
 
-  html += "</ul>"
-  html += "<p>📱 点击查看详情：<a href='https://你的应用地址.vercel.app'>优惠券管理应用</a></p>"
+  html += `
+        </div>
+        <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #eee; text-align: center;">
+          <p style="color: #999; margin: 0 0 12px 0; font-size: 14px;">
+            请及时使用优惠券，避免过期浪费
+          </p>
+          <a href="#" style="
+            display: inline-block;
+            background: linear-gradient(135deg, #e11d48, #be123c);
+            color: white;
+            padding: 12px 32px;
+            text-decoration: none;
+            border-radius: 24px;
+            font-weight: bold;
+            box-shadow: 0 4px 12px rgba(225, 29, 72, 0.3);
+          ">
+            📱 查看优惠券详情
+          </a>
+        </div>
+      </div>
+    </div>
+  `
 
   return html
 }

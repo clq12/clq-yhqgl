@@ -4,6 +4,8 @@ import { initWebDAVClient } from "@/lib/webdav-client"
 import {
   getAllCoupons,
   getExpiringCoupons,
+  updateCoupon,
+  saveCoupons,
 } from "@/lib/webdav-storage"
 import { sendPushPlus, generateExpiringMessage } from "@/lib/pushplus"
 
@@ -33,64 +35,64 @@ export async function GET(request: NextRequest) {
     // 3. 获取所有优惠券
     const allCoupons = await getAllCoupons()
 
-    // 过滤掉已提醒的优惠券
-    const unremindedCoupons = allCoupons.filter(c => !c.isReminded)
+    // 4. 定义需要检查的天数（按顺序从远到近）
+    const checkDays = [7, 3, 1]
+    let totalSent = 0
+    const updatedCoupons = [...allCoupons]
+    const results: Record<number, number> = { 7: 0, 3: 0, 1: 0 }
 
-    // 4. 检查即将到期的优惠券（7天、3天、1天）
-    const expiring7Days = await getExpiringCoupons(7).then(coupons =>
-      coupons.filter(c => unremindedCoupons.some(uc => uc.id === c.id))
-    )
-    const expiring3Days = await getExpiringCoupons(3).then(coupons =>
-      coupons.filter(c => unremindedCoupons.some(uc => uc.id === c.id))
-    )
-    const expiring1Day = await getExpiringCoupons(1).then(coupons =>
-      coupons.filter(c => unremindedCoupons.some(uc => uc.id === c.id))
-    )
+    // 5. 对每个天数进行检查
+    for (const days of checkDays) {
+      // 获取该天数到期的优惠券
+      const expiringCoupons = await getExpiringCoupons(days)
 
-    // 5. 发送推送
-    let sentCount = 0
+      // 过滤出还没有在该天数提醒过的优惠券
+      const needRemind = expiringCoupons.filter(
+        (coupon) => !coupon.remindedDays?.includes(days)
+      )
 
-    if (expiring7Days.length > 0) {
-      const message = generateExpiringMessage(expiring7Days, 7)
-      await sendPushPlus({
+      if (needRemind.length === 0) {
+        continue
+      }
+
+      // 生成并发送推送消息
+      const message = generateExpiringMessage(needRemind, days)
+      const success = await sendPushPlus({
         token: config.pushplusToken,
-        title: "优惠券即将到期提醒（7天）",
+        title: `优惠券即将到期提醒（${days}天）`,
         content: message,
         template: "html",
       })
-      sentCount++
+
+      if (success) {
+        totalSent++
+        results[days] = needRemind.length
+
+        // 更新优惠券的提醒状态
+        for (const coupon of needRemind) {
+          const index = updatedCoupons.findIndex((c) => c.id === coupon.id)
+          if (index !== -1) {
+            const remindedDays = updatedCoupons[index].remindedDays || []
+            updatedCoupons[index] = {
+              ...updatedCoupons[index],
+              remindedDays: [...remindedDays, days],
+              isReminded: true,
+              updatedAt: new Date().toISOString(),
+            }
+          }
+        }
+      }
     }
 
-    if (expiring3Days.length > 0) {
-      const message = generateExpiringMessage(expiring3Days, 3)
-      await sendPushPlus({
-        token: config.pushplusToken,
-        title: "优惠券即将到期提醒（3天）",
-        content: message,
-        template: "html",
-      })
-      sentCount++
-    }
-
-    if (expiring1Day.length > 0) {
-      const message = generateExpiringMessage(expiring1Day, 1)
-      await sendPushPlus({
-        token: config.pushplusToken,
-        title: "优惠券即将到期提醒（1天）",
-        content: message,
-        template: "html",
-      })
-      sentCount++
-    }
+    // 6. 保存更新后的优惠券
+    await saveCoupons(updatedCoupons)
 
     return NextResponse.json({
       success: true,
-      message: `检查完成，发送了 ${sentCount} 条提醒`,
+      message: `检查完成，发送了 ${totalSent} 条提醒`,
       data: {
-        expiring7Days: expiring7Days.length,
-        expiring3Days: expiring3Days.length,
-        expiring1Day: expiring1Day.length,
-        totalSent: sentCount,
+        results,
+        totalSent,
       },
     })
   } catch (error) {

@@ -10,7 +10,7 @@ import { insertCouponSchema } from "@/storage/database/shared/schema"
 // 获取优惠券列表
 export async function GET(request: NextRequest) {
   try {
-    const config = getWebDAVConfig()
+    const config = await getWebDAVConfig()
 
     if (!config) {
       return NextResponse.json(
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 // 创建优惠券
 export async function POST(request: NextRequest) {
   try {
-    const config = getWebDAVConfig()
+    const config = await getWebDAVConfig()
 
     if (!config) {
       return NextResponse.json(

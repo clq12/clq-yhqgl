@@ -15,7 +15,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const config = getWebDAVConfig()
+    const config = await getWebDAVConfig()
 
     if (!config) {
       return NextResponse.json(
@@ -51,7 +51,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
-    const config = getWebDAVConfig()
+    const config = await getWebDAVConfig()
 
     if (!config) {
       return NextResponse.json(
@@ -92,7 +92,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    const config = getWebDAVConfig()
+    const config = await getWebDAVConfig()
 
     if (!config) {
       return NextResponse.json(

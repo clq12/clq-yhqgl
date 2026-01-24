@@ -10,7 +10,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    const config = getWebDAVConfig()
+    const config = await getWebDAVConfig()
 
     if (!config) {
       return NextResponse.json(

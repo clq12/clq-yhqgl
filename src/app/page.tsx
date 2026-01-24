@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Plus, Bell, Calendar, Trash2, Edit, CheckCircle, AlertCircle } from "lucide-react"
+import { Plus, Bell, Calendar, Trash2, Edit, CheckCircle, AlertCircle, Info, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -28,6 +28,18 @@ import CouponForm from "@/components/CouponForm"
 import WebDAVConfig from "@/components/WebDAVConfig"
 import type { Coupon } from "@/storage/database/shared/schema"
 
+interface RemindStatusItem {
+  id: string
+  title: string
+  endDate: string
+  daysRemaining: number
+  isReminded: boolean
+  remindedDays: number[]
+  willRemind: boolean
+  remindDays: number[]
+  reason?: string
+}
+
 export default function Home() {
   const [coupons, setCoupons] = useState<Coupon[]>([])
   const [loading, setLoading] = useState(true)
@@ -36,6 +48,9 @@ export default function Home() {
   const [isReminding, setIsReminding] = useState<string | null>(null)
   const [isWebDAVConfigured, setIsWebDAVConfigured] = useState(false)
   const [checkingConfig, setCheckingConfig] = useState(true)
+  const [isRemindStatusOpen, setIsRemindStatusOpen] = useState(false)
+  const [remindStatus, setRemindStatus] = useState<RemindStatusItem[]>([])
+  const [loadingRemindStatus, setLoadingRemindStatus] = useState(false)
 
   // 检查 WebDAV 配置
   const checkWebDAVConfig = async () => {
@@ -48,6 +63,38 @@ export default function Home() {
       setIsWebDAVConfigured(false)
     } finally {
       setCheckingConfig(false)
+    }
+  }
+
+  // 获取提醒状态
+  const fetchRemindStatus = async () => {
+    try {
+      setLoadingRemindStatus(true)
+      const response = await fetch("/api/remind-status")
+      const result = await response.json()
+      if (result.success) {
+        setRemindStatus(result.data.statusList)
+      }
+    } catch (error) {
+      console.error("获取提醒状态失败:", error)
+    } finally {
+      setLoadingRemindStatus(false)
+    }
+  }
+
+  // 测试提醒
+  const testRemind = async (days: number) => {
+    try {
+      const response = await fetch(`/api/test-remind?days=${days}`)
+      const result = await response.json()
+      if (result.success) {
+        alert(`测试成功！${result.message}`)
+      } else {
+        alert(`测试失败：${result.error}`)
+      }
+    } catch (error) {
+      console.error("测试提醒失败:", error)
+      alert("测试失败")
     }
   }
 
@@ -162,6 +209,21 @@ export default function Home() {
     return days < 0
   }
 
+  // 获取提醒状态描述
+  const getRemindStatus = (coupon: Coupon) => {
+    if (!coupon.isReminded) {
+      return { text: "未提醒", color: "gray" }
+    }
+
+    const remindedDays = (coupon as any).remindedDays || []
+    if (remindedDays.length === 0) {
+      return { text: "已提醒", color: "green" }
+    }
+
+    const dayText = remindedDays.sort((a: number, b: number) => a - b).join("天、")
+    return { text: `已提醒（${dayText}天）`, color: "blue" }
+  }
+
   useEffect(() => {
     checkWebDAVConfig()
   }, [])
@@ -199,23 +261,86 @@ export default function Home() {
               记录优惠，不错过任何优惠
             </p>
           </div>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="rounded-full gap-2" disabled={!isWebDAVConfigured}>
-                <Plus className="h-4 w-4" />
-                添加
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>添加优惠券</DialogTitle>
-                <DialogDescription>
-                  填写优惠信息，系统会在截止日期前提醒您
-                </DialogDescription>
-              </DialogHeader>
-              <CouponForm onSubmit={handleAddCoupon} onCancel={() => setIsAddDialogOpen(false)} />
-            </DialogContent>
-          </Dialog>
+          <div className="flex gap-2">
+            <Dialog open={isRemindStatusOpen} onOpenChange={setIsRemindStatusOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-full gap-2"
+                  disabled={!isWebDAVConfigured}
+                  onClick={fetchRemindStatus}
+                >
+                  <Bell className="h-4 w-4" />
+                  提醒状态
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>提醒状态</DialogTitle>
+                  <DialogDescription>
+                    查看所有优惠券的推送提醒状态
+                  </DialogDescription>
+                </DialogHeader>
+                {loadingRemindStatus ? (
+                  <div className="text-center py-8">加载中...</div>
+                ) : remindStatus.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">暂无优惠券</div>
+                ) : (
+                  <div className="space-y-3">
+                    {remindStatus.map((status) => (
+                      <div
+                        key={status.id}
+                        className="border rounded-lg p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <h4 className="font-semibold mb-1">{status.title}</h4>
+                            <div className="text-sm text-gray-500 space-y-1">
+                              <div>到期时间：{new Date(status.endDate).toLocaleDateString('zh-CN')}</div>
+                              <div>剩余天数：<span className={status.daysRemaining <= 3 ? 'text-orange-600 font-medium' : ''}>{status.daysRemaining}天</span></div>
+                              {status.remindedDays.length > 0 && (
+                                <div>已提醒：<span className="text-blue-600">{status.remindedDays.join('天、')}天</span></div>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            {status.willRemind ? (
+                              <Badge className="bg-green-500">
+                                将提醒（{status.remindDays.join('、')}天）
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-gray-500">
+                                {status.reason}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" className="rounded-full gap-2" disabled={!isWebDAVConfigured}>
+                  <Plus className="h-4 w-4" />
+                  添加
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>添加优惠券</DialogTitle>
+                  <DialogDescription>
+                    填写优惠信息，系统会在截止日期前提醒您
+                  </DialogDescription>
+                </DialogHeader>
+                <CouponForm onSubmit={handleAddCoupon} onCancel={() => setIsAddDialogOpen(false)} />
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
       </div>
 
@@ -333,9 +458,16 @@ export default function Home() {
                           <Badge className="bg-orange-500">即将到期</Badge>
                         )}
                         {coupon.isReminded && (
-                          <Badge variant="outline" className="gap-1">
+                          <Badge
+                            variant="outline"
+                            className={`gap-1 ${
+                              ((coupon as any).remindedDays?.length || 0) > 1
+                                ? "border-blue-500 text-blue-700 dark:text-blue-300"
+                                : "border-green-500 text-green-700 dark:text-green-300"
+                            }`}
+                          >
                             <CheckCircle className="h-3 w-3" />
-                            已提醒
+                            {getRemindStatus(coupon).text}
                           </Badge>
                         )}
                       </div>
@@ -426,6 +558,98 @@ export default function Home() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* 测试提醒对话框 */}
+      <Dialog open={isRemindStatusOpen} onOpenChange={setIsRemindStatusOpen}>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>提醒状态 & 测试</DialogTitle>
+            <DialogDescription>
+              查看所有优惠券的推送提醒状态，或测试推送功能
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* 测试推送区域 */}
+          <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <h4 className="font-semibold mb-3 flex items-center gap-2">
+              <Send className="h-4 w-4" />
+              测试推送
+            </h4>
+            <div className="grid grid-cols-3 gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => testRemind(7)}
+              >
+                测试7天提醒
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => testRemind(3)}
+              >
+                测试3天提醒
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => testRemind(1)}
+              >
+                测试1天提醒
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              注意：测试推送不会更新提醒状态
+            </p>
+          </div>
+
+          {/* 提醒状态列表 */}
+          <div>
+            <h4 className="font-semibold mb-3 flex items-center gap-2">
+              <Info className="h-4 w-4" />
+              优惠券提醒状态
+            </h4>
+            {loadingRemindStatus ? (
+              <div className="text-center py-8">加载中...</div>
+            ) : remindStatus.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">暂无优惠券</div>
+            ) : (
+              <div className="space-y-3">
+                {remindStatus.map((status) => (
+                  <div
+                    key={status.id}
+                    className="border rounded-lg p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <h4 className="font-semibold mb-1">{status.title}</h4>
+                        <div className="text-sm text-gray-500 space-y-1">
+                          <div>到期时间：{new Date(status.endDate).toLocaleDateString('zh-CN')}</div>
+                          <div>剩余天数：<span className={status.daysRemaining <= 3 ? 'text-orange-600 font-medium' : ''}>{status.daysRemaining}天</span></div>
+                          {status.remindedDays.length > 0 && (
+                            <div>已提醒：<span className="text-blue-600">{status.remindedDays.join('天、')}天</span></div>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        {status.willRemind ? (
+                          <Badge className="bg-green-500">
+                            将提醒（{status.remindDays.join('、')}天）
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-gray-500">
+                            {status.reason}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

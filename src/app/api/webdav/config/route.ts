@@ -11,7 +11,7 @@ export interface WebDAVConfigRequest {
 // 获取配置
 export async function GET() {
   try {
-    const config = getWebDAVConfig()
+    const config = await getWebDAVConfig()
 
     if (!config) {
       return NextResponse.json({ success: true, configured: false })
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 保存配置
-    saveWebDAVConfig(config)
+    await saveWebDAVConfig(config)
 
     return NextResponse.json({ success: true, message: "配置保存成功" })
   } catch (error) {
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
 // 清除配置
 export async function DELETE() {
   try {
-    clearWebDAVConfig()
+    await clearWebDAVConfig()
     return NextResponse.json({ success: true, message: "配置已清除" })
   } catch (error) {
     console.error("清除配置失败:", error)

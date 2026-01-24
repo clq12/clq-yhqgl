@@ -11,7 +11,7 @@ const CONFIG_COOKIE_NAME = "webdav_config"
 /**
  * 保存 WebDAV 配置到 Cookie
  */
-export function saveWebDAVConfig(config: WebDAVConfig): void {
+export async function saveWebDAVConfig(config: WebDAVConfig): Promise<void> {
   const cookieStore = cookies()
   const encoded = Buffer.from(JSON.stringify(config)).toString("base64")
   cookieStore.set(CONFIG_COOKIE_NAME, encoded, {
@@ -25,7 +25,7 @@ export function saveWebDAVConfig(config: WebDAVConfig): void {
 /**
  * 从 Cookie 获取 WebDAV 配置
  */
-export function getWebDAVConfig(): WebDAVConfig | null {
+export async function getWebDAVConfig(): Promise<WebDAVConfig | null> {
   try {
     const cookieStore = cookies()
     const config = cookieStore.get(CONFIG_COOKIE_NAME)
@@ -45,7 +45,7 @@ export function getWebDAVConfig(): WebDAVConfig | null {
 /**
  * 清除 WebDAV 配置
  */
-export function clearWebDAVConfig(): void {
+export async function clearWebDAVConfig(): Promise<void> {
   const cookieStore = cookies()
   cookieStore.delete(CONFIG_COOKIE_NAME)
 }

@@ -15,6 +15,7 @@ const webdavConfigSchema = z.object({
   url: z.string().min(1, "WebDAV 地址不能为空").url("请输入有效的 URL"),
   username: z.string().min(1, "用户名不能为空"),
   password: z.string().min(1, "密码不能为空"),
+  pushplusToken: z.string().optional(),
 })
 
 type WebDAVConfigForm = z.infer<typeof webdavConfigSchema>
@@ -203,7 +204,49 @@ export default function WebDAVConfig() {
                     <FormMessage />
                   </FormItem>
                 )}
+
+              <FormField
+                control={form.control}
+                name="pushplusToken"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabelField>PushPlus Token（可选）</FormLabelField>
+                    <FormControl>
+                      <Input
+                        placeholder="输入 PushPlus Token 用于微信推送"
+                        {...field}
+                      />
+                    </FormControl>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      获取 Token：<a
+                        href="http://www.pushplus.plus/push1.html"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline"
+                      >
+                        PushPlus 官网
+                      </a>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
               />
+
+              {/* PushPlus 使用说明 */}
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                <div className="flex items-start gap-2">
+                  <Info className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-amber-900 dark:text-amber-100">
+                    <p className="font-medium mb-1">微信推送功能：</p>
+                    <ul className="list-disc list-inside space-y-1 text-amber-800 dark:text-amber-200">
+                      <li>配置 Token 后可自动推送即将到期的优惠券</li>
+                      <li>提前 7天、3天、1天 分别提醒</li>
+                      <li>需要配合定时任务（如 cron-job.org）每天调用检查 API</li>
+                      <li>检查 API：<code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">/api/check-expiring</code></li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
 
               {/* 消息提示 */}
               {message && (

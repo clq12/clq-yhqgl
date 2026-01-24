@@ -2,6 +2,7 @@ export interface WebDAVConfig {
   url: string
   username: string
   password: string
+  pushplusToken?: string // PushPlus 推送令牌
 }
 
 const CONFIG_COOKIE_NAME = "webdav_config"

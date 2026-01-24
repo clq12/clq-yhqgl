@@ -1,5 +1,3 @@
-import { cookies } from "next/headers"
-
 export interface WebDAVConfig {
   url: string
   username: string
@@ -9,32 +7,28 @@ export interface WebDAVConfig {
 const CONFIG_COOKIE_NAME = "webdav_config"
 
 /**
- * 保存 WebDAV 配置到 Cookie
+ * 从 Request Headers 读取 Cookie 中的 WebDAV 配置
  */
-export async function saveWebDAVConfig(config: WebDAVConfig): Promise<void> {
-  const cookieStore = cookies()
-  const encoded = Buffer.from(JSON.stringify(config)).toString("base64")
-  cookieStore.set(CONFIG_COOKIE_NAME, encoded, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 30, // 30 天
-  })
-}
-
-/**
- * 从 Cookie 获取 WebDAV 配置
- */
-export async function getWebDAVConfig(): Promise<WebDAVConfig | null> {
+export function getWebDAVConfigFromRequest(request: Request): WebDAVConfig | null {
   try {
-    const cookieStore = cookies()
-    const config = cookieStore.get(CONFIG_COOKIE_NAME)
+    const cookieHeader = request.headers.get("cookie")
+    if (!cookieHeader) {
+      return null
+    }
 
+    const cookies = Object.fromEntries(
+      cookieHeader.split(";").map(cookie => {
+        const [name, ...values] = cookie.trim().split("=")
+        return [name, values.join("=")]
+      })
+    )
+
+    const config = cookies[CONFIG_COOKIE_NAME]
     if (!config) {
       return null
     }
 
-    const decoded = Buffer.from(config.value, "base64").toString("utf-8")
+    const decoded = Buffer.from(config, "base64").toString("utf-8")
     return JSON.parse(decoded) as WebDAVConfig
   } catch (error) {
     console.error("获取配置失败:", error)
@@ -43,9 +37,24 @@ export async function getWebDAVConfig(): Promise<WebDAVConfig | null> {
 }
 
 /**
- * 清除 WebDAV 配置
+ * 设置 Cookie 响应头
  */
-export async function clearWebDAVConfig(): Promise<void> {
-  const cookieStore = cookies()
-  cookieStore.delete(CONFIG_COOKIE_NAME)
+export function setConfigCookie(response: Response, config: WebDAVConfig): void {
+  const encoded = Buffer.from(JSON.stringify(config)).toString("base64")
+  const isSecure = process.env.NODE_ENV === "production"
+
+  response.headers.set(
+    "Set-Cookie",
+    `${CONFIG_COOKIE_NAME}=${encoded}; HttpOnly; Path=/; Max-Age=${60 * 60 * 24 * 30}; SameSite=lax${isSecure ? "; Secure" : ""}`
+  )
+}
+
+/**
+ * 清除 Cookie 响应头
+ */
+export function clearConfigCookie(response: Response): void {
+  response.headers.set(
+    "Set-Cookie",
+    `${CONFIG_COOKIE_NAME}=; HttpOnly; Path=/; Max-Age=0; SameSite=lax`
+  )
 }

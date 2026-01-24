@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getWebDAVConfig } from "@/lib/config"
+import { getWebDAVConfigFromRequest } from "@/lib/config"
 import { initWebDAVClient } from "@/lib/webdav-client"
 import { updateCoupon } from "@/lib/webdav-storage"
 
@@ -10,7 +10,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    const config = await getWebDAVConfig()
+    const config = getWebDAVConfigFromRequest(request)
 
     if (!config) {
       return NextResponse.json(

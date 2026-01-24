@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { saveWebDAVConfig, getWebDAVConfig, clearWebDAVConfig } from "@/lib/config"
+import { getWebDAVConfigFromRequest, setConfigCookie, clearConfigCookie } from "@/lib/config"
 import { initWebDAVClient, checkConnection } from "@/lib/webdav-client"
 
 export interface WebDAVConfigRequest {
@@ -9,9 +9,9 @@ export interface WebDAVConfigRequest {
 }
 
 // 获取配置
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const config = await getWebDAVConfig()
+    const config = getWebDAVConfigFromRequest(request)
 
     if (!config) {
       return NextResponse.json({ success: true, configured: false })
@@ -71,10 +71,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 保存配置
-    await saveWebDAVConfig(config)
+    // 创建响应并设置 Cookie
+    const response = NextResponse.json({ success: true, message: "配置保存成功" })
+    setConfigCookie(response, config)
 
-    return NextResponse.json({ success: true, message: "配置保存成功" })
+    return response
   } catch (error) {
     console.error("保存配置失败:", error)
     return NextResponse.json(
@@ -87,8 +88,9 @@ export async function POST(request: NextRequest) {
 // 清除配置
 export async function DELETE() {
   try {
-    await clearWebDAVConfig()
-    return NextResponse.json({ success: true, message: "配置已清除" })
+    const response = NextResponse.json({ success: true, message: "配置已清除" })
+    clearConfigCookie(response)
+    return response
   } catch (error) {
     console.error("清除配置失败:", error)
     return NextResponse.json(

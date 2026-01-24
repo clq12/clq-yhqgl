@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getWebDAVConfig } from "@/lib/config"
+import { getWebDAVConfigFromRequest } from "@/lib/config"
 import { initWebDAVClient } from "@/lib/webdav-client"
 import {
   getCouponById,
@@ -15,7 +15,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const config = await getWebDAVConfig()
+    const config = getWebDAVConfigFromRequest(request)
 
     if (!config) {
       return NextResponse.json(
@@ -51,7 +51,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
-    const config = await getWebDAVConfig()
+    const config = getWebDAVConfigFromRequest(request)
 
     if (!config) {
       return NextResponse.json(
@@ -92,7 +92,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    const config = await getWebDAVConfig()
+    const config = getWebDAVConfigFromRequest(request)
 
     if (!config) {
       return NextResponse.json(

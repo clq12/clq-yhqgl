@@ -4,15 +4,31 @@ import {
   fileExists,
   createDirectory,
 } from "./webdav-client"
-import type { Coupon } from "@/storage/database/shared/schema"
 
 const COUPONS_FILE = "/coupons/data.json"
 const BACKUP_DIR = "/coupons/backups"
 
+// WebDAV 专用的 Coupon 类型（使用字符串存储日期）
+export interface WebDAVCoupon {
+  id: string
+  title: string
+  description: string | null
+  discountAmount: number | null
+  startDate: string // ISO 字符串
+  endDate: string // ISO 字符串
+  isReminded: boolean
+  notes: string | null
+  createdAt: string // ISO 字符串
+  updatedAt: string | null // ISO 字符串
+}
+
 export interface CouponData {
-  coupons: Coupon[]
+  coupons: WebDAVCoupon[]
   lastModified: string
 }
+
+// 导出 WebDAVCoupon 为 Coupon（保持 API 兼容）
+export type Coupon = WebDAVCoupon
 
 /**
  * 初始化存储，确保目录存在

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getWebDAVConfigFromRequest } from "@/lib/config"
+import { getWebDAVConfigFromRequest, WebDAVConfig } from "@/lib/config"
 import { initWebDAVClient } from "@/lib/webdav-client"
 import {
   getAllCoupons,
@@ -9,11 +9,64 @@ import {
 } from "@/lib/webdav-storage"
 import { sendPushPlus, generateExpiringMessage } from "@/lib/pushplus"
 
+/**
+ * 从环境变量获取配置（用于定时任务）
+ */
+function getConfigFromEnv(): WebDAVConfig | null {
+  const {
+    WEBDAV_URL,
+    WEBDAV_USERNAME,
+    WEBDAV_PASSWORD,
+    PUSHPLUS_TOKEN,
+  } = process.env
+
+  if (WEBDAV_URL && WEBDAV_USERNAME && WEBDAV_PASSWORD) {
+    const config: WebDAVConfig = {
+      url: WEBDAV_URL,
+      username: WEBDAV_USERNAME,
+      password: WEBDAV_PASSWORD,
+    }
+
+    if (PUSHPLUS_TOKEN) {
+      config.pushplusToken = PUSHPLUS_TOKEN
+    }
+
+    return config
+  }
+
+  return null
+}
+
 // 检查即将到期的优惠券并发送推送
 export async function GET(request: NextRequest) {
   try {
-    // 1. 获取配置
-    const config = getWebDAVConfigFromRequest(request)
+    // 1. 获取配置（优先从环境变量，其次从 Cookie）
+    let config = getConfigFromEnv()
+
+    if (!config) {
+      config = getWebDAVConfigFromRequest(request)
+    }
+
+    if (!config) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "请先配置 WebDAV（通过应用界面或环境变量）",
+          hint: "定时任务需要配置环境变量：WEBDAV_URL, WEBDAV_USERNAME, WEBDAV_PASSWORD, PUSHPLUS_TOKEN",
+        },
+        { status: 401 }
+      )
+    }
+
+    if (!config.pushplusToken) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "请先配置 PushPlus Token（通过应用界面或环境变量 PUSHPLUS_TOKEN）",
+        },
+        { status: 400 }
+      )
+    }
 
     if (!config) {
       return NextResponse.json(

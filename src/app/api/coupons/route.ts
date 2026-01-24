@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getWebDAVConfigFromRequest } from "@/lib/config"
+import { getWebDAVConfigFromRequest, WebDAVConfig } from "@/lib/config"
 import { initWebDAVClient } from "@/lib/webdav-client"
 import {
   getAllCoupons,
@@ -7,10 +7,37 @@ import {
 } from "@/lib/webdav-storage"
 import { insertCouponSchema } from "@/storage/database/shared/schema"
 
+/**
+ * 从环境变量获取配置（用于定时任务）
+ */
+function getConfigFromEnv(): WebDAVConfig | null {
+  const {
+    WEBDAV_URL,
+    WEBDAV_USERNAME,
+    WEBDAV_PASSWORD,
+  } = process.env
+
+  if (WEBDAV_URL && WEBDAV_USERNAME && WEBDAV_PASSWORD) {
+    const config: WebDAVConfig = {
+      url: WEBDAV_URL,
+      username: WEBDAV_USERNAME,
+      password: WEBDAV_PASSWORD,
+    }
+
+    return config
+  }
+
+  return null
+}
+
 // 获取优惠券列表
 export async function GET(request: NextRequest) {
   try {
-    const config = getWebDAVConfigFromRequest(request)
+    let config = getConfigFromEnv()
+
+    if (!config) {
+      config = getWebDAVConfigFromRequest(request)
+    }
 
     if (!config) {
       return NextResponse.json(
@@ -37,7 +64,11 @@ export async function GET(request: NextRequest) {
 // 创建优惠券
 export async function POST(request: NextRequest) {
   try {
-    const config = getWebDAVConfigFromRequest(request)
+    let config = getConfigFromEnv()
+
+    if (!config) {
+      config = getWebDAVConfigFromRequest(request)
+    }
 
     if (!config) {
       return NextResponse.json(

@@ -1,8 +1,36 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getWebDAVConfigFromRequest } from "@/lib/config"
+import { getWebDAVConfigFromRequest, WebDAVConfig } from "@/lib/config"
 import { initWebDAVClient } from "@/lib/webdav-client"
 import { getAllCoupons, getExpiringCoupons, updateCoupon, saveCoupons } from "@/lib/webdav-storage"
 import { sendPushPlus, generateExpiringMessage } from "@/lib/pushplus"
+
+/**
+ * 从环境变量获取配置（用于定时任务）
+ */
+function getConfigFromEnv(): WebDAVConfig | null {
+  const {
+    WEBDAV_URL,
+    WEBDAV_USERNAME,
+    WEBDAV_PASSWORD,
+    PUSHPLUS_TOKEN,
+  } = process.env
+
+  if (WEBDAV_URL && WEBDAV_USERNAME && WEBDAV_PASSWORD) {
+    const config: WebDAVConfig = {
+      url: WEBDAV_URL,
+      username: WEBDAV_USERNAME,
+      password: WEBDAV_PASSWORD,
+    }
+
+    if (PUSHPLUS_TOKEN) {
+      config.pushplusToken = PUSHPLUS_TOKEN
+    }
+
+    return config
+  }
+
+  return null
+}
 
 // 手动测试提醒功能
 export async function GET(request: NextRequest) {
@@ -11,8 +39,12 @@ export async function GET(request: NextRequest) {
     const daysParam = searchParams.get('days')
     const days = daysParam ? parseInt(daysParam) : 1
 
-    // 1. 获取配置
-    const config = getWebDAVConfigFromRequest(request)
+    // 1. 获取配置（优先从环境变量，其次从 Cookie）
+    let config = getConfigFromEnv()
+
+    if (!config) {
+      config = getWebDAVConfigFromRequest(request)
+    }
 
     if (!config) {
       return NextResponse.json(

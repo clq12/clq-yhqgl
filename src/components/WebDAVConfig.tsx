@@ -26,6 +26,7 @@ export default function WebDAVConfig() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [configUrl, setConfigUrl] = useState("")
   const [hasPushPlusToken, setHasPushPlusToken] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
 
   const form = useForm<WebDAVConfigForm>({
     resolver: zodResolver(webdavConfigSchema),
@@ -70,7 +71,9 @@ export default function WebDAVConfig() {
       if (result.success) {
         setMessage({ type: "success", text: "配置保存成功！" })
         setIsConfigured(true)
+        setIsEditing(false)
         setConfigUrl(data.url)
+        setHasPushPlusToken(!!data.pushplusToken && data.pushplusToken.length > 0)
         setTimeout(() => {
           window.location.reload()
         }, 1000)
@@ -112,35 +115,47 @@ export default function WebDAVConfig() {
     }
   }
 
-  if (isConfigured) {
+  if (isConfigured && !isEditing) {
     return (
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>WebDAV 已配置</CardTitle>
-              <CardDescription>
+            <div className="flex-1">
+              <CardTitle className="flex items-center gap-2">
+                WebDAV 已配置
+                <CheckCircle className="h-5 w-5 text-green-600" />
+              </CardTitle>
+              <CardDescription className="mt-2">
                 已连接到: {configUrl}
               </CardDescription>
               {hasPushPlusToken && (
-                <div className="flex items-center gap-2 mt-2 text-sm text-green-600 dark:text-green-400">
+                <div className="flex items-center gap-2 mt-3 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-md inline-flex">
                   <CheckCircle className="h-4 w-4" />
                   PushPlus 微信推送已启用
                 </div>
               )}
               {!hasPushPlusToken && (
-                <div className="flex items-center gap-2 mt-2 text-sm text-amber-600 dark:text-amber-400">
+                <div className="flex items-center gap-2 mt-3 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-md inline-flex">
                   <Info className="h-4 w-4" />
                   PushPlus 未配置（可选）
                 </div>
               )}
             </div>
-            <CheckCircle className="h-8 w-8 text-green-600" />
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            <Button variant="outline" onClick={handleClearConfig}>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => setIsEditing(true)}
+              className="gap-2"
+            >
+              重新编辑
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleClearConfig}
+              className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 gap-2"
+            >
               清除配置
             </Button>
           </div>
@@ -152,9 +167,11 @@ export default function WebDAVConfig() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>配置 WebDAV</CardTitle>
+        <CardTitle>{isEditing ? "重新编辑配置" : "配置 WebDAV"}</CardTitle>
         <CardDescription>
-          配置 WebDAV 服务以存储优惠券数据
+          {isEditing
+            ? "修改 WebDAV 和 PushPlus 配置"
+            : "配置 WebDAV 服务以存储优惠券数据"}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -284,16 +301,35 @@ export default function WebDAVConfig() {
                 </div>
               )}
 
-              <Button type="submit" disabled={isSaving} className="w-full">
-                {isSaving ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    测试连接中...
-                  </>
-                ) : (
-                  "保存配置"
+              <div className="flex gap-2">
+                {isEditing && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsEditing(false)}
+                    disabled={isSaving}
+                    className="flex-1"
+                  >
+                    取消
+                  </Button>
                 )}
-              </Button>
+                <Button
+                  type="submit"
+                  disabled={isSaving}
+                  className={isEditing ? "flex-1" : "w-full"}
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      测试连接中...
+                    </>
+                  ) : isEditing ? (
+                    "更新配置"
+                  ) : (
+                    "保存配置"
+                  )}
+                </Button>
+              </div>
             </form>
           </Form>
         </div>

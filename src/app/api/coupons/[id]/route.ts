@@ -65,10 +65,13 @@ export async function PUT(
     // 验证数据
     const validated = updateCouponSchema.parse(body)
 
-    // 添加endHour字段支持
+    // 添加所有新字段支持
     const updates = {
       ...validated,
-      ...(body.endHour !== undefined && { endHour: body.endHour || null }),
+      ...(body.endHour !== undefined && { endHour: body.endHour ?? 23 }),
+      ...(body.discountType !== undefined && { discountType: body.discountType || null }),
+      ...(body.fullAmount !== undefined && { fullAmount: body.fullAmount || null }),
+      ...(body.isUsed !== undefined && { isUsed: body.isUsed }),
     }
 
     initWebDAVClient(config)

@@ -191,6 +191,43 @@ export default function Home() {
     }
   }
 
+  // 标记为已使用
+  const handleMarkUsed = async (id: string, isUsed: boolean) => {
+    try {
+      const response = await fetch(`/api/coupons/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isUsed }),
+      })
+      const result = await response.json()
+      if (result.success) {
+        fetchCoupons()
+      }
+    } catch (error) {
+      console.error("标记使用状态失败:", error)
+    }
+  }
+
+  // 显示折扣信息
+  const getDiscountText = (coupon: Coupon) => {
+    const discountType = (coupon as any).discountType
+    const discountAmount = coupon.discountAmount
+    const fullAmount = (coupon as any).fullAmount
+
+    if (!discountType || !discountAmount) return null
+
+    switch (discountType) {
+      case 'amount':
+        return `减${discountAmount}元`
+      case 'percentage':
+        return `${discountAmount}折`
+      case 'full':
+        return `满${fullAmount}减${discountAmount}`
+      default:
+        return null
+    }
+  }
+
   // 计算剩余天数和小时数（考虑endHour）
   const getDaysRemaining = (coupon: Coupon) => {
     const endDate = new Date(coupon.endDate)
@@ -200,7 +237,7 @@ export default function Home() {
     if (endHour !== null && endHour !== undefined) {
       endDate.setHours(endHour, 0, 0, 0)
     } else {
-      endDate.setHours(24, 0, 0, 0) // 默认24点（次日0点）
+      endDate.setHours(23, 0, 0, 0) // 默认23点
     }
 
     const now = new Date()
@@ -218,7 +255,7 @@ export default function Home() {
     if (endHour !== null && endHour !== undefined) {
       endDate.setHours(endHour, 0, 0, 0)
     } else {
-      endDate.setHours(24, 0, 0, 0)
+      endDate.setHours(23, 0, 0, 0)
     }
 
     const now = new Date()
@@ -564,7 +601,7 @@ export default function Home() {
         ) : (
           <div className="space-y-4">
             {/* 即将到期提示 */}
-            {getFilteredAndSortedCoupons().filter((c) => isExpiringSoon(c) && !isExpired(c) && !c.isReminded).length > 0 && (
+            {getFilteredAndSortedCoupons().filter((c) => isExpiringSoon(c) && !isExpired(c) && !c.isReminded && !(c as any).isUsed).length > 0 && (
               <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4 mb-4">
                 <div className="flex items-start gap-3">
                   <AlertCircle className="h-5 w-5 text-orange-600 dark:text-orange-400 mt-0.5" />
@@ -575,7 +612,7 @@ export default function Home() {
                     <p className="text-sm text-orange-700 dark:text-orange-300">
                       您有{" "}
                       {getFilteredAndSortedCoupons().filter(
-                        (c) => isExpiringSoon(c) && !isExpired(c) && !c.isReminded
+                        (c) => isExpiringSoon(c) && !isExpired(c) && !c.isReminded && !(c as any).isUsed
                       ).length}{" "}
                       张优惠券将在7天内到期，请尽快使用！
                     </p>
@@ -589,16 +626,20 @@ export default function Home() {
               const daysRemaining = getDaysRemaining(coupon)
               const expired = isExpired(coupon)
               const expiringSoon = isExpiringSoon(coupon) && !expired
+              const isUsed = (coupon as any).isUsed
               const endHour = (coupon as any).endHour
               const timeText = endHour !== null && endHour !== undefined
                 ? `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${endHour}点`
-                : `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} 24点`
+                : `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} 23点`
+              const discountText = getDiscountText(coupon)
 
               return (
                 <Card
                   key={coupon.id}
                   className={`p-4 ${
-                    expired
+                    isUsed
+                      ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 opacity-75"
+                      : expired
                       ? "bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-800"
                       : expiringSoon
                       ? "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800"
@@ -608,19 +649,22 @@ export default function Home() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-semibold text-gray-900 dark:text-white truncate">
+                        <h3 className={`font-semibold truncate ${isUsed ? 'line-through text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-white'}`}>
                           {coupon.title}
                         </h3>
-                        {coupon.discountAmount && (
-                          <Badge variant="secondary">{coupon.discountAmount}折</Badge>
+                        {discountText && (
+                          <Badge variant="secondary">{discountText}</Badge>
                         )}
-                        {expired && (
+                        {isUsed && (
+                          <Badge className="bg-green-500">已使用</Badge>
+                        )}
+                        {expired && !isUsed && (
                           <Badge variant="destructive">已过期</Badge>
                         )}
-                        {expiringSoon && !expired && (
+                        {expiringSoon && !expired && !isUsed && (
                           <Badge className="bg-orange-500">即将到期</Badge>
                         )}
-                        {coupon.isReminded && (
+                        {coupon.isReminded && !isUsed && (
                           <Badge
                             variant="outline"
                             className={`gap-1 ${
@@ -635,7 +679,7 @@ export default function Home() {
                         )}
                       </div>
                       {coupon.description && (
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
+                        <p className={`text-sm mb-3 line-clamp-2 ${isUsed ? 'text-gray-500 dark:text-gray-400' : 'text-gray-600 dark:text-gray-400'}`}>
                           {coupon.description}
                         </p>
                       )}
@@ -646,7 +690,7 @@ export default function Home() {
                             截止：{timeText}
                           </span>
                         </div>
-                        {daysRemaining >= 0 && (
+                        {!isUsed && daysRemaining >= 0 && (
                           <span className="text-gray-900 dark:text-white font-medium">
                             {daysRemaining === 0 ? "今天到期" : `剩余${daysRemaining}天`}
                           </span>
@@ -654,7 +698,7 @@ export default function Home() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {!coupon.isReminded && !expired && expiringSoon && (
+                      {!isUsed && !coupon.isReminded && !expired && expiringSoon && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -663,6 +707,28 @@ export default function Home() {
                           className="text-orange-600 hover:text-orange-700 dark:text-orange-400"
                         >
                           <Bell className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {!isUsed && !expired && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleMarkUsed(coupon.id, true)}
+                          className="text-green-600 hover:text-green-700 dark:text-green-400"
+                          title="标记为已使用"
+                        >
+                          <CheckCircle className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {isUsed && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleMarkUsed(coupon.id, false)}
+                          className="text-gray-600 hover:text-gray-700 dark:text-gray-400"
+                          title="取消已使用"
+                        >
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       )}
                       <Button

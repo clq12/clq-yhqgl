@@ -26,14 +26,29 @@ import type { Coupon } from "@/storage/database/shared/schema"
 const couponSchema = z.object({
   title: z.string().min(1, "标题不能为空").max(255, "标题不能超过255个字符"),
   description: z.string().optional(),
-  discountAmount: z.number().optional(),
+  discountType: z.enum(['amount', 'percentage', 'full']).nullable().optional(), // 折扣类型
+  discountAmount: z.number().optional(), // 折扣金额或折扣比例
+  fullAmount: z.number().optional(), // 满减中的满金额
   startDate: z.date({ message: "开始日期不能为空" }),
   endDate: z.date({ message: "截止日期不能为空" }),
-  endHour: z.number().min(0).max(23).nullable().optional(), // 截止小时，0-23，null表示24点
+  endHour: z.number().min(0).max(23).nullable().optional(), // 截止小时，0-23，null表示23点
   notes: z.string().optional(),
 }).refine((data) => data.endDate >= data.startDate, {
   message: "截止日期必须晚于或等于开始日期",
   path: ["endDate"],
+}).refine((data) => {
+  // 如果选择满减，必须提供满金额和减免金额
+  if (data.discountType === 'full') {
+    return data.fullAmount !== undefined && data.fullAmount > 0 && data.discountAmount !== undefined && data.discountAmount > 0
+  }
+  // 如果选择减免或折扣，必须提供金额
+  if (data.discountType === 'amount' || data.discountType === 'percentage') {
+    return data.discountAmount !== undefined && data.discountAmount > 0
+  }
+  return true
+}, {
+  message: "请完整填写折扣信息",
+  path: ["discountAmount"],
 })
 
 type CouponFormData = z.infer<typeof couponSchema>
@@ -53,19 +68,23 @@ export default function CouponForm({ coupon, onSubmit, onCancel }: CouponFormPro
       ? {
           title: coupon.title,
           description: coupon.description || "",
+          discountType: (coupon as any).discountType || null,
           discountAmount: coupon.discountAmount || undefined,
+          fullAmount: (coupon as any).fullAmount || undefined,
           startDate: new Date(coupon.startDate),
           endDate: new Date(coupon.endDate),
-          endHour: (coupon as any).endHour || null,
+          endHour: (coupon as any).endHour ?? 23, // 默认23点
           notes: coupon.notes || "",
         }
       : {
           title: "",
           description: "",
+          discountType: null,
           discountAmount: undefined,
+          fullAmount: undefined,
           startDate: new Date(),
           endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 默认30天后
-          endHour: null, // 默认24点
+          endHour: 23, // 默认23点
           notes: "",
         },
   })
@@ -112,27 +131,107 @@ export default function CouponForm({ coupon, onSubmit, onCancel }: CouponFormPro
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="discountAmount"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>折扣力度（可选）</FormLabel>
-              <FormControl>
-                <Input
-                  type="number"
-                  placeholder="例如：5（表示5折）"
-                  {...field}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    field.onChange(value === "" ? undefined : parseFloat(value))
-                  }}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {/* 折扣信息 */}
+        <div className="space-y-4 p-4 border rounded-lg bg-gray-50 dark:bg-gray-800">
+          <FormField
+            control={form.control}
+            name="discountType"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>折扣类型（可选）</FormLabel>
+                <FormControl>
+                  <select
+                    {...field}
+                    value={field.value ?? ""}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      field.onChange(value === "" ? null : value)
+                      // 清空相关字段
+                      if (value === "") {
+                        form.setValue("discountAmount", undefined)
+                        form.setValue("fullAmount", undefined)
+                      }
+                    }}
+                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="">不设置折扣</option>
+                    <option value="amount">减免金额</option>
+                    <option value="percentage">折扣比例</option>
+                    <option value="full">满减优惠</option>
+                  </select>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="fullAmount"
+            render={({ field }) => {
+              const discountType = form.watch("discountType")
+              if (discountType !== "full") return <></>
+
+              return (
+                <FormItem>
+                  <FormLabel>满金额</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      placeholder="例如：100（满100）"
+                      {...field}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        field.onChange(value === "" ? undefined : parseFloat(value))
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )
+            }}
+          />
+
+          <FormField
+            control={form.control}
+            name="discountAmount"
+            render={({ field }) => {
+              const discountType = form.watch("discountType")
+
+              if (!discountType) return <></>
+
+              const placeholder = {
+                amount: "例如：20（减20元）",
+                percentage: "例如：5（5折）",
+                full: "例如：20（减20元）"
+              }[discountType]
+
+              const label = {
+                amount: "减免金额",
+                percentage: "折扣比例",
+                full: "减免金额"
+              }[discountType]
+
+              return (
+                <FormItem>
+                  <FormLabel>{label}</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      placeholder={placeholder}
+                      {...field}
+                      onChange={(e) => {
+                        const value = e.target.value
+                        field.onChange(value === "" ? undefined : parseFloat(value))
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )
+            }}
+          />
+        </div>
 
         <div className="grid grid-cols-2 gap-4">
           <FormField
@@ -221,18 +320,17 @@ export default function CouponForm({ coupon, onSubmit, onCancel }: CouponFormPro
           name="endHour"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>截止小时（可选）</FormLabel>
+              <FormLabel>截止小时</FormLabel>
               <FormControl>
                 <select
                   {...field}
                   onChange={(e) => {
                     const value = e.target.value
-                    field.onChange(value === "" ? null : parseInt(value))
+                    field.onChange(value === "" ? 23 : parseInt(value))
                   }}
-                  value={field.value ?? ""}
+                  value={field.value ?? 23}
                   className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <option value="">24点（默认）</option>
                   {Array.from({ length: 24 }, (_, i) => (
                     <option key={i} value={i}>
                       {i}点

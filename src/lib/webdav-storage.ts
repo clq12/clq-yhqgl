@@ -14,11 +14,13 @@ export interface WebDAVCoupon {
   title: string
   description: string | null
   discountAmount: number | null
+  discountType: 'amount' | 'percentage' | 'full' | null // 折扣类型：amount(减免金额), percentage(折扣), full(满减)
   startDate: string // ISO 字符串
   endDate: string // ISO 字符串
-  endHour: number | null // 截止小时，0-23，null表示24点
+  endHour: number | null // 截止小时，0-23，null表示23点
   isReminded: boolean
   remindedDays: number[] // 记录已经提醒过的天数，如[7, 3, 1]
+  isUsed: boolean // 是否已使用
   notes: string | null
   createdAt: string // ISO 字符串
   updatedAt: string | null // ISO 字符串
@@ -178,6 +180,11 @@ export async function getExpiringCoupons(days: number): Promise<Coupon[]> {
   const now = new Date()
 
   return coupons.filter((coupon) => {
+    // 排除已使用的优惠券
+    if (coupon.isUsed) {
+      return false
+    }
+
     const endDate = new Date(coupon.endDate)
     const endHour = (coupon as any).endHour
 
@@ -185,7 +192,7 @@ export async function getExpiringCoupons(days: number): Promise<Coupon[]> {
     if (endHour !== null && endHour !== undefined) {
       endDate.setHours(endHour, 0, 0, 0)
     } else {
-      endDate.setHours(24, 0, 0, 0)
+      endDate.setHours(23, 0, 0, 0)
     }
 
     const diff = endDate.getTime() - now.getTime()
@@ -210,7 +217,7 @@ export async function getExpiredCoupons(): Promise<Coupon[]> {
     if (endHour !== null && endHour !== undefined) {
       endDate.setHours(endHour, 0, 0, 0)
     } else {
-      endDate.setHours(24, 0, 0, 0)
+      endDate.setHours(23, 0, 0, 0)
     }
 
     return endDate < now

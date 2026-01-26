@@ -64,6 +64,9 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
     result.discountType = 'full'
   } else if (text.includes('满减') || text.includes('满') && text.includes('减')) {
     result.discountType = 'full'
+  } else if (text.includes('满') && /满[\d\.]+-\d+/.test(text)) {
+    // 满X-Y 格式：满5.01-5
+    result.discountType = 'full'
   } else if (text.includes('折') && !text.includes('满')) {
     result.discountType = 'percentage'
     // 提取折扣数值（例如：8折 = 80%）
@@ -92,6 +95,17 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
         result.discountType = 'full'  // 确保设置为满减类型
         break
       }
+    }
+  }
+
+  // 4.5 提取满X-Y格式的折扣金额
+  // 例如：满5.01-5，满100-20
+  if (result.discountType === 'full' && !result.discountAmount) {
+    const manJianPattern = /满(\d+(?:\.\d+)?)\s*[-]\s*(\d+(?:\.\d+)?)/
+    const match = text.match(manJianPattern)
+    if (match) {
+      result.fullAmount = parseFloat(match[1])
+      result.discountAmount = parseFloat(match[2])
     }
   }
 

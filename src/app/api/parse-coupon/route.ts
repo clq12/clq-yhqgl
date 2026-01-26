@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { LLMClient, Config } from 'coze-coding-dev-sdk'
 
 export interface ExtractedCouponInfo {
   title?: string
@@ -215,10 +216,100 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
   return result
 }
 
+/**
+ * 使用AI提取优惠券信息
+ */
+async function extractCouponInfoWithAI(text: string): Promise<ExtractedCouponInfo> {
+  const config = new Config()
+  const client = new LLMClient(config)
+
+  const systemPrompt = `你是一个专业的优惠券信息提取助手。请从给定的文本中提取优惠券的关键信息，并以JSON格式返回。
+
+提取规则：
+1. title: 优惠券标题（如"建设银行立减金"、"8折优惠券"等）
+2. discountAmount: 折扣金额或折扣数值（如减5元则为5，8折则为8）
+3. discountType: 折扣类型（amount=减免金额, percentage=折扣, full=满减）
+4. fullAmount: 满减金额（仅当discountType为full时需要）
+5. endDate: 截止日期，格式为YYYY-MM-DD（如2024-12-31）
+6. endHour: 截止小时，0-23之间的整数，默认为23
+7. storeName: 店铺或平台名称（如"淘宝"、"建设银行"等）
+8. description: 描述信息（如"饮品通用"、"C1"等）
+
+注意事项：
+- 日期格式必须为YYYY-MM-DD
+- 如果文本中没有明确截止时间，endHour默认设为23
+- 折扣类型判断：
+  - 如果包含"满X可用"、"满X减X"，则为full
+  - 如果包含"X折"但不包含"满"，则为percentage
+  - 如果包含"减X元"、"减免X元"，则为amount
+- 只返回JSON格式，不要包含任何其他文字
+- 如果无法提取某个字段，则不包含该字段或设为null
+
+返回JSON格式示例：
+{
+  "title": "建设银行立减金",
+  "discountAmount": 5,
+  "discountType": "full",
+  "fullAmount": 2000,
+  "endDate": "2024-12-31",
+  "endHour": 23,
+  "storeName": "建设银行",
+  "description": "饮品通用"
+}`
+
+  const messages = [
+    { role: 'system' as const, content: systemPrompt },
+    { role: 'user' as const, content: `请提取以下优惠券信息：\n\n${text}` },
+  ]
+
+  try {
+    const response = await client.invoke(messages, {
+      model: 'doubao-seed-1-8-251228',
+      temperature: 0.3, // 较低的温度以获得更准确的提取结果
+    })
+
+    // 解析AI返回的JSON
+    const jsonMatch = response.content.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      const parsedData = JSON.parse(jsonMatch[0])
+      
+      // 验证和转换数据
+      const result: ExtractedCouponInfo = {}
+      
+      if (parsedData.title) result.title = parsedData.title
+      if (parsedData.storeName) result.storeName = parsedData.storeName
+      if (parsedData.description) result.description = parsedData.description
+      if (parsedData.discountAmount) result.discountAmount = Number(parsedData.discountAmount)
+      if (parsedData.fullAmount) result.fullAmount = Number(parsedData.fullAmount)
+      if (parsedData.endDate) result.endDate = parsedData.endDate
+      if (parsedData.endHour) result.endHour = Number(parsedData.endHour)
+      
+      // 验证折扣类型
+      if (parsedData.discountType && ['amount', 'percentage', 'full'].includes(parsedData.discountType)) {
+        result.discountType = parsedData.discountType
+      }
+      
+      // 如果AI没有提取到完整信息，回退到规则匹配
+      if (!result.title || !result.discountAmount || !result.discountType) {
+        console.log('AI提取不完整，回退到规则匹配')
+        return extractCouponInfo(text)
+      }
+      
+      return result
+    } else {
+      console.log('AI返回格式错误，回退到规则匹配')
+      return extractCouponInfo(text)
+    }
+  } catch (error) {
+    console.error('AI解析失败，回退到规则匹配:', error)
+    return extractCouponInfo(text)
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { text } = body
+    const { text, useAI } = body
 
     if (!text || typeof text !== 'string') {
       return NextResponse.json(
@@ -227,8 +318,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 提取优惠券信息
-    const extractedInfo = extractCouponInfo(text)
+    // 根据参数选择提取方式
+    let extractedInfo: ExtractedCouponInfo
+    if (useAI === true) {
+      extractedInfo = await extractCouponInfoWithAI(text)
+    } else {
+      extractedInfo = extractCouponInfo(text)
+    }
 
     return NextResponse.json({
       success: true,

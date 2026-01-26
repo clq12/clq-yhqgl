@@ -47,6 +47,7 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
   const [isExtracting, setIsExtracting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pastedText, setPastedText] = useState('')
+  const [useAI, setUseAI] = useState(false)
 
   const handleFilesSelect = (files: FileList | null) => {
     setError(null)
@@ -185,7 +186,7 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
           const response = await fetch('/api/parse-coupon', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: img.ocrResult!.text }),
+            body: JSON.stringify({ text: img.ocrResult!.text, useAI }),
           })
 
           const result = await response.json()
@@ -232,7 +233,7 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
           const response = await fetch('/api/parse-coupon', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: couponText }),
+            body: JSON.stringify({ text: couponText, useAI }),
           })
 
           const result = await response.json()
@@ -339,6 +340,24 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
         </Tabs>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* AI识别选项 */}
+        <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+          <div className="flex items-center gap-2">
+            <ScanText className="h-4 w-4 text-primary" />
+            <div className="text-sm">
+              <div className="font-medium">AI智能识别</div>
+              <div className="text-xs text-muted-foreground">使用大语言模型解析优惠券，准确率更高</div>
+            </div>
+          </div>
+          <Button
+            variant={useAI ? "default" : "outline"}
+            size="sm"
+            onClick={() => setUseAI(!useAI)}
+          >
+            {useAI ? "已启用" : "启用"}
+          </Button>
+        </div>
+
         {/* 错误提示 */}
         {error && (
           <Alert variant="destructive">

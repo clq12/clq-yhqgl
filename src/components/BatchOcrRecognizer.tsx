@@ -48,7 +48,7 @@ interface BatchOcrRecognizerProps {
 }
 
 export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: BatchOcrRecognizerProps) {
-  const [mode, setMode] = useState<'image' | 'text'>('image')
+  const [mode, setMode] = useState<'image' | 'text'>('text')
   const [images, setImages] = useState<ImageFile[]>([])
   const [isRecognizing, setIsRecognizing] = useState(false)
   const [progress, setProgress] = useState(0)

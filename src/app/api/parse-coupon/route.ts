@@ -191,7 +191,13 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
     if (line.includes('优惠券') || line.includes('券') || line.includes('优惠')) {
       // 排除说明、数量等信息行
       if (!line.match(/说明|余|张|送TA|期限|红包|无效券|立即使用|充值|使用|有效期至|可用|建设银行|工商银行|农业银行|中国银行|招商银行|交通银行|储蓄卡/)) {
-        result.title = line.replace(/[优惠券券优惠]/g, '').trim()
+        // 提取第一个空格前的词作为标题
+        const firstSpaceIndex = line.indexOf(' ')
+        if (firstSpaceIndex > 0) {
+          result.title = line.substring(0, firstSpaceIndex).trim()
+        } else {
+          result.title = line.replace(/[优惠券券优惠]/g, '').trim()
+        }
         if (result.title) break
       }
     }
@@ -202,7 +208,13 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
     for (const line of lines) {
       if (!line.match(/^[\d\.¥￥元]+$/) && 
           !line.match(/说明|余|张|送TA|期限|红包|无效券|立即使用|充值|使用|有效期至|可用|建设银行|工商银行|农业银行|中国银行|招商银行|交通银行|储蓄卡|优惠券|券/)) {
-        result.title = line
+        // 提取第一个空格前的词作为标题
+        const firstSpaceIndex = line.indexOf(' ')
+        if (firstSpaceIndex > 0) {
+          result.title = line.substring(0, firstSpaceIndex).trim()
+        } else {
+          result.title = line
+        }
         break
       }
     }

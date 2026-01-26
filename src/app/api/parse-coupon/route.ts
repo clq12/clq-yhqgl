@@ -225,36 +225,45 @@ async function extractCouponInfoWithAI(text: string): Promise<ExtractedCouponInf
 
   const systemPrompt = `你是一个专业的优惠券信息提取助手。请从给定的文本中提取优惠券的关键信息，并以JSON格式返回。
 
+支持的输入格式示例：
+1. "华香脆骨串优惠券 有效期至2026-01-31 23:59"
+2. "淘宝优惠券满100减20元有效期至2024-12-31 23点"
+3. "建设银行立减金，满2000减5元，有效期至2024-12-31 23点，饮品通用"
+4. "蜜雪冰城饮品优惠券 8折 有效期至2026-01-30"
+
 提取规则：
-1. title: 优惠券标题（如"建设银行立减金"、"8折优惠券"等）
+1. title: 优惠券标题（优先提取店铺/商品名+优惠券类型，如"华香脆骨串优惠券"、"建设银行立减金"）
 2. discountAmount: 折扣金额或折扣数值（如减5元则为5，8折则为8）
 3. discountType: 折扣类型（amount=减免金额, percentage=折扣, full=满减）
 4. fullAmount: 满减金额（仅当discountType为full时需要）
-5. endDate: 截止日期，格式为YYYY-MM-DD（如2024-12-31）
+5. endDate: 截止日期，格式为YYYY-MM-DD（如2026-01-31）
 6. endHour: 截止小时，0-23之间的整数，默认为23
-7. storeName: 店铺或平台名称（如"淘宝"、"建设银行"等）
-8. description: 描述信息（如"饮品通用"、"C1"等）
+7. storeName: 店铺或平台名称（从开头提取，如"华香脆骨串"、"淘宝"、"建设银行"、"蜜雪冰城"）
+8. description: 描述信息（如"饮品"、"脆骨串"等）
 
 注意事项：
 - 日期格式必须为YYYY-MM-DD
+- 支持的日期格式：2026-01-31、2026年1月31日、1月31日
+- 支持的时间格式：23:59、23点、23时
 - 如果文本中没有明确截止时间，endHour默认设为23
 - 折扣类型判断：
   - 如果包含"满X可用"、"满X减X"，则为full
   - 如果包含"X折"但不包含"满"，则为percentage
   - 如果包含"减X元"、"减免X元"，则为amount
+  - 如果只提到"优惠券"但没有折扣信息，设为null
 - 只返回JSON格式，不要包含任何其他文字
 - 如果无法提取某个字段，则不包含该字段或设为null
 
 返回JSON格式示例：
 {
-  "title": "建设银行立减金",
+  "title": "华香脆骨串优惠券",
   "discountAmount": 5,
   "discountType": "full",
   "fullAmount": 2000,
-  "endDate": "2024-12-31",
+  "endDate": "2026-01-31",
   "endHour": 23,
-  "storeName": "建设银行",
-  "description": "饮品通用"
+  "storeName": "华香脆骨串",
+  "description": "脆骨串"
 }`
 
   const messages = [

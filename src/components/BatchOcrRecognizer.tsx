@@ -264,7 +264,7 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
 
   /**
    * 分割多个优惠券文本
-   * 根据关键词（如"优惠券"、"券"等）和金额模式进行分割
+   * 每行作为一个优惠券
    */
   function splitCouponTexts(text: string): string[] {
     const lines = text.split('\n').map(line => line.trim()).filter(line => line)
@@ -273,33 +273,12 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
       return [text]
     }
 
+    // 每行作为一个优惠券
     const couponTexts: string[] = []
-    let currentCoupon: string[] = []
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i]
-      const prevLine = i > 0 ? lines[i - 1] : ''
-
-      // 检测新优惠券的开始标志
-      // 条件：以银行名称开头 且 前一行不是银行名称（避免重复）
-      // 或者 以"¥"、"优惠券"、"立减金"开头 且 前一个优惠券已经有内容
-      const isBankStart = /^(建设银行|工商银行|农业银行|中国银行|招商银行|交通银行|中信银行|光大银行|民生银行|平安银行|浦发银行)/.test(line)
-      const isNewCoupon = (isBankStart && !prevLine.match(/建设银行|工商银行|农业银行|中国银行|招商银行|交通银行|中信银行|光大银行|民生银行|平安银行|浦发银行/)) ||
-                          (/^(¥\d+|￥\d+)/.test(line) && currentCoupon.length > 3) ||
-                          (/^(优惠券|立减金|银行立减金)/.test(line) && currentCoupon.length > 3)
-
-      if (isNewCoupon && currentCoupon.length > 0) {
-        // 保存当前优惠券
-        couponTexts.push(currentCoupon.join('\n'))
-        currentCoupon = []
+    for (const line of lines) {
+      if (line.length > 0) {
+        couponTexts.push(line)
       }
-
-      currentCoupon.push(line)
-    }
-
-    // 保存最后一个优惠券
-    if (currentCoupon.length > 0) {
-      couponTexts.push(currentCoupon.join('\n'))
     }
 
     // 如果没有分割出来，返回整个文本

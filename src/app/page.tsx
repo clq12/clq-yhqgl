@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Plus, Bell, Calendar, Trash2, Edit, CheckCircle, AlertCircle, Info, Send, Settings, Check } from "lucide-react"
+import { Plus, Bell, Calendar, Trash2, Edit, CheckCircle, AlertCircle, Info, Send, Settings, Check, BarChart3, CheckSquare, XSquare, Clock, Trash, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import CouponForm from "@/components/CouponForm"
 import WebDAVConfig from "@/components/WebDAVConfig"
+import StatDashboard from "@/components/StatDashboard"
 import type { Coupon } from "@/storage/database/shared/schema"
 
 interface RemindStatusItem {
@@ -55,6 +56,9 @@ export default function Home() {
   const [sortBy, setSortBy] = useState<'discount' | 'remaining' | 'name' | null>(null)
   const [sortByOrder, setSortByOrder] = useState<'asc' | 'desc'>('desc')
   const [filterExpiring, setFilterExpiring] = useState<'1day' | '3day' | '7day' | 'all'>('all')
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [isBulkMode, setIsBulkMode] = useState(false)
+  const [isStatDialogOpen, setIsStatDialogOpen] = useState(false)
 
   // 检查 WebDAV 配置
   const checkWebDAVConfig = async () => {
@@ -171,6 +175,107 @@ export default function Home() {
       }
     } catch (error) {
       console.error("删除优惠券失败:", error)
+    }
+  }
+
+  // 批量操作：切换选中状态
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    )
+  }
+
+  // 批量操作：全选/取消全选
+  const toggleAllSelection = () => {
+    const currentCoupons = getFilteredAndSortedCoupons()
+    if (selectedIds.length === currentCoupons.length) {
+      setSelectedIds([])
+    } else {
+      setSelectedIds(currentCoupons.map(c => c.id))
+    }
+  }
+
+  // 批量操作：标记已使用
+  const handleBulkMarkUsed = async (isUsed: boolean) => {
+    if (selectedIds.length === 0) return
+
+    try {
+      const response = await fetch("/api/coupons/bulk", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: selectedIds,
+          action: "markUsed",
+          isUsed,
+        }),
+      })
+
+      const result = await response.json()
+      if (result.success) {
+        setSelectedIds([])
+        setIsBulkMode(false)
+        fetchCoupons()
+      }
+    } catch (error) {
+      console.error("批量操作失败:", error)
+      alert("批量操作失败")
+    }
+  }
+
+  // 批量操作：删除
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return
+
+    if (!confirm(`确定要删除选中的 ${selectedIds.length} 个优惠券吗？`)) {
+      return
+    }
+
+    try {
+      const response = await fetch("/api/coupons/bulk", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: selectedIds,
+          action: "delete",
+        }),
+      })
+
+      const result = await response.json()
+      if (result.success) {
+        setSelectedIds([])
+        setIsBulkMode(false)
+        fetchCoupons()
+      }
+    } catch (error) {
+      console.error("批量删除失败:", error)
+      alert("批量删除失败")
+    }
+  }
+
+  // 批量操作：修改截止时间
+  const handleBulkExtend = async (days: number) => {
+    if (selectedIds.length === 0) return
+
+    try {
+      const response = await fetch("/api/coupons/bulk", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: selectedIds,
+          action: "extend",
+          days,
+        }),
+      })
+
+      const result = await response.json()
+      if (result.success) {
+        setSelectedIds([])
+        setIsBulkMode(false)
+        fetchCoupons()
+      }
+    } catch (error) {
+      console.error("批量修改失败:", error)
+      alert("批量修改失败")
     }
   }
 
@@ -472,9 +577,103 @@ export default function Home() {
                 <CouponForm onSubmit={handleAddCoupon} onCancel={() => setIsAddDialogOpen(false)} />
               </DialogContent>
             </Dialog>
+
+            {/* 统计分析按钮 */}
+            <Dialog open={isStatDialogOpen} onOpenChange={setIsStatDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-full gap-2"
+                  disabled={!isWebDAVConfigured || coupons.length === 0}
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  统计
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>统计分析</DialogTitle>
+                  <DialogDescription>
+                    查看优惠券使用情况和节省金额
+                  </DialogDescription>
+                </DialogHeader>
+                <StatDashboard coupons={coupons} />
+              </DialogContent>
+            </Dialog>
+
+            {/* 批量操作模式按钮 */}
+            <Button
+              size="sm"
+              variant={isBulkMode ? "default" : "outline"}
+              className="rounded-full gap-2"
+              onClick={() => {
+                setIsBulkMode(!isBulkMode)
+                setSelectedIds([])
+              }}
+              disabled={!isWebDAVConfigured || coupons.length === 0}
+            >
+              {isBulkMode ? <XSquare className="h-4 w-4" /> : <CheckSquare className="h-4 w-4" />}
+              {isBulkMode ? "退出" : "批量"}
+            </Button>
           </div>
         </div>
       </div>
+
+      {/* 批量操作栏 */}
+      {isBulkMode && selectedIds.length > 0 && (
+        <div className="sticky top-16 z-30 bg-white/95 backdrop-blur-lg border-b px-4 py-3 dark:bg-gray-900/95 dark:border-gray-800">
+          <div className="max-w-4xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={selectedIds.length === getFilteredAndSortedCoupons().length}
+                onChange={toggleAllSelection}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              <span>已选择 <strong>{selectedIds.length}</strong> 个优惠券</span>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleBulkMarkUsed(true)}
+                className="gap-2"
+              >
+                <CheckCircle className="h-4 w-4" />
+                标记已使用
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleBulkMarkUsed(false)}
+                className="gap-2"
+              >
+                <XSquare className="h-4 w-4" />
+                取消已使用
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleBulkExtend(7)}
+                className="gap-2"
+              >
+                <Clock className="h-4 w-4" />
+                延长7天
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={handleBulkDelete}
+                className="gap-2"
+              >
+                <Trash className="h-4 w-4" />
+                删除
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 主内容区 */}
       <div className="max-w-4xl mx-auto p-4 pb-24">
@@ -686,7 +885,17 @@ export default function Home() {
                       : "bg-white dark:bg-gray-800"
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    {/* 批量选择复选框 */}
+                    {isBulkMode && (
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(coupon.id)}
+                        onChange={() => toggleSelection(coupon.id)}
+                        className="h-4 w-4 mt-1 rounded border-gray-300"
+                      />
+                    )}
+
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-2">
                         <h3 className={`font-semibold truncate ${isUsed ? 'line-through text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-white'}`}>

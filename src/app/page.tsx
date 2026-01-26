@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Plus, Bell, Calendar, Trash2, Edit, CheckCircle, AlertCircle, Info, Send, Settings, Check, BarChart3, CheckSquare, XSquare, Clock, Trash, ChevronDown } from "lucide-react"
+import { Plus, Bell, Calendar, Trash2, Edit, CheckCircle, AlertCircle, Info, Settings, Check, BarChart3, CheckSquare, XSquare, Clock, Trash, ChevronDown, ScanText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -27,6 +27,7 @@ import {
 import CouponForm from "@/components/CouponForm"
 import WebDAVConfig from "@/components/WebDAVConfig"
 import StatDashboard from "@/components/StatDashboard"
+import OcrCouponRecognizer, { type ExtractedCouponInfo } from "@/components/OcrCouponRecognizer"
 import type { Coupon } from "@/storage/database/shared/schema"
 
 interface RemindStatusItem {
@@ -44,7 +45,6 @@ interface RemindStatusItem {
 export default function Home() {
   const [coupons, setCoupons] = useState<Coupon[]>([])
   const [loading, setLoading] = useState(true)
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null)
   const [isReminding, setIsReminding] = useState<string | null>(null)
   const [isWebDAVConfigured, setIsWebDAVConfigured] = useState(false)
@@ -59,6 +59,7 @@ export default function Home() {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [isBulkMode, setIsBulkMode] = useState(false)
   const [isStatDialogOpen, setIsStatDialogOpen] = useState(false)
+  const [isOcrDialogOpen, setIsOcrDialogOpen] = useState(false)
 
   // 检查 WebDAV 配置
   const checkWebDAVConfig = async () => {
@@ -90,20 +91,25 @@ export default function Home() {
     }
   }
 
-  // 测试提醒
-  const testRemind = async (days: number) => {
-    try {
-      const response = await fetch(`/api/test-remind?days=${days}`)
-      const result = await response.json()
-      if (result.success) {
-        alert(`测试成功！${result.message}`)
-      } else {
-        alert(`测试失败：${result.error}`)
-      }
-    } catch (error) {
-      console.error("测试提醒失败:", error)
-      alert("测试失败")
-    }
+  // 处理OCR识别结果
+  const handleOcrExtracted = (info: ExtractedCouponInfo) => {
+    setIsOcrDialogOpen(false)
+    // 打开添加/编辑对话框，并将OCR识别的数据作为默认值
+    setEditingCoupon({
+      id: '', // 空id表示添加模式
+      title: info.title || '',
+      description: info.description || '',
+      discountAmount: info.discountAmount || 0,
+      startDate: new Date().toISOString().split('T')[0],
+      endDate: info.endDate ? new Date(info.endDate).toISOString().split('T')[0] : '',
+      isReminded: false,
+      isUsed: false,
+      createdAt: new Date().toISOString(),
+      notes: info.notes || '',
+      discountType: info.discountType || 'amount',
+      fullAmount: info.fullAmount,
+      endHour: info.endHour ?? 23
+    } as any)
   }
 
   // 获取优惠券列表
@@ -137,7 +143,7 @@ export default function Home() {
       })
       const result = await response.json()
       if (result.success) {
-        setIsAddDialogOpen(false)
+        setEditingCoupon(null)
         fetchCoupons()
       }
     } catch (error) {
@@ -560,21 +566,41 @@ export default function Home() {
               </DialogContent>
             </Dialog>
 
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            {/* 添加优惠券按钮 */}
+            <Button
+              size="sm"
+              className="rounded-full gap-2"
+              disabled={!isWebDAVConfigured}
+              onClick={() => setEditingCoupon({ id: '' } as any)}
+            >
+              <Plus className="h-4 w-4" />
+              添加
+            </Button>
+
+            {/* OCR识别按钮 */}
+            <Dialog open={isOcrDialogOpen} onOpenChange={setIsOcrDialogOpen}>
               <DialogTrigger asChild>
-                <Button size="sm" className="rounded-full gap-2" disabled={!isWebDAVConfigured}>
-                  <Plus className="h-4 w-4" />
-                  添加
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-full gap-2"
+                  disabled={!isWebDAVConfigured}
+                >
+                  <ScanText className="h-4 w-4" />
+                  OCR识别
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]">
+              <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>添加优惠券</DialogTitle>
+                  <DialogTitle>智能识别优惠券</DialogTitle>
                   <DialogDescription>
-                    填写优惠信息，系统会在截止日期前提醒您
+                    上传优惠券图片或粘贴文本，自动识别优惠信息
                   </DialogDescription>
                 </DialogHeader>
-                <CouponForm onSubmit={handleAddCoupon} onCancel={() => setIsAddDialogOpen(false)} />
+                <OcrCouponRecognizer
+                  onExtracted={handleOcrExtracted}
+                  onCancel={() => setIsOcrDialogOpen(false)}
+                />
               </DialogContent>
             </Dialog>
 
@@ -1020,17 +1046,20 @@ export default function Home() {
         )}
       </div>
 
-      {/* 编辑对话框 */}
+      {/* 添加/编辑对话框 */}
       {editingCoupon && (
         <Dialog open={!!editingCoupon} onOpenChange={() => setEditingCoupon(null)}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>编辑优惠券</DialogTitle>
-              <DialogDescription>修改优惠券信息</DialogDescription>
+              <DialogTitle>{editingCoupon.id ? '编辑优惠券' : '添加优惠券'}</DialogTitle>
+              <DialogDescription>{editingCoupon.id ? '修改优惠券信息' : '填写优惠信息，系统会在截止日期前提醒您'}</DialogDescription>
             </DialogHeader>
             <CouponForm
               coupon={editingCoupon}
-              onSubmit={(data) => handleUpdateCoupon(editingCoupon.id, data)}
+              onSubmit={editingCoupon.id
+                ? (data) => handleUpdateCoupon(editingCoupon.id, data)
+                : (data) => handleAddCoupon(data)
+              }
               onCancel={() => setEditingCoupon(null)}
             />
           </DialogContent>
@@ -1041,45 +1070,11 @@ export default function Home() {
       <Dialog open={isRemindStatusOpen} onOpenChange={setIsRemindStatusOpen}>
         <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>提醒状态 & 测试</DialogTitle>
+            <DialogTitle>提醒状态</DialogTitle>
             <DialogDescription>
-              查看所有优惠券的推送提醒状态，或测试推送功能
+              查看所有优惠券的推送提醒状态
             </DialogDescription>
           </DialogHeader>
-
-          {/* 测试推送区域 */}
-          <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-            <h4 className="font-semibold mb-3 flex items-center gap-2">
-              <Send className="h-4 w-4" />
-              测试推送
-            </h4>
-            <div className="grid grid-cols-3 gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => testRemind(7)}
-              >
-                测试7天提醒
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => testRemind(3)}
-              >
-                测试3天提醒
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => testRemind(1)}
-              >
-                测试1天提醒
-              </Button>
-            </div>
-            <p className="text-xs text-gray-500 mt-2">
-              注意：测试推送不会更新提醒状态
-            </p>
-          </div>
 
           {/* 提醒状态列表 */}
           <div>

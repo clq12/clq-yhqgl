@@ -55,7 +55,7 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
   const [isExtracting, setIsExtracting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [pastedText, setPastedText] = useState('')
-  const [useAI, setUseAI] = useState(false)
+  const [useAI, setUseAI] = useState(true)
   const [viewingImageIndex, setViewingImageIndex] = useState<number | null>(null)
 
   const handleFilesSelect = (files: FileList | null) => {
@@ -374,7 +374,7 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
             <ScanText className="h-4 w-4 text-primary" />
             <div className="text-sm">
               <div className="font-medium">AI智能识别</div>
-              <div className="text-xs text-muted-foreground">使用大语言模型解析优惠券，准确率更高</div>
+              <div className="text-xs text-muted-foreground">使用大语言模型解析，识别失败自动回退规则匹配</div>
             </div>
           </div>
           <Button

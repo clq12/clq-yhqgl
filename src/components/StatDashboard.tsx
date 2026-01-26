@@ -70,7 +70,7 @@ export default function StatDashboard({ coupons }: StatDashboardProps) {
         "沃尔玛", "优衣库", "ZARA", "H&M", "Nike", "Adidas",
         "星巴克", "喜茶", "奈雪", "瑞幸", "肯德基", "麦当劳",
         "海底捞", "小龙坎", "蜜雪冰城", "云闪付", "一鸣", "古茗",
-        "立减金"
+        "立减金", "小蚕", "库迪"
       ]
 
       for (const store of commonStores) {
@@ -121,7 +121,7 @@ export default function StatDashboard({ coupons }: StatDashboardProps) {
         "沃尔玛", "优衣库", "ZARA", "H&M", "Nike", "Adidas",
         "星巴克", "喜茶", "奈雪", "瑞幸", "肯德基", "麦当劳",
         "海底捞", "小龙坎", "蜜雪冰城", "云闪付", "一鸣", "古茗",
-        "立减金"
+        "立减金", "小蚕", "库迪"
       ]
 
       for (const store of commonStores) {

@@ -1213,7 +1213,10 @@ export default function Home() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => setEditingCoupon(coupon)}
+                        onClick={() => {
+                          setEditingCoupon(coupon)
+                          setIsAddingMode(false)
+                        }}
                       >
                         <Edit className="h-4 w-4" />
                       </Button>

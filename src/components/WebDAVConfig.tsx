@@ -9,7 +9,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Form, FormControl, FormField, FormItem, FormLabel as FormLabelField, FormMessage } from "@/components/ui/form"
-import { Loader2, CheckCircle, XCircle, Info } from "lucide-react"
+import { Loader2, CheckCircle, XCircle, Info, Download, Upload } from "lucide-react"
+import {
+  getWebDAVConfigFromLocalStorage,
+  setWebDAVConfigToLocalStorage,
+  clearWebDAVConfigFromLocalStorage,
+  exportConfig,
+  importConfig,
+  type WebDAVConfig
+} from "@/lib/config"
 
 const webdavConfigSchema = z.object({
   url: z.string().min(1, "WebDAV 地址不能为空").url("请输入有效的 URL"),
@@ -43,6 +51,16 @@ export default function WebDAVConfig() {
 
   const checkConfig = async () => {
     try {
+      // 优先从 localStorage 读取配置
+      const localConfig = getWebDAVConfigFromLocalStorage()
+      if (localConfig) {
+        setIsConfigured(true)
+        setConfigUrl(localConfig.url)
+        setHasPushPlusToken(!!localConfig.pushplusToken && localConfig.pushplusToken.length > 0)
+        return
+      }
+
+      // localStorage 没有，再从服务器 Cookie 读取
       const response = await fetch("/api/webdav/config")
       const result = await response.json()
       if (result.success && result.configured) {
@@ -69,6 +87,15 @@ export default function WebDAVConfig() {
       const result = await response.json()
 
       if (result.success) {
+        // 同时保存到 localStorage（双重保险）
+        const config: WebDAVConfig = {
+          url: data.url,
+          username: data.username,
+          password: data.password,
+          pushplusToken: data.pushplusToken || undefined,
+        }
+        setWebDAVConfigToLocalStorage(config)
+
         setMessage({ type: "success", text: "配置保存成功！" })
         setIsConfigured(true)
         setIsEditing(false)
@@ -101,6 +128,9 @@ export default function WebDAVConfig() {
       const result = await response.json()
 
       if (result.success) {
+        // 同时清除 localStorage
+        clearWebDAVConfigFromLocalStorage()
+
         setIsConfigured(false)
         setConfigUrl("")
         setHasPushPlusToken(false)
@@ -113,6 +143,81 @@ export default function WebDAVConfig() {
       console.error("清除配置失败:", error)
       setMessage({ type: "error", text: "清除配置失败，请重试" })
     }
+  }
+
+  // 导出配置
+  const handleExportConfig = () => {
+    const config = getWebDAVConfigFromLocalStorage()
+    if (!config) {
+      setMessage({ type: "error", text: "没有可导出的配置" })
+      return
+    }
+
+    try {
+      const configJson = exportConfig(config)
+      const blob = new Blob([configJson], { type: "application/json" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `webdav_config_${new Date().toISOString().split("T")[0]}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      setMessage({ type: "success", text: "配置已导出" })
+    } catch (error) {
+      console.error("导出配置失败:", error)
+      setMessage({ type: "error", text: "导出配置失败" })
+    }
+  }
+
+  // 导入配置
+  const handleImportConfig = () => {
+    const input = document.createElement("input")
+    input.type = "file"
+    input.accept = "application/json"
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+
+      try {
+        const content = await file.text()
+        const config = importConfig(content)
+
+        if (!config) {
+          setMessage({ type: "error", text: "配置文件格式错误" })
+          return
+        }
+
+        // 同时保存到 Cookie 和 localStorage
+        setWebDAVConfigToLocalStorage(config)
+
+        const response = await fetch("/api/webdav/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(config),
+        })
+
+        const result = await response.json()
+
+        if (result.success) {
+          setMessage({ type: "success", text: "配置导入成功！" })
+          setIsConfigured(true)
+          setIsEditing(false)
+          setConfigUrl(config.url)
+          setHasPushPlusToken(!!config.pushplusToken && config.pushplusToken.length > 0)
+          setTimeout(() => {
+            window.location.reload()
+          }, 1000)
+        } else {
+          setMessage({ type: "error", text: result.error || "配置导入失败" })
+        }
+      } catch (error) {
+        console.error("导入配置失败:", error)
+        setMessage({ type: "error", text: "导入配置失败" })
+      }
+    }
+    input.click()
   }
 
   if (isConfigured && !isEditing) {
@@ -144,20 +249,46 @@ export default function WebDAVConfig() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={() => setIsEditing(true)}
-              className="gap-2"
-            >
-              重新编辑
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleClearConfig}
-              className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 gap-2"
-            >
-              清除配置
-            </Button>
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                onClick={() => setIsEditing(true)}
+                className="gap-2"
+              >
+                重新编辑
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleClearConfig}
+                className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 gap-2"
+              >
+                清除配置
+              </Button>
+            </div>
+
+            <div className="border-t pt-4">
+              <p className="text-sm text-muted-foreground mb-2">备份与恢复：</p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleExportConfig}
+                  className="gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  导出配置
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleImportConfig}
+                  className="gap-2"
+                >
+                  <Upload className="h-4 w-4" />
+                  导入配置
+                </Button>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -329,6 +460,33 @@ export default function WebDAVConfig() {
                     "保存配置"
                   )}
                 </Button>
+              </div>
+
+              {/* 导出/导入配置按钮 */}
+              <div className="border-t pt-4">
+                <p className="text-sm text-muted-foreground mb-2">快速导入已有配置：</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleExportConfig}
+                    className="gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    导出配置
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleImportConfig}
+                    className="gap-2"
+                  >
+                    <Upload className="h-4 w-4" />
+                    导入配置
+                  </Button>
+                </div>
               </div>
             </form>
           </Form>

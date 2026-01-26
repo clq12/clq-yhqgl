@@ -104,7 +104,7 @@ export default function Home() {
     }
   }
 
-  // 处理批量OCR识别结果
+  // 处理AI识别结果
   const handleBatchOcrExtracted = async (infos: ExtractedCouponInfo[]) => {
     if (infos.length === 0) {
       alert("未能识别到任何优惠券信息")
@@ -700,7 +700,7 @@ export default function Home() {
               添加
             </Button>
 
-            {/* 批量OCR识别按钮 */}
+            {/* AI智能识别按钮 */}
             <Dialog open={isBatchOcrDialogOpen} onOpenChange={setIsBatchOcrDialogOpen}>
               <DialogTrigger asChild>
                 <Button
@@ -710,14 +710,14 @@ export default function Home() {
                   disabled={!isWebDAVConfigured}
                 >
                   <ScanText className="h-4 w-4" />
-                  批量OCR
+                  AI识别
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>批量识别优惠券</DialogTitle>
+                  <DialogTitle>AI智能识别优惠券</DialogTitle>
                   <DialogDescription>
-                    一次选择多张优惠券图片，自动识别并批量添加
+                    使用AI自动识别优惠券图片或文本，提取优惠券信息并批量添加
                   </DialogDescription>
                 </DialogHeader>
                 <BatchOcrRecognizer

@@ -113,8 +113,6 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
     setProgress(0)
 
     try {
-      const Tesseract = (await import('tesseract.js')).default
-
       for (let i = 0; i < images.length; i++) {
         const img = images[i]
 
@@ -124,34 +122,38 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
         ))
 
         try {
-          const result = await Tesseract.recognize(
-            img.preview,
-            'chi_sim+eng',
-            {
-              logger: (m: any) => {
-                // 只更新当前图片的进度
-              },
-            }
-          )
+          // 调用AI识别API
+          const response = await fetch('/api/ai-recognize-coupon', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageBase64: img.preview }),
+          })
 
-          // 更新识别结果
-          setImages(prev => prev.map((item, idx) =>
-            idx === i ? {
-              ...item,
-              status: 'recognized',
-              ocrResult: {
-                text: result.data.text,
-                confidence: result.data.confidence,
-              }
-            } : item
-          ))
+          const result = await response.json()
+
+          if (result.success && result.data) {
+            // 更新识别结果
+            setImages(prev => prev.map((item, idx) =>
+              idx === i ? {
+                ...item,
+                status: 'recognized',
+                ocrResult: {
+                  text: JSON.stringify(result.data),
+                  confidence: 100
+                },
+                extractedInfo: result.data
+              } : item
+            ))
+          } else {
+            throw new Error(result.error || '识别失败')
+          }
         } catch (err) {
           console.error(`识别图片 ${img.file.name} 失败:`, err)
           setImages(prev => prev.map((item, idx) =>
             idx === i ? {
               ...item,
               status: 'failed',
-              error: '识别失败'
+              error: err instanceof Error ? err.message : '识别失败'
             } : item
           ))
         }
@@ -168,7 +170,7 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
   }
 
   const extractAllCoupons = async () => {
-    const recognizedImages = images.filter(img => img.status === 'recognized' && img.ocrResult)
+    const recognizedImages = images.filter(img => img.status === 'recognized' && img.extractedInfo)
 
     if (recognizedImages.length === 0) return
 
@@ -176,29 +178,9 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
     setError(null)
 
     try {
-      const extractedInfos: ExtractedCouponInfo[] = []
-
-      for (let i = 0; i < recognizedImages.length; i++) {
-        const img = recognizedImages[i]
-
-        try {
-          const response = await fetch('/api/parse-coupon', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: img.ocrResult!.text }),
-          })
-
-          const result = await response.json()
-
-          if (result.success) {
-            extractedInfos.push(result.data)
-          }
-        } catch (err) {
-          console.error(`解析优惠券失败:`, err)
-        }
-
-        setProgress(Math.round(((i + 1) / recognizedImages.length) * 100))
-      }
+      const extractedInfos: ExtractedCouponInfo[] = recognizedImages
+        .map(img => img.extractedInfo!)
+        .filter(info => info !== undefined)
 
       if (extractedInfos.length > 0) {
         onBatchExtracted(extractedInfos)
@@ -229,7 +211,8 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
         const couponText = couponTexts[i]
 
         try {
-          const response = await fetch('/api/parse-coupon', {
+          // 调用AI识别API
+          const response = await fetch('/api/ai-recognize-coupon', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: couponText }),
@@ -237,7 +220,7 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
 
           const result = await response.json()
 
-          if (result.success) {
+          if (result.success && result.data) {
             extractedInfos.push(result.data)
           }
         } catch (err) {
@@ -320,20 +303,20 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <ScanText className="h-5 w-5" />
-          批量识别优惠券
+          AI智能识别优惠券
         </CardTitle>
         <CardDescription>
-          一次选择多张优惠券图片或粘贴文本，自动识别并批量添加
+          使用AI自动识别优惠券图片或文本，提取优惠券信息并批量添加
         </CardDescription>
         <Tabs value={mode} onValueChange={(value) => setMode(value as 'image' | 'text')}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="image" className="gap-2">
               <ImageIcon className="h-4 w-4" />
-              批量图片识别
+              图片识别
             </TabsTrigger>
             <TabsTrigger value="text" className="gap-2">
               <FileJson className="h-4 w-4" />
-              文本粘贴
+              文本识别
             </TabsTrigger>
           </TabsList>
         </Tabs>
@@ -423,7 +406,7 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      {isRecognizing ? `正在识别图片... ${progress}%` : `正在解析信息... ${progress}%`}
+                      {isRecognizing ? `AI识别中... ${progress}%` : `正在添加... ${progress}%`}
                     </div>
                     <div className="w-full bg-secondary rounded-full h-2">
                       <div
@@ -442,7 +425,7 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
                     className="flex-1 gap-2"
                   >
                     <ScanText className="h-4 w-4" />
-                    批量识别
+                    AI智能识别
                   </Button>
                   <Button
                     onClick={clearAll}
@@ -483,7 +466,7 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
               <Textarea
                 value={pastedText}
                 onChange={(e) => setPastedText(e.target.value)}
-                placeholder="粘贴优惠券的文本信息，例如：&#10;淘宝优惠券&#10;满100减20元&#10;有效期至2024-12-31 23点"
+                placeholder="粘贴优惠券的文本信息，AI会智能提取：&#10;• 淘宝优惠券&#10;• 满100减20元&#10;• 有效期至2024-12-31 23点&#10;• 可以粘贴多个优惠券"
                 rows={8}
                 className="text-sm"
               />
@@ -495,12 +478,12 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
                 {isExtracting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    解析中...
+                    AI识别中...
                   </>
                 ) : (
                   <>
                     <Check className="h-4 w-4" />
-                    提取优惠信息
+                    AI智能提取
                   </>
                 )}
               </Button>

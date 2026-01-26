@@ -432,6 +432,32 @@ export default function Home() {
     }
   }
 
+  // 计算折扣率（用于排序）
+  const getDiscountRate = (coupon: Coupon): number => {
+    const discountType = (coupon as any).discountType
+    const discountAmount = coupon.discountAmount
+    const fullAmount = (coupon as any).fullAmount
+
+    if (!discountType || !discountAmount) return 0
+
+    switch (discountType) {
+      case 'amount':
+        // 减免金额类型：假设满100可用，计算折扣率
+        // 实际应用中可能需要根据具体情况调整这个阈值
+        const assumedAmount = 100
+        return discountAmount / assumedAmount
+      case 'percentage':
+        // 折扣类型：8折 = 实际支付80%，折扣率 = 20%
+        return (100 - discountAmount) / 100
+      case 'full':
+        // 满减类型：满2000减5 = 0.25%
+        if (!fullAmount) return 0
+        return discountAmount / fullAmount
+      default:
+        return 0
+    }
+  }
+
   // 计算剩余天数和小时数（考虑endHour）
   const getDaysRemaining = (coupon: Coupon) => {
     const endDate = new Date(coupon.endDate)
@@ -511,8 +537,9 @@ export default function Home() {
     if (sortBy) {
       filtered.sort((a, b) => {
         if (sortBy === 'discount') {
-          const aDiscount = a.discountAmount ?? 999
-          const bDiscount = b.discountAmount ?? 999
+          // 使用折扣率而不是直接比较金额
+          const aDiscount = getDiscountRate(a)
+          const bDiscount = getDiscountRate(b)
           return sortByOrder === 'asc' ? aDiscount - bDiscount : bDiscount - aDiscount
         } else if (sortBy === 'remaining') {
           const aHours = getRemainingHours(a)

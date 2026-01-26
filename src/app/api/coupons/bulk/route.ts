@@ -26,6 +26,66 @@ function getConfigFromEnv(): WebDAVConfig | null {
   return null
 }
 
+/**
+ * 批量创建优惠券
+ */
+export async function POST(request: NextRequest) {
+  try {
+    let config = getConfigFromEnv()
+
+    if (!config) {
+      config = getWebDAVConfigFromRequest(request)
+    }
+
+    if (!config) {
+      return NextResponse.json(
+        { success: false, error: "请先配置 WebDAV" },
+        { status: 400 }
+      )
+    }
+
+    const body = await request.json()
+    const { coupons } = body
+
+    if (!coupons || !Array.isArray(coupons) || coupons.length === 0) {
+      return NextResponse.json(
+        { success: false, error: "请提供要创建的优惠券数据" },
+        { status: 400 }
+      )
+    }
+
+    // 初始化 WebDAV 客户端
+    initWebDAVClient(config)
+
+    // 获取所有现有优惠券
+    const allCoupons = await getAllCoupons()
+
+    // 为新优惠券生成ID并添加到列表
+    const newCoupons = coupons.map((coupon: any) => ({
+      ...coupon,
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      isReminded: false,
+      isUsed: coupon.isUsed ?? false,
+    }))
+
+    // 保存更新后的优惠券
+    await saveCoupons([...allCoupons, ...newCoupons])
+
+    return NextResponse.json({
+      success: true,
+      message: `成功添加 ${newCoupons.length} 个优惠券`,
+      data: { addedCount: newCoupons.length, coupons: newCoupons }
+    })
+  } catch (error) {
+    console.error("批量创建优惠券失败:", error)
+    return NextResponse.json(
+      { success: false, error: "批量创建优惠券失败" },
+      { status: 500 }
+    )
+  }
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     let config = getConfigFromEnv()

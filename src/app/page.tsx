@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Plus, Bell, Calendar, Trash2, Edit, CheckCircle, AlertCircle, Info, Settings, Check, BarChart3, CheckSquare, XSquare, Clock, Trash, ChevronDown, ScanText } from "lucide-react"
+import { Plus, Bell, Calendar, Trash2, Edit, CheckCircle, AlertCircle, Info, Settings, Check, BarChart3, CheckSquare, XSquare, Clock, Trash, ChevronDown, ScanText, Download, Upload as ImportIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -28,6 +28,14 @@ import CouponForm from "@/components/CouponForm"
 import WebDAVConfig from "@/components/WebDAVConfig"
 import StatDashboard from "@/components/StatDashboard"
 import OcrCouponRecognizer, { type ExtractedCouponInfo } from "@/components/OcrCouponRecognizer"
+import BatchOcrRecognizer from "@/components/BatchOcrRecognizer"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import type { Coupon } from "@/storage/database/shared/schema"
 
 interface RemindStatusItem {
@@ -60,6 +68,11 @@ export default function Home() {
   const [isBulkMode, setIsBulkMode] = useState(false)
   const [isStatDialogOpen, setIsStatDialogOpen] = useState(false)
   const [isOcrDialogOpen, setIsOcrDialogOpen] = useState(false)
+  const [isBatchOcrDialogOpen, setIsBatchOcrDialogOpen] = useState(false)
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
+  const [exportFilter, setExportFilter] = useState<'all' | 'used' | 'unused' | 'expired'>('all')
+  const [importMode, setImportMode] = useState<'merge' | 'skip' | 'overwrite'>('merge')
 
   // 检查 WebDAV 配置
   const checkWebDAVConfig = async () => {
@@ -110,6 +123,99 @@ export default function Home() {
       fullAmount: info.fullAmount,
       endHour: info.endHour ?? 23
     } as any)
+  }
+
+  // 处理批量OCR识别结果
+  const handleBatchOcrExtracted = async (infos: ExtractedCouponInfo[]) => {
+    setIsBatchOcrDialogOpen(false)
+
+    if (infos.length === 0) {
+      alert("未能识别到任何优惠券信息")
+      return
+    }
+
+    try {
+      const response = await fetch("/api/coupons/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coupons: infos }),
+      })
+      const result = await response.json()
+
+      if (result.success) {
+        fetchCoupons()
+        alert(`成功添加 ${result.data.addedCount} 个优惠券`)
+      } else {
+        alert(`添加失败：${result.error}`)
+      }
+    } catch (error) {
+      console.error("批量添加优惠券失败:", error)
+      alert("批量添加失败")
+    }
+  }
+
+  // 导出优惠券
+  const handleExportCoupons = async (filter: 'all' | 'used' | 'unused' | 'expired') => {
+    try {
+      const response = await fetch("/api/coupons/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filter }),
+      })
+      const result = await response.json()
+
+      if (result.success) {
+        // 创建Blob并下载
+        const blob = new Blob([JSON.stringify(result.data, null, 2)], { type: "application/json" })
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = result.filename
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+
+        setIsExportDialogOpen(false)
+        alert(`成功导出 ${result.data.exportCount} 个优惠券`)
+      } else {
+        alert(`导出失败：${result.error}`)
+      }
+    } catch (error) {
+      console.error("导出优惠券失败:", error)
+      alert("导出失败")
+    }
+  }
+
+  // 导入优惠券
+  const handleImportCoupons = async (file: File, mode: 'merge' | 'skip' | 'overwrite') => {
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+
+      if (!data.coupons || !Array.isArray(data.coupons)) {
+        alert("文件格式错误，未找到优惠券数据")
+        return
+      }
+
+      const response = await fetch("/api/coupons/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coupons: data.coupons, mode }),
+      })
+      const result = await response.json()
+
+      if (result.success) {
+        setIsImportDialogOpen(false)
+        fetchCoupons()
+        alert(result.message)
+      } else {
+        alert(`导入失败：${result.error}`)
+      }
+    } catch (error) {
+      console.error("导入优惠券失败:", error)
+      alert("导入失败，请检查文件格式")
+    }
   }
 
   // 获取优惠券列表
@@ -601,6 +707,148 @@ export default function Home() {
                   onExtracted={handleOcrExtracted}
                   onCancel={() => setIsOcrDialogOpen(false)}
                 />
+              </DialogContent>
+            </Dialog>
+
+            {/* 批量OCR识别按钮 */}
+            <Dialog open={isBatchOcrDialogOpen} onOpenChange={setIsBatchOcrDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-full gap-2"
+                  disabled={!isWebDAVConfigured}
+                >
+                  <ScanText className="h-4 w-4" />
+                  批量OCR
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>批量识别优惠券</DialogTitle>
+                  <DialogDescription>
+                    一次选择多张优惠券图片，自动识别并批量添加
+                  </DialogDescription>
+                </DialogHeader>
+                <BatchOcrRecognizer
+                  onBatchExtracted={handleBatchOcrExtracted}
+                  onCancel={() => setIsBatchOcrDialogOpen(false)}
+                />
+              </DialogContent>
+            </Dialog>
+
+            {/* 导出按钮 */}
+            <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-full gap-2"
+                  disabled={!isWebDAVConfigured || coupons.length === 0}
+                >
+                  <Download className="h-4 w-4" />
+                  导出
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>导出优惠券</DialogTitle>
+                  <DialogDescription>
+                    选择要导出的优惠券类型
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">导出范围</label>
+                    <Select value={exportFilter} onValueChange={(value: any) => setExportFilter(value)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">全部优惠券 ({coupons.length})</SelectItem>
+                        <SelectItem value="unused">未使用 ({coupons.filter((c: any) => !(c as any).isUsed && !isExpired(c)).length})</SelectItem>
+                        <SelectItem value="used">已使用 ({coupons.filter((c: any) => (c as any).isUsed).length})</SelectItem>
+                        <SelectItem value="expired">已过期 ({coupons.filter((c: any) => isExpired(c)).length})</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="outline" onClick={() => setIsExportDialogOpen(false)}>
+                      取消
+                    </Button>
+                    <Button onClick={() => handleExportCoupons(exportFilter)} className="gap-2">
+                      <Download className="h-4 w-4" />
+                      导出JSON
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+
+            {/* 导入按钮 */}
+            <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-full gap-2"
+                  disabled={!isWebDAVConfigured}
+                >
+                  <ImportIcon className="h-4 w-4" />
+                  导入
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>导入优惠券</DialogTitle>
+                  <DialogDescription>
+                    选择要导入的JSON文件
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">导入模式</label>
+                    <Select value={importMode} onValueChange={(value: any) => setImportMode(value)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="merge">合并模式 - 导入所有优惠券</SelectItem>
+                        <SelectItem value="skip">跳过模式 - 跳过重复项</SelectItem>
+                        <SelectItem value="overwrite">覆盖模式 - 覆盖重复项</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-500">
+                      {importMode === 'merge' && '导入所有优惠券，包括重复的'}
+                      {importMode === 'skip' && '跳过与现有优惠券重复的项'}
+                      {importMode === 'overwrite' && '覆盖与现有优惠券重复的项'}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">选择文件</label>
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) {
+                          handleImportCoupons(file, importMode)
+                        }
+                      }}
+                      className="block w-full text-sm text-gray-500
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-full file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-blue-50 file:text-blue-700
+                        hover:file:bg-blue-100"
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
+                      取消
+                    </Button>
+                  </div>
+                </div>
               </DialogContent>
             </Dialog>
 

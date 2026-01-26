@@ -220,25 +220,93 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
     setError(null)
 
     try {
-      const response = await fetch('/api/parse-coupon', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: pastedText }),
-      })
+      // 尝试分割多个优惠券文本
+      const couponTexts = splitCouponTexts(pastedText)
 
-      const result = await response.json()
+      const extractedInfos: ExtractedCouponInfo[] = []
 
-      if (result.success) {
-        onBatchExtracted([result.data])
+      for (let i = 0; i < couponTexts.length; i++) {
+        const couponText = couponTexts[i]
+
+        try {
+          const response = await fetch('/api/parse-coupon', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: couponText }),
+          })
+
+          const result = await response.json()
+
+          if (result.success) {
+            extractedInfos.push(result.data)
+          }
+        } catch (err) {
+          console.error(`解析第${i + 1}个优惠券失败:`, err)
+        }
+
+        // 更新进度
+        setProgress(Math.round(((i + 1) / couponTexts.length) * 100))
+      }
+
+      if (extractedInfos.length > 0) {
+        onBatchExtracted(extractedInfos)
       } else {
-        setError(result.error || '解析失败')
+        setError('未能提取到任何优惠券信息')
       }
     } catch (err) {
-      console.error('解析失败:', err)
-      setError('解析失败，请重试')
+      console.error('批量解析失败:', err)
+      setError('批量解析失败，请重试')
     } finally {
       setIsExtracting(false)
     }
+  }
+
+  /**
+   * 分割多个优惠券文本
+   * 根据关键词（如"优惠券"、"券"等）和金额模式进行分割
+   */
+  function splitCouponTexts(text: string): string[] {
+    const lines = text.split('\n').map(line => line.trim()).filter(line => line)
+
+    if (lines.length === 0) {
+      return [text]
+    }
+
+    const couponTexts: string[] = []
+    let currentCoupon: string[] = []
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      const prevLine = i > 0 ? lines[i - 1] : ''
+
+      // 检测新优惠券的开始标志
+      // 条件：以银行名称开头 且 前一行不是银行名称（避免重复）
+      // 或者 以"¥"、"优惠券"、"立减金"开头 且 前一个优惠券已经有内容
+      const isBankStart = /^(建设银行|工商银行|农业银行|中国银行|招商银行|交通银行|中信银行|光大银行|民生银行|平安银行|浦发银行)/.test(line)
+      const isNewCoupon = (isBankStart && !prevLine.match(/建设银行|工商银行|农业银行|中国银行|招商银行|交通银行|中信银行|光大银行|民生银行|平安银行|浦发银行/)) ||
+                          (/^(¥\d+|￥\d+)/.test(line) && currentCoupon.length > 3) ||
+                          (/^(优惠券|立减金|银行立减金)/.test(line) && currentCoupon.length > 3)
+
+      if (isNewCoupon && currentCoupon.length > 0) {
+        // 保存当前优惠券
+        couponTexts.push(currentCoupon.join('\n'))
+        currentCoupon = []
+      }
+
+      currentCoupon.push(line)
+    }
+
+    // 保存最后一个优惠券
+    if (currentCoupon.length > 0) {
+      couponTexts.push(currentCoupon.join('\n'))
+    }
+
+    // 如果没有分割出来，返回整个文本
+    if (couponTexts.length === 0) {
+      return [text]
+    }
+
+    return couponTexts
   }
 
   const clearAll = () => {

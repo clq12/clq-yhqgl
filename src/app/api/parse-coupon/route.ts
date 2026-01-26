@@ -35,14 +35,17 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
   }
 
   // 2. 提取优惠金额
-  // 匹配：减X元、优惠X元、X元券、满减X元、折扣X折
+  // 匹配：减X元、优惠X元、X元券、满减X元、折扣X折、¥X、￥X
   const discountPatterns = [
+    /¥\s*(\d+(?:\.\d+)?)/,  // ¥26
+    /￥\s*(\d+(?:\.\d+)?)/,  // ￥26
     /减(\d+(?:\.\d+)?)元/,
     /优惠(\d+(?:\.\d+)?)元/,
     /(\d+(?:\.\d+)?)元券/,
     /满减(\d+(?:\.\d+)?)元/,
     /立减(\d+(?:\.\d+)?)元/,
     /抵扣(\d+(?:\.\d+)?)元/,
+    /(\d+(?:\.\d+)?)元/,
   ]
   for (const pattern of discountPatterns) {
     const match = text.match(pattern)
@@ -84,8 +87,10 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
   }
 
   // 5. 提取截止日期
-  // 支持格式：2024-12-31、2024年12月31日、12月31日、12/31
+  // 支持格式：2024-12-31、2024年12月31日、12月31日、12/31、2024.12.31、2025.07.31-2028.07.30
   const datePatterns = [
+    /(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})[日]?[-–到至](\d{4})[-/年](\d{1,2})[-/月](\d{1,2})[日]?/,  // 日期范围（横杠/斜杠）
+    /(\d{4})\.(\d{1,2})\.(\d{1,2})[-–到至](\d{4})\.(\d{1,2})\.(\d{1,2})/,  // 日期范围（点号分隔）
     /(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})[日]?/,
     /(\d{1,2})[-/月](\d{1,2})[日]?/,
     /(\d{4})\.(\d{1,2})\.(\d{1,2})/,
@@ -99,7 +104,12 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
     if (match) {
       let year, month, day
 
-      if (match.length === 4) {
+      if (match.length >= 7) {
+        // 日期范围格式：取结束日期
+        year = parseInt(match[4])
+        month = parseInt(match[5])
+        day = parseInt(match[6])
+      } else if (match.length === 4) {
         // 完整日期格式：2024-12-31
         year = parseInt(match[1])
         month = parseInt(match[2])
@@ -149,15 +159,37 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
     result.endHour = 23
   }
 
+  // 8. 提取描述信息（如"饮品通用"、"C1"等）
+  for (const line of lines) {
+    if (line.match(/通用|适用|范围|类型|类别/) && !line.includes('期限')) {
+      if (!result.description || result.description === text.trim()) {
+        result.description = line
+      }
+      break
+    }
+  }
+
   // 7. 提取标题（第一行或包含"优惠券"、"券"的行）
   for (const line of lines) {
+    // 排除说明、数量等信息行
+    if (line.match(/说明|余|张|送TA|期限|红包|无效券|立即使用|充值/)) {
+      continue
+    }
+    
     if (line.includes('优惠券') || line.includes('券') || line.includes('优惠')) {
       result.title = line.replace(/[优惠券券优惠]/g, '').trim()
       if (result.title) break
     }
   }
+  
+  // 如果没有找到合适的标题，使用第一行（但排除纯金额行）
   if (!result.title && lines.length > 0) {
-    result.title = lines[0]
+    for (const line of lines) {
+      if (!line.match(/^[\d\.¥￥元]+$/) && !line.match(/说明|余|张|送TA|期限|红包|无效券|立即使用|充值/)) {
+        result.title = line
+        break
+      }
+    }
   }
 
   return result

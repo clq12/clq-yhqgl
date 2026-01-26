@@ -62,7 +62,7 @@ export default function StatDashboard({ coupons }: StatDashboardProps) {
       const discountAmount = coupon.discountAmount ?? 0
       const isUsed = (coupon as any).isUsed ?? false
 
-      // 从标题中提取店铺名称（简单匹配）
+      // 从标题中提取店铺名称
       let storeName = "其他"
       const commonStores = [
         "淘宝", "天猫", "京东", "拼多多", "美团", "饿了么",
@@ -76,6 +76,16 @@ export default function StatDashboard({ coupons }: StatDashboardProps) {
         if (coupon.title.includes(store)) {
           storeName = store
           break
+        }
+      }
+
+      // 如果没有匹配到预设名称，取空格之前的部分
+      if (storeName === "其他") {
+        const firstSpaceIndex = coupon.title.indexOf(' ')
+        if (firstSpaceIndex > 0) {
+          storeName = coupon.title.substring(0, firstSpaceIndex)
+        } else if (coupon.title.length > 0) {
+          storeName = coupon.title
         }
       }
 
@@ -116,6 +126,16 @@ export default function StatDashboard({ coupons }: StatDashboardProps) {
         if (coupon.title.includes(store)) {
           storeName = store
           break
+        }
+      }
+
+      // 如果没有匹配到预设名称，取空格之前的部分
+      if (storeName === "其他") {
+        const firstSpaceIndex = coupon.title.indexOf(' ')
+        if (firstSpaceIndex > 0) {
+          storeName = coupon.title.substring(0, firstSpaceIndex)
+        } else if (coupon.title.length > 0) {
+          storeName = coupon.title
         }
       }
 

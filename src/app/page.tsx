@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Plus, Bell, Calendar, Trash2, Edit, CheckCircle, AlertCircle, Info, Send } from "lucide-react"
+import { Plus, Bell, Calendar, Trash2, Edit, CheckCircle, AlertCircle, Info, Send, Settings, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -49,6 +49,7 @@ export default function Home() {
   const [isWebDAVConfigured, setIsWebDAVConfigured] = useState(false)
   const [checkingConfig, setCheckingConfig] = useState(true)
   const [isRemindStatusOpen, setIsRemindStatusOpen] = useState(false)
+  const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false)
   const [remindStatus, setRemindStatus] = useState<RemindStatusItem[]>([])
   const [loadingRemindStatus, setLoadingRemindStatus] = useState(false)
   const [sortBy, setSortBy] = useState<'discount' | 'remaining' | 'name' | null>(null)
@@ -364,6 +365,35 @@ export default function Home() {
             </p>
           </div>
           <div className="flex gap-2">
+            {/* 设置按钮 */}
+            <Dialog open={isConfigDialogOpen} onOpenChange={setIsConfigDialogOpen}>
+              <DialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant={isWebDAVConfigured ? "outline" : "default"}
+                  className="rounded-full gap-2"
+                >
+                  {isWebDAVConfigured ? (
+                    <Check className="h-4 w-4 text-green-600" />
+                  ) : (
+                    <Settings className="h-4 w-4" />
+                  )}
+                  {isWebDAVConfigured ? "已配置" : "配置"}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>WebDAV 配置</DialogTitle>
+                  <DialogDescription>
+                    {isWebDAVConfigured
+                      ? "查看和管理 WebDAV 配置"
+                      : "配置 WebDAV 服务以存储优惠券数据"}
+                  </DialogDescription>
+                </DialogHeader>
+                <WebDAVConfig />
+              </DialogContent>
+            </Dialog>
+
             <Dialog open={isRemindStatusOpen} onOpenChange={setIsRemindStatusOpen}>
               <DialogTrigger asChild>
                 <Button
@@ -448,10 +478,20 @@ export default function Home() {
 
       {/* 主内容区 */}
       <div className="max-w-4xl mx-auto p-4 pb-24">
-        {/* WebDAV 配置区域 */}
+        {/* 未配置提示 */}
         {!isWebDAVConfigured && (
-          <div className="mb-6">
-            <WebDAVConfig />
+          <div className="mb-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="font-medium text-amber-900 dark:text-amber-100">
+                  请先配置 WebDAV
+                </p>
+                <p className="text-sm text-amber-800 dark:text-amber-200 mt-1">
+                  点击右上角"配置"按钮设置 WebDAV 服务，用于存储优惠券数据
+                </p>
+              </div>
+            </div>
           </div>
         )}
 

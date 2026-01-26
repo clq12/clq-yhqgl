@@ -27,8 +27,7 @@ import {
 import CouponForm from "@/components/CouponForm"
 import WebDAVConfig from "@/components/WebDAVConfig"
 import StatDashboard from "@/components/StatDashboard"
-import OcrCouponRecognizer, { type ExtractedCouponInfo } from "@/components/OcrCouponRecognizer"
-import BatchOcrRecognizer from "@/components/BatchOcrRecognizer"
+import BatchOcrRecognizer, { type ExtractedCouponInfo } from "@/components/BatchOcrRecognizer"
 import {
   Select,
   SelectContent,
@@ -67,11 +66,10 @@ export default function Home() {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [isBulkMode, setIsBulkMode] = useState(false)
   const [isStatDialogOpen, setIsStatDialogOpen] = useState(false)
-  const [isOcrDialogOpen, setIsOcrDialogOpen] = useState(false)
-  const [isBatchOcrDialogOpen, setIsBatchOcrDialogOpen] = useState(false)
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
   const [isAddingMode, setIsAddingMode] = useState(false)
+  const [isBatchOcrDialogOpen, setIsBatchOcrDialogOpen] = useState(false)
   const [exportFilter, setExportFilter] = useState<'all' | 'used' | 'unused' | 'expired'>('all')
   const [importMode, setImportMode] = useState<'merge' | 'skip' | 'overwrite'>('merge')
 
@@ -103,28 +101,6 @@ export default function Home() {
     } finally {
       setLoadingRemindStatus(false)
     }
-  }
-
-  // 处理OCR识别结果
-  const handleOcrExtracted = (info: ExtractedCouponInfo) => {
-    setIsOcrDialogOpen(false)
-    // 打开添加/编辑对话框，并将OCR识别的数据作为默认值
-    setIsAddingMode(true)
-    setEditingCoupon({
-      id: '', // 空id表示添加模式
-      title: info.title || '',
-      description: info.description || '',
-      discountAmount: info.discountAmount || 0,
-      startDate: new Date().toISOString().split('T')[0],
-      endDate: info.endDate ? new Date(info.endDate).toISOString().split('T')[0] : '',
-      isReminded: false,
-      isUsed: false,
-      createdAt: new Date().toISOString(),
-      notes: info.notes || '',
-      discountType: info.discountType || 'amount',
-      fullAmount: info.fullAmount,
-      endHour: info.endHour ?? 23
-    } as any)
   }
 
   // 处理批量OCR识别结果
@@ -689,33 +665,6 @@ export default function Home() {
               <Plus className="h-4 w-4" />
               添加
             </Button>
-
-            {/* OCR识别按钮 */}
-            <Dialog open={isOcrDialogOpen} onOpenChange={setIsOcrDialogOpen}>
-              <DialogTrigger asChild>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="rounded-full gap-2"
-                  disabled={!isWebDAVConfigured}
-                >
-                  <ScanText className="h-4 w-4" />
-                  OCR识别
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>智能识别优惠券</DialogTitle>
-                  <DialogDescription>
-                    上传优惠券图片或粘贴文本，自动识别优惠信息
-                  </DialogDescription>
-                </DialogHeader>
-                <OcrCouponRecognizer
-                  onExtracted={handleOcrExtracted}
-                  onCancel={() => setIsOcrDialogOpen(false)}
-                />
-              </DialogContent>
-            </Dialog>
 
             {/* 批量OCR识别按钮 */}
             <Dialog open={isBatchOcrDialogOpen} onOpenChange={setIsBatchOcrDialogOpen}>

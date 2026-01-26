@@ -55,7 +55,7 @@ const couponSchema = z.object({
 type CouponFormData = z.infer<typeof couponSchema>
 
 interface CouponFormProps {
-  coupon?: Coupon
+  coupon?: Coupon | null
   onSubmit: (data: CouponFormData) => void
   onCancel: () => void
 }

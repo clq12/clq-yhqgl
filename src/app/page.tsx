@@ -71,6 +71,7 @@ export default function Home() {
   const [isBatchOcrDialogOpen, setIsBatchOcrDialogOpen] = useState(false)
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
+  const [isAddingMode, setIsAddingMode] = useState(false)
   const [exportFilter, setExportFilter] = useState<'all' | 'used' | 'unused' | 'expired'>('all')
   const [importMode, setImportMode] = useState<'merge' | 'skip' | 'overwrite'>('merge')
 
@@ -108,6 +109,7 @@ export default function Home() {
   const handleOcrExtracted = (info: ExtractedCouponInfo) => {
     setIsOcrDialogOpen(false)
     // 打开添加/编辑对话框，并将OCR识别的数据作为默认值
+    setIsAddingMode(true)
     setEditingCoupon({
       id: '', // 空id表示添加模式
       title: info.title || '',
@@ -249,6 +251,7 @@ export default function Home() {
       })
       const result = await response.json()
       if (result.success) {
+        setIsAddingMode(false)
         setEditingCoupon(null)
         fetchCoupons()
       }
@@ -267,6 +270,7 @@ export default function Home() {
       })
       const result = await response.json()
       if (result.success) {
+        setIsAddingMode(false)
         setEditingCoupon(null)
         fetchCoupons()
       }
@@ -677,7 +681,10 @@ export default function Home() {
               size="sm"
               className="rounded-full gap-2"
               disabled={!isWebDAVConfigured}
-              onClick={() => setEditingCoupon({ id: '' } as any)}
+              onClick={() => {
+                setIsAddingMode(true)
+                setEditingCoupon(null)
+              }}
             >
               <Plus className="h-4 w-4" />
               添加
@@ -1295,20 +1302,31 @@ export default function Home() {
       </div>
 
       {/* 添加/编辑对话框 */}
-      {editingCoupon && (
-        <Dialog open={!!editingCoupon} onOpenChange={() => setEditingCoupon(null)}>
+      {(isAddingMode || editingCoupon) && (
+        <Dialog
+          open={!!(isAddingMode || editingCoupon)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setIsAddingMode(false)
+              setEditingCoupon(null)
+            }
+          }}
+        >
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>{editingCoupon.id ? '编辑优惠券' : '添加优惠券'}</DialogTitle>
-              <DialogDescription>{editingCoupon.id ? '修改优惠券信息' : '填写优惠信息，系统会在截止日期前提醒您'}</DialogDescription>
+              <DialogTitle>{isAddingMode ? '添加优惠券' : '编辑优惠券'}</DialogTitle>
+              <DialogDescription>{isAddingMode ? '填写优惠信息，系统会在截止日期前提醒您' : '修改优惠券信息'}</DialogDescription>
             </DialogHeader>
             <CouponForm
               coupon={editingCoupon}
-              onSubmit={editingCoupon.id
-                ? (data) => handleUpdateCoupon(editingCoupon.id, data)
-                : (data) => handleAddCoupon(data)
+              onSubmit={isAddingMode
+                ? handleAddCoupon
+                : (data) => handleUpdateCoupon(editingCoupon!.id, data)
               }
-              onCancel={() => setEditingCoupon(null)}
+              onCancel={() => {
+                setIsAddingMode(false)
+                setEditingCoupon(null)
+              }}
             />
           </DialogContent>
         </Dialog>

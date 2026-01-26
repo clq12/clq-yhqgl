@@ -60,14 +60,31 @@ export async function POST(request: NextRequest) {
     // 获取所有现有优惠券
     const allCoupons = await getAllCoupons()
 
+    console.log('批量添加优惠券:', { inputCount: coupons.length, existingCount: allCoupons.length })
+
     // 为新优惠券生成ID并添加到列表
-    const newCoupons = coupons.map((coupon: any) => ({
-      ...coupon,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-      isReminded: false,
-      isUsed: coupon.isUsed ?? false,
-    }))
+    const newCoupons: any[] = coupons.map((coupon: any) => {
+      // 清理数据，只保留需要的字段
+      const cleanedCoupon = {
+        id: crypto.randomUUID(),
+        title: coupon.title || '',
+        description: coupon.description || null,
+        discountType: coupon.discountType || 'amount',
+        discountAmount: coupon.discountAmount || null,
+        fullAmount: coupon.fullAmount, // 满减金额，用于满减类型
+        startDate: coupon.startDate ? new Date(coupon.startDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        endDate: coupon.endDate ? new Date(coupon.endDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        endHour: coupon.endHour ?? 23,
+        notes: coupon.notes || null,
+        storeName: coupon.storeName || null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        isReminded: false,
+        remindedDays: [],
+        isUsed: coupon.isUsed ?? false,
+      }
+      return cleanedCoupon
+    })
 
     // 保存更新后的优惠券
     await saveCoupons([...allCoupons, ...newCoupons])

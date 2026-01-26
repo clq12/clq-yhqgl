@@ -72,6 +72,7 @@ export default function Home() {
   const [isBatchOcrDialogOpen, setIsBatchOcrDialogOpen] = useState(false)
   const [exportFilter, setExportFilter] = useState<'all' | 'used' | 'unused' | 'expired'>('all')
   const [importMode, setImportMode] = useState<'merge' | 'skip' | 'overwrite'>('merge')
+  const [isFormDialogOpen, setIsFormDialogOpen] = useState(false)
 
   // 检查 WebDAV 配置
   const checkWebDAVConfig = async () => {
@@ -105,12 +106,13 @@ export default function Home() {
 
   // 处理批量OCR识别结果
   const handleBatchOcrExtracted = async (infos: ExtractedCouponInfo[]) => {
-    setIsBatchOcrDialogOpen(false)
-
     if (infos.length === 0) {
       alert("未能识别到任何优惠券信息")
       return
     }
+
+    // 先关闭对话框
+    setIsBatchOcrDialogOpen(false)
 
     try {
       const response = await fetch("/api/coupons/bulk", {
@@ -118,17 +120,19 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ coupons: infos }),
       })
+
       const result = await response.json()
 
       if (result.success) {
-        fetchCoupons()
+        await fetchCoupons()
         alert(`成功添加 ${result.data.addedCount} 个优惠券`)
       } else {
+        console.error('批量添加失败:', result.error)
         alert(`添加失败：${result.error}`)
       }
     } catch (error) {
       console.error("批量添加优惠券失败:", error)
-      alert("批量添加失败")
+      alert("批量添加失败，请检查网络连接")
     }
   }
 
@@ -227,6 +231,7 @@ export default function Home() {
       })
       const result = await response.json()
       if (result.success) {
+        setIsFormDialogOpen(false)
         setIsAddingMode(false)
         setEditingCoupon(null)
         fetchCoupons()
@@ -246,6 +251,7 @@ export default function Home() {
       })
       const result = await response.json()
       if (result.success) {
+        setIsFormDialogOpen(false)
         setIsAddingMode(false)
         setEditingCoupon(null)
         fetchCoupons()
@@ -660,6 +666,7 @@ export default function Home() {
               onClick={() => {
                 setIsAddingMode(true)
                 setEditingCoupon(null)
+                setIsFormDialogOpen(true)
               }}
             >
               <Plus className="h-4 w-4" />
@@ -1216,6 +1223,7 @@ export default function Home() {
                         onClick={() => {
                           setEditingCoupon(coupon)
                           setIsAddingMode(false)
+                          setIsFormDialogOpen(true)
                         }}
                       >
                         <Edit className="h-4 w-4" />
@@ -1254,35 +1262,35 @@ export default function Home() {
       </div>
 
       {/* 添加/编辑对话框 */}
-      {(isAddingMode || editingCoupon) && (
-        <Dialog
-          open={!!(isAddingMode || editingCoupon)}
-          onOpenChange={(open) => {
-            if (!open) {
+      <Dialog
+        open={isFormDialogOpen}
+        onOpenChange={(open) => {
+          setIsFormDialogOpen(open)
+          if (!open) {
+            setIsAddingMode(false)
+            setEditingCoupon(null)
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>{isAddingMode ? '添加优惠券' : '编辑优惠券'}</DialogTitle>
+            <DialogDescription>{isAddingMode ? '填写优惠信息，系统会在截止日期前提醒您' : '修改优惠券信息'}</DialogDescription>
+          </DialogHeader>
+          <CouponForm
+            coupon={editingCoupon}
+            onSubmit={isAddingMode
+              ? handleAddCoupon
+              : (data) => handleUpdateCoupon(editingCoupon!.id, data)
+            }
+            onCancel={() => {
+              setIsFormDialogOpen(false)
               setIsAddingMode(false)
               setEditingCoupon(null)
-            }
-          }}
-        >
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>{isAddingMode ? '添加优惠券' : '编辑优惠券'}</DialogTitle>
-              <DialogDescription>{isAddingMode ? '填写优惠信息，系统会在截止日期前提醒您' : '修改优惠券信息'}</DialogDescription>
-            </DialogHeader>
-            <CouponForm
-              coupon={editingCoupon}
-              onSubmit={isAddingMode
-                ? handleAddCoupon
-                : (data) => handleUpdateCoupon(editingCoupon!.id, data)
-              }
-              onCancel={() => {
-                setIsAddingMode(false)
-                setEditingCoupon(null)
-              }}
-            />
-          </DialogContent>
-        </Dialog>
-      )}
+            }}
+          />
+        </DialogContent>
+      </Dialog>
 
       {/* 测试提醒对话框 */}
       <Dialog open={isRemindStatusOpen} onOpenChange={setIsRemindStatusOpen}>

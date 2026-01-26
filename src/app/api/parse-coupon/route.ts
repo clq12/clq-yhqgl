@@ -27,6 +27,7 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
   const storePatterns = [
     /淘宝|天猫|京东|拼多多|美团|饿了么|盒马|山姆|Costco|永辉|大润发|家乐福|沃尔玛|优衣库|ZARA|H&M|Nike|Adidas/i,
     /建设银行|工商银行|农业银行|中国银行|招商银行|交通银行|中信银行|光大银行|民生银行|平安银行|浦发银行/i,
+    /云闪付|银联卡|银联/i,
   ]
   for (const pattern of storePatterns) {
     const match = text.match(pattern)
@@ -96,8 +97,10 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
 
   // 5. 提取截止日期
   // 支持格式：2024-12-31、2024年12月31日、12月31日、12/31、2024.12.31、2025.07.31-2028.07.30、2026/02/23
+  // 支持带时间的日期范围：2026.01.24 10:51-2026.01.27 10:51
   const datePatterns = [
     /(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})[日]?[-–到至](\d{4})[-/年](\d{1,2})[-/月](\d{1,2})[日]?/,  // 日期范围（横杠/斜杠）
+    /(\d{4})\.(\d{1,2})\.(\d{1,2})\s*\d{1,2}:\d{2}[-–到至](\d{4})\.(\d{1,2})\.(\d{1,2})/,  // 日期范围（点号分隔，带时间）
     /(\d{4})\.(\d{1,2})\.(\d{1,2})[-–到至](\d{4})\.(\d{1,2})\.(\d{1,2})/,  // 日期范围（点号分隔）
     /(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})[日]?/,
     /(\d{1,2})[-/月](\d{1,2})[日]?/,
@@ -146,19 +149,26 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
   }
 
   // 6. 提取截止时间（默认23点）
-  // 支持格式：23点、23:00、23时
+  // 支持格式：23点、23:00、23时，但不能是日期范围中的时间（如 2026.01.24 10:51-2026.01.27 10:51）
+  // 只匹配明显是截止时间的格式（后跟"过期"、"可用"等关键词）
   const timePatterns = [
-    /(\d{1,2})点/,
-    /(\d{1,2}):(\d{2})/,
+    /(\d{1,2})点(?:过期)?/,
+    /(\d{1,2}):(\d{2})(?![\d])/,  // 后面不能跟数字（排除日期范围中的时间）
     /(\d{1,2})时/,
   ]
   for (const pattern of timePatterns) {
     const match = text.match(pattern)
     if (match) {
       const hour = parseInt(match[1])
+      // 验证这是一个合理的时间，且不包含在日期范围内
       if (hour >= 0 && hour <= 23) {
-        result.endHour = hour
-        break
+        // 检查这个时间后面是不是日期分隔符（如 -、到），如果是则跳过
+        const timeIndex = text.indexOf(match[0])
+        const nextChars = text.substring(timeIndex + match[0].length, timeIndex + match[0].length + 2)
+        if (!nextChars.match(/^[-–到至]/)) {
+          result.endHour = hour
+          break
+        }
       }
     }
   }
@@ -179,7 +189,7 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
   }
 
   // 7. 提取标题
-  // 优先找包含"立减金"、"优惠券"的行
+  // 优先找包含"立减金"的行
   for (const line of lines) {
     if (line.includes('立减金')) {
       // 提取"立减金"之前的部分作为标题
@@ -187,23 +197,40 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
       result.title = line.substring(0, index + 3).trim()
       break
     }
-    
-    if (line.includes('优惠券') || line.includes('券') || line.includes('优惠')) {
-      // 排除说明、数量等信息行（但不排除"有效期至"等正常行）
-      if (!line.match(/说明|余|张|送TA|红包|无效券|立即使用|充值|建设银行|工商银行|农业银行|中国银行|招商银行|交通银行|储蓄卡/)) {
-        // 提取第一个空格前的词作为标题，再去掉"优惠券"后缀
-        const firstSpaceIndex = line.indexOf(' ')
-        let title = ''
-        if (firstSpaceIndex > 0) {
-          title = line.substring(0, firstSpaceIndex).trim()
-        } else {
-          title = line.trim()
-        }
-        // 去掉"优惠券"、"券"、"优惠"后缀
-        title = title.replace(/优惠券|券$/, '').trim()
-        if (title) {
-          result.title = title
-          break
+  }
+  
+  // 如果没有找到立减金，尝试找"X 元 券"格式（银联卡优惠券）
+  if (!result.title) {
+    const yuanQuanPattern = /(\d+(?:\.\d+)?)\s*元\s*券/
+    for (const line of lines) {
+      const match = line.match(yuanQuanPattern)
+      if (match) {
+        result.title = match[0] // 例如：0.2 元 券
+        break
+      }
+    }
+  }
+  
+  // 如果还没找到标题，找包含"优惠券"、"券"、"优惠"的行
+  if (!result.title) {
+    for (const line of lines) {
+      if (line.includes('优惠券') || line.includes('券') || line.includes('优惠')) {
+        // 排除说明、数量等信息行（但不排除"有效期至"等正常行）
+        if (!line.match(/说明|余|张|送TA|红包|无效券|立即使用|充值|建设银行|工商银行|农业银行|中国银行|招商银行|交通银行|储蓄卡/)) {
+          // 提取第一个空格前的词作为标题，再去掉"优惠券"后缀
+          const firstSpaceIndex = line.indexOf(' ')
+          let title = ''
+          if (firstSpaceIndex > 0) {
+            title = line.substring(0, firstSpaceIndex).trim()
+          } else {
+            title = line.trim()
+          }
+          // 去掉"优惠券"、"券"、"优惠"后缀
+          title = title.replace(/优惠券|券$/, '').trim()
+          if (title) {
+            result.title = title
+            break
+          }
         }
       }
     }

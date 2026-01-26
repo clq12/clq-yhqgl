@@ -18,10 +18,11 @@ import {
 } from "@/components/ui/form"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon } from "lucide-react"
+import { CalendarIcon, ScanText } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import type { Coupon } from "@/storage/database/shared/schema"
+import OcrCouponRecognizer, { type ExtractedCouponInfo } from "./OcrCouponRecognizer"
 
 const couponSchema = z.object({
   title: z.string().min(1, "标题不能为空").max(255, "标题不能超过255个字符"),
@@ -61,6 +62,7 @@ interface CouponFormProps {
 
 export default function CouponForm({ coupon, onSubmit, onCancel }: CouponFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showOcr, setShowOcr] = useState(false)
 
   const form = useForm<CouponFormData>({
     resolver: zodResolver(couponSchema),
@@ -100,9 +102,48 @@ export default function CouponForm({ coupon, onSubmit, onCancel }: CouponFormPro
     }
   }
 
+  // 处理OCR识别结果
+  const handleOcrExtracted = (info: ExtractedCouponInfo) => {
+    // 填充表单字段
+    if (info.title) form.setValue('title', info.title)
+    if (info.description) form.setValue('description', info.description)
+    if (info.discountType) form.setValue('discountType', info.discountType)
+    if (info.discountAmount !== undefined) form.setValue('discountAmount', info.discountAmount)
+    if (info.fullAmount !== undefined) form.setValue('fullAmount', info.fullAmount)
+    if (info.endDate) form.setValue('endDate', new Date(info.endDate))
+    if (info.endHour !== undefined) form.setValue('endHour', info.endHour)
+    if (info.notes) form.setValue('notes', info.notes)
+
+    // 关闭OCR组件
+    setShowOcr(false)
+  }
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+        {/* OCR识别按钮 */}
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowOcr(!showOcr)}
+            className="gap-2"
+          >
+            <ScanText className="h-4 w-4" />
+            {showOcr ? '关闭OCR' : 'OCR识别'}
+          </Button>
+        </div>
+
+        {/* OCR识别组件 */}
+        {showOcr && (
+          <div className="mb-4">
+            <OcrCouponRecognizer
+              onExtracted={handleOcrExtracted}
+              onCancel={() => setShowOcr(false)}
+            />
+          </div>
+        )}
         <FormField
           control={form.control}
           name="title"

@@ -1,12 +1,20 @@
 "use client"
 
 import { useState } from "react"
-import { Upload, X, Loader2, ScanText, Check, AlertCircle, Image as ImageIcon, FileJson, Download, Upload as ImportIcon } from "lucide-react"
+import { Upload, X, Loader2, ScanText, Check, AlertCircle, Image as ImageIcon, FileJson, Download, Upload as ImportIcon, Copy, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 
 export interface OcrResult {
   text: string
@@ -48,6 +56,7 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
   const [error, setError] = useState<string | null>(null)
   const [pastedText, setPastedText] = useState('')
   const [useAI, setUseAI] = useState(false)
+  const [viewingImageIndex, setViewingImageIndex] = useState<number | null>(null)
 
   const handleFilesSelect = (files: FileList | null) => {
     setError(null)
@@ -127,25 +136,49 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
         try {
           const result = await Tesseract.recognize(
             img.preview,
-            'chi_sim+eng',
+            'chi_sim',
             {
               logger: (m: any) => {
-                // 只更新当前图片的进度
+                // 更新识别进度（每张图片的进度）
+                if (m.status === 'recognizing text') {
+                  const imageProgress = Math.round(m.progress * 100)
+                  // 计算总进度
+                  const totalProgress = Math.round(((i) / images.length) * 100 + (imageProgress / images.length))
+                  setProgress(totalProgress)
+                }
               },
             }
           )
 
-          // 更新识别结果
-          setImages(prev => prev.map((item, idx) =>
-            idx === i ? {
-              ...item,
-              status: 'recognized',
-              ocrResult: {
-                text: result.data.text,
-                confidence: result.data.confidence,
-              }
-            } : item
-          ))
+          // 检查识别质量
+          const confidence = result.data.confidence
+          const recognizedText = result.data.text.trim()
+
+          if (confidence < 50) {
+            // 识别置信度过低，显示警告
+            setImages(prev => prev.map((item, idx) =>
+              idx === i ? {
+                ...item,
+                status: 'recognized',
+                ocrResult: {
+                  text: recognizedText,
+                  confidence: confidence,
+                }
+              } : item
+            ))
+          } else {
+            // 识别成功
+            setImages(prev => prev.map((item, idx) =>
+              idx === i ? {
+                ...item,
+                status: 'recognized',
+                ocrResult: {
+                  text: recognizedText,
+                  confidence: confidence,
+                }
+              } : item
+            ))
+          }
         } catch (err) {
           console.error(`识别图片 ${img.file.name} 失败:`, err)
           setImages(prev => prev.map((item, idx) =>
@@ -157,7 +190,7 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
           ))
         }
 
-        // 更新总进度
+        // 确保进度达到100%
         setProgress(Math.round(((i + 1) / images.length) * 100))
       }
     } catch (err) {
@@ -295,6 +328,10 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
     setProgress(0)
   }
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -305,6 +342,18 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
         <CardDescription>
           一次选择多张优惠券图片或粘贴文本，自动识别并批量添加
         </CardDescription>
+        {/* 图片识别提示 */}
+        {mode === 'image' && (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="text-sm">
+              <strong>图片识别建议：</strong>
+              1. 确保图片清晰、文字不模糊
+              2. 尽量裁剪掉无关背景，只保留优惠券文字部分
+              3. 如果识别不准确，建议使用手机截屏OCR识别后复制文本
+            </AlertDescription>
+          </Alert>
+        )}
         <Tabs value={mode} onValueChange={(value) => setMode(value as 'image' | 'text')}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="image" className="gap-2">
@@ -389,6 +438,18 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
                       >
                         <X className="h-3 w-3" />
                       </Button>
+                      {/* 查看识别文本按钮 */}
+                      {img.status === 'recognized' && img.ocrResult && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="absolute top-1 left-1 h-6 w-6 p-0"
+                          onClick={() => setViewingImageIndex(index)}
+                          title="查看识别文本"
+                        >
+                          <Eye className="h-3 w-3" />
+                        </Button>
+                      )}
                       <div className="absolute bottom-1 left-1 right-1">
                         {img.status === 'pending' && (
                           <div className="bg-black/50 text-white text-xs px-2 py-1 rounded">
@@ -506,6 +567,41 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
           </TabsContent>
         </Tabs>
       </CardContent>
+
+      {/* 查看识别文本对话框 */}
+      <Dialog open={viewingImageIndex !== null} onOpenChange={() => setViewingImageIndex(null)}>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle>识别文本</DialogTitle>
+            <DialogDescription>
+              这是AI识别出的文本，如有错误请手动修正
+            </DialogDescription>
+          </DialogHeader>
+          {viewingImageIndex !== null && images[viewingImageIndex]?.ocrResult && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>置信度: {images[viewingImageIndex].ocrResult.confidence.toFixed(1)}%</span>
+                {images[viewingImageIndex].ocrResult.confidence < 50 && (
+                  <AlertCircle className="h-4 w-4 text-orange-500" />
+                )}
+              </div>
+              <Textarea
+                value={images[viewingImageIndex].ocrResult.text}
+                readOnly
+                rows={10}
+                className="text-sm"
+              />
+              <Button
+                onClick={() => images[viewingImageIndex]?.ocrResult?.text && copyToClipboard(images[viewingImageIndex].ocrResult.text)}
+                className="w-full gap-2"
+              >
+                <Copy className="h-4 w-4" />
+                复制到剪贴板
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

@@ -25,8 +25,13 @@ export async function sendPushPlus(message: PushPlusMessage): Promise<{ success:
       template: message.template || "html",
     })
 
-    const response = await fetch(`${url}?${params.toString()}`, {
-      method: "GET",
+    // 使用 POST 方法，参数放在请求体中
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: params.toString(),
     })
 
     // 检查响应状态

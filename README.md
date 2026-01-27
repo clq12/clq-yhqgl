@@ -31,12 +31,21 @@ coze dev
 2. **Railway**: https://railway.app
 3. **Render**: https://render.com
 
-部署步骤：
-1. 推送代码到 GitHub
-2. 在部署平台导入项目
-3. 部署完成后，访问应用并配置 WebDAV
+#### 快速部署到 Vercel
+
+```bash
+# 使用部署脚本（推荐）
+bash scripts/deploy-to-vercel.sh
+
+# 或手动推送
+git push origin main
+```
+
+推送后 Vercel 会自动部署，1-2 分钟后即可访问。
 
 详细部署指南请查看 [DEPLOYMENT.md](./DEPLOYMENT.md)
+
+部署问题排查请查看 [VERCEL_TROUBLESHOOT.md](./VERCEL_TROUBLESHOOT.md)
 
 ## 📖 使用指南
 

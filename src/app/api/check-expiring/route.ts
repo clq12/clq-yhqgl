@@ -111,6 +111,8 @@ export async function GET(request: NextRequest) {
     const within3Days: Coupon[] = []
     const within1Day: Coupon[] = []
 
+    console.log(`总共找到 ${allCoupons.length} 张优惠券`)
+
     for (const coupon of allCoupons) {
       // 排除已使用的优惠券
       if (coupon.isUsed) {
@@ -120,6 +122,8 @@ export async function GET(request: NextRequest) {
       // 计算剩余天数
       const days = getDaysRemaining(coupon)
       const hours = getRemainingHours(coupon)
+
+      console.log(`优惠券 "${coupon.title}": 剩余 ${days}天 ${hours}小时`)
 
       // 分组
       if (days <= 7) {
@@ -133,24 +137,31 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    console.log(`分组结果: 1天内=${within1Day.length}张, 3天内=${within3Days.length}张, 7天内=${within7Days.length}张`)
+
     // 5. 合并发送一条推送（按紧急程度排序：1天→3天→7天）
     const totalCount = within1Day.length + within3Days.length + within7Days.length
 
     if (totalCount > 0) {
+      console.log(`准备发送推送，共 ${totalCount} 张优惠券`)
+
       const message = generateGroupedExpiringMessage({
         within1Day,
         within3Days,
         within7Days,
       })
 
-      const success = await sendPushPlus({
+      console.log(`推送消息已生成，长度: ${message.length} 字符`)
+
+      const result = await sendPushPlus({
         token: config.pushplusToken,
         title: "优惠券即将到期提醒",
         content: message,
         template: "html",
       })
 
-      if (success) {
+      if (result.success) {
+        console.log(`推送成功！`)
         return NextResponse.json({
           success: true,
           message: `检查完成，发送了 ${totalCount} 条提醒`,
@@ -162,8 +173,13 @@ export async function GET(request: NextRequest) {
           },
         })
       } else {
+        console.error("推送失败:", result.error)
         return NextResponse.json(
-          { success: false, error: "推送发送失败" },
+          {
+            success: false,
+            error: "推送发送失败",
+            details: result.error
+          },
           { status: 500 }
         )
       }

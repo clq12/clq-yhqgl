@@ -13,7 +13,7 @@ export interface PushPlusMessage {
 /**
  * 发送 PushPlus 消息
  */
-export async function sendPushPlus(message: PushPlusMessage): Promise<boolean> {
+export async function sendPushPlus(message: PushPlusMessage): Promise<{ success: boolean; error?: string }> {
   try {
     const url = "http://www.pushplus.plus/send"
 
@@ -30,10 +30,21 @@ export async function sendPushPlus(message: PushPlusMessage): Promise<boolean> {
 
     const result = await response.json()
 
-    return result.code === 200
+    if (result.code === 200) {
+      return { success: true }
+    } else {
+      return {
+        success: false,
+        error: result.msg || `PushPlus API 返回错误: code=${result.code}`
+      }
+    }
   } catch (error) {
-    console.error("PushPlus 推送失败:", error)
-    return false
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    console.error("PushPlus 推送失败:", errorMsg)
+    return {
+      success: false,
+      error: `推送失败: ${errorMsg}`
+    }
   }
 }
 

@@ -164,20 +164,21 @@ pnpm start
 
 详细配置请查看 [Vercel Cron Jobs 配置指南](./VERCEL_CRON_GUIDE.md)。
 
-#### 快速配置到 cron-job.org（推荐）
+### 快速配置到 GitHub Actions（推荐）✨
 
-1. 访问 [cron-job.org](https://cron-job.org/) 并注册账号（免费）
-2. 创建新的 cronjob：
-   - **URL**: `https://你的应用.vercel.app/api/check-expiring`
-   - **Method**: GET
-   - **Execution log**: 保留最近10条
-3. 时间设置：
-   - Days: 选中所有天 ☑️
-   - Hours: 选中所有小时（0-23）☑️
-   - Minutes: 0
-4. 点击 "Save" 保存
+1. 访问你的 GitHub 仓库 Settings → Secrets and variables → Actions
+2. 添加以下 Secrets：
+   - `WEBDAV_URL` = `https://dav.jianguoyun.com/dav/`
+   - `WEBDAV_USERNAME` = 你的坚果云账号
+   - `WEBDAV_PASSWORD` = 你的坚果云应用密码
+   - `PUSHPLUS_TOKEN` = 你的 PushPlus Token
+3. 推送代码到 GitHub
+4. 访问 Actions 页面，启用工作流
+5. 手动测试一次
 
-完成！cron-job.org 会每小时自动调用你的接口。
+完成！GitHub Actions 会每小时自动调用你的接口。
+
+详细配置请查看 [GitHub Actions 配置指南](./GITHUB_ACTIONS_SETUP.md)。
 
 #### 其他平台
 

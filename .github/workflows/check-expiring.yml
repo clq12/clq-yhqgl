@@ -6,11 +6,7 @@ name: Check Expiring Coupons
 on:
   schedule:
     - cron: '0 * * * *'
-
-# 允许手动触发工作流
-on:
-  schedule:
-    - cron: '0 * * * *'
+  # 允许手动触发工作流
   workflow_dispatch:
 
 jobs:
@@ -25,9 +21,11 @@ jobs:
 
       - name: Check expiring coupons
         id: check
+        env:
+          APP_URL: https://clq-rosy.vercel.app
         run: |
           echo "开始检查即将到期的优惠券..."
-          RESPONSE=$(curl -s -w "\n%{http_code}" https://clq-rosy.vercel.app/api/check-expiring)
+          RESPONSE=$(curl -s -w "\n%{http_code}" "$APP_URL/api/check-expiring")
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | sed '$d')
 

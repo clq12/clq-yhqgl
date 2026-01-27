@@ -6,7 +6,7 @@ import {
   saveCoupons,
   Coupon,
 } from "@/lib/webdav-storage"
-import { sendPushPlus, generateExpiringMessage } from "@/lib/pushplus"
+import { sendPushPlus, generateGroupedExpiringMessage } from "@/lib/pushplus"
 
 /**
  * 计算优惠券剩余天数
@@ -105,12 +105,8 @@ export async function GET(request: NextRequest) {
     // 3. 获取所有优惠券
     const allCoupons = await getAllCoupons()
 
-    // 4. 新的提醒逻辑：允许重复推送
-    // 检查所有未使用的优惠券，根据剩余时间分组推送
-    let totalSent = 0
-    const now = new Date()
-
-    // 按剩余天数分组
+    // 4. 新的提醒逻辑：合并推送，按紧急程度排序
+    // 检查所有未使用的优惠券，根据剩余时间分组
     const within7Days: Coupon[] = []
     const within3Days: Coupon[] = []
     const within1Day: Coupon[] = []
@@ -125,7 +121,7 @@ export async function GET(request: NextRequest) {
       const days = getDaysRemaining(coupon)
       const hours = getRemainingHours(coupon)
 
-      // 分组：允许重复推送
+      // 分组
       if (days <= 7) {
         within7Days.push(coupon)
       }
@@ -137,54 +133,47 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // 5. 按天分组发送推送
-    // 7天内到期
-    if (within7Days.length > 0) {
-      const message = generateExpiringMessage(within7Days, 7)
-      const success = await sendPushPlus({
-        token: config.pushplusToken,
-        title: `优惠券即将到期提醒（7天内）`,
-        content: message,
-        template: "html",
-      })
-      if (success) {
-        totalSent += within7Days.length
-      }
-    }
+    // 5. 合并发送一条推送（按紧急程度排序：1天→3天→7天）
+    const totalCount = within1Day.length + within3Days.length + within7Days.length
 
-    // 3天内到期
-    if (within3Days.length > 0) {
-      const message = generateExpiringMessage(within3Days, 3)
-      const success = await sendPushPlus({
-        token: config.pushplusToken,
-        title: `优惠券即将到期提醒（3天内）`,
-        content: message,
-        template: "html",
+    if (totalCount > 0) {
+      const message = generateGroupedExpiringMessage({
+        within1Day,
+        within3Days,
+        within7Days,
       })
-      if (success) {
-        totalSent += within3Days.length
-      }
-    }
 
-    // 1天内到期
-    if (within1Day.length > 0) {
-      const message = generateExpiringMessage(within1Day, 1)
       const success = await sendPushPlus({
         token: config.pushplusToken,
-        title: `优惠券即将到期提醒（1天内）`,
+        title: "优惠券即将到期提醒",
         content: message,
         template: "html",
       })
+
       if (success) {
-        totalSent += within1Day.length
+        return NextResponse.json({
+          success: true,
+          message: `检查完成，发送了 ${totalCount} 条提醒`,
+          data: {
+            totalSent: totalCount,
+            within7Days: within7Days.length,
+            within3Days: within3Days.length,
+            within1Day: within1Day.length,
+          },
+        })
+      } else {
+        return NextResponse.json(
+          { success: false, error: "推送发送失败" },
+          { status: 500 }
+        )
       }
     }
 
     return NextResponse.json({
       success: true,
-      message: totalSent > 0 ? `检查完成，发送了 ${totalSent} 条提醒` : "检查完成，暂无需要提醒的优惠券",
+      message: "检查完成，暂无需要提醒的优惠券",
       data: {
-        totalSent,
+        totalSent: 0,
         within7Days: within7Days.length,
         within3Days: within3Days.length,
         within1Day: within1Day.length,

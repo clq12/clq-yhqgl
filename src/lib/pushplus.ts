@@ -114,7 +114,101 @@ export function generateExpiringMessage(coupons: any[], days: number): string {
           <p style="color: #999; margin: 0 0 12px 0; font-size: 14px;">
             请及时使用优惠券，避免过期浪费
           </p>
-          <a href="#" style="
+          <a href="https://clq-rosy.vercel.app" style="
+            display: inline-block;
+            background: linear-gradient(135deg, #e11d48, #be123c);
+            color: white;
+            padding: 12px 32px;
+            text-decoration: none;
+            border-radius: 24px;
+            font-weight: bold;
+            box-shadow: 0 4px 12px rgba(225, 29, 72, 0.3);
+          ">
+            📱 查看优惠券详情
+          </a>
+        </div>
+      </div>
+    </div>
+  `
+
+  return html
+}
+
+/**
+ * 生成分组的优惠券到期提醒消息
+ */
+export function generateGroupedExpiringMessage(groups: {
+  within1Day: any[]
+  within3Days: any[]
+  within7Days: any[]
+}): string {
+  const { within1Day, within3Days, within7Days } = groups
+  const totalCoupons = within1Day.length + within3Days.length + within7Days.length
+
+  if (totalCoupons === 0) {
+    return ""
+  }
+
+  const today = new Date().toLocaleDateString("zh-CN")
+
+  let html = `
+    <div style="font-family: 'Microsoft YaHei', sans-serif; padding: 20px; background-color: #f5f5f5;">
+      <div style="background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+        <h2 style="color: #e11d48; margin: 0 0 16px 0; font-size: 24px;">
+          🔔 优惠券即将到期提醒
+        </h2>
+        <p style="color: #666; margin: 0 0 20px 0;">
+          今天是 ${today}，您共有 <strong style="color: #e11d48; font-size: 18px;">${totalCoupons}</strong> 张优惠券即将到期
+        </p>
+        <div style="border-top: 1px solid #eee; padding-top: 20px;">
+  `
+
+  // 辅助函数：生成优惠券列表
+  const renderCoupons = (coupons: any[], title: string, color: string) => {
+    if (coupons.length === 0) return ""
+
+    let sectionHtml = `
+      <div style="margin-bottom: 24px;">
+        <h3 style="color: ${color}; margin: 0 0 12px 0; font-size: 16px; font-weight: bold;">
+          ${title}（${coupons.length}张）
+        </h3>
+    `
+
+    coupons.forEach((coupon, index) => {
+      const endDate = new Date(coupon.endDate).toLocaleDateString("zh-CN")
+      const { text: remainingTime } = calculateRemainingTime(coupon)
+      const notes = coupon.notes || "无"
+
+      sectionHtml += `
+        <div style="background: #fff5f5; border-left: 4px solid ${color}; padding: 16px; margin-bottom: 12px; border-radius: 4px;">
+          <h4 style="color: #333; margin: 0 0 8px 0; font-size: 16px;">
+            ${index + 1}. ${coupon.title}
+          </h4>
+          <div style="color: #666; font-size: 14px; line-height: 1.8;">
+            <div style="margin-bottom: 4px;">⏰ 剩余时间：<strong style="color: ${color};">${remainingTime}</strong></div>
+            <div style="margin-bottom: 4px;">📅 到期时间：<strong style="color: ${color};">${endDate}</strong></div>
+            <div style="margin-bottom: 4px;">📝 备注：${notes}</div>
+          </div>
+        </div>
+      `
+    })
+
+    sectionHtml += `</div>`
+    return sectionHtml
+  }
+
+  // 按紧急程度排序：1天（红色）→ 3天（橙色）→ 7天（黄色）
+  html += renderCoupons(within1Day, "🚨 1天内到期", "#e11d48")
+  html += renderCoupons(within3Days, "⚠️ 3天内到期", "#f97316")
+  html += renderCoupons(within7Days, "📢 7天内到期", "#eab308")
+
+  html += `
+        </div>
+        <div style="margin-top: 24px; padding-top: 20px; border-top: 1px solid #eee; text-align: center;">
+          <p style="color: #999; margin: 0 0 12px 0; font-size: 14px;">
+            请及时使用优惠券，避免过期浪费
+          </p>
+          <a href="https://clq-rosy.vercel.app" style="
             display: inline-block;
             background: linear-gradient(135deg, #e11d48, #be123c);
             color: white;

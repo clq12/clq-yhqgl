@@ -84,6 +84,73 @@ GET /api/remind-status
 - 🟡 **已提醒**：绿色标签，仅表示已提醒过，未显示具体天数
 - ⚪ **未提醒**：无标签
 
+## 定时任务配置
+
+为了实现自动推送提醒，需要配置定时任务。建议每小时执行一次，以确保精确到小时的提醒功能正常工作。
+
+### 快速开始
+
+#### 方法一：cron-job.org（推荐）
+
+1. 访问 [cron-job.org](https://cron-job.org/) 并注册账号
+2. 创建新的 cronjob：
+   - **URL**：`https://你的应用地址/api/check-expiring`
+   - **Cron 表达式**：`0 * * * *`（每小时执行）
+3. 保存配置
+
+#### 方法二：Vercel Cron Jobs
+
+在项目根目录创建 `vercel.json`：
+
+```json
+{
+  "crons": [
+    {
+      "path": "/api/check-expiring",
+      "schedule": "0 * * * *"
+    }
+  ]
+}
+```
+
+#### 方法三：GitHub Actions
+
+创建 `.github/workflows/check-expiring.yml`：
+
+```yaml
+name: Check Expiring Coupons
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+
+jobs:
+  check-expiring:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check expiring coupons
+        run: |
+          curl -X GET https://你的应用地址/api/check-expiring
+```
+
+### 详细配置指南
+
+请参阅 [定时任务配置指南](./SCHEDULE_CONFIG.md) 获取详细的配置说明和常见问题解答。
+
+### 环境变量配置
+
+定时任务需要配置以下环境变量：
+
+```bash
+# WebDAV 配置
+WEBDAV_URL=https://dav.jianguoyun.com/dav/
+WEBDAV_USERNAME=你的坚果云账号
+WEBDAV_PASSWORD=你的坚果云应用密码
+
+# PushPlus 配置
+PUSHPLUS_TOKEN=你的PushPlus Token
+```
+
 ## 测试推送功能
 
 ### 方法一：通过应用界面测试

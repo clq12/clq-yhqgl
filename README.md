@@ -138,10 +138,76 @@ pnpm build
 pnpm start
 ```
 
+## ⏰ 定时任务
+
+应用支持定时任务自动检查即将到期的优惠券，并发送微信推送提醒。
+
+### 快速配置
+
+🚀 **5分钟快速配置指南**：[查看快速配置](./QUICK_START_SCHEDULE.md)
+
+#### Vercel Cron Jobs（推荐）
+
+如果部署在 Vercel，只需在项目根目录创建 `vercel.json`：
+
+```json
+{
+  "crons": [
+    {
+      "path": "/api/check-expiring",
+      "schedule": "0 * * * *"
+    }
+  ]
+}
+```
+
+配置环境变量后，Vercel 会自动启用定时任务。详细配置请查看 [定时任务配置指南](./SCHEDULE_CONFIG.md)。
+
+#### 其他平台
+
+- **cron-job.org**：免费、简单，适用于任何平台
+- **GitHub Actions**：适用于开源项目
+- **阿里云 FC**：适用于阿里云部署
+
+详细配置请查看 [定时任务配置指南](./SCHEDULE_CONFIG.md)。
+
+### 提醒时间
+
+系统会在以下时间点自动发送提醒：
+- **7天前**：在优惠券到期时间前7天的同一小时
+- **3天前**：在优惠券到期时间前3天的同一小时
+- **1天前**：在优惠券到期时间前1天的同一小时
+
+**示例**：优惠券7天后23点到期，会在7天前的23点提醒。
+
+### 环境变量
+
+定时任务需要配置以下环境变量：
+
+```bash
+# WebDAV 配置
+WEBDAV_URL=https://dav.jianguoyun.com/dav/
+WEBDAV_USERNAME=你的坚果云账号
+WEBDAV_PASSWORD=你的坚果云应用密码
+
+# PushPlus 配置
+PUSHPLUS_TOKEN=你的PushPlus Token
+```
+
 ## 📖 文档
 
+### 快速开始
+- **[定时任务快速配置](./QUICK_START_SCHEDULE.md)** - 5分钟快速配置定时任务
+
+### 详细指南
 - **[WEBDAV_GUIDE.md](./WEBDAV_GUIDE.md)** - WebDAV 详细使用指南
+- **[PUSHPLUS_SETUP.md](./PUSHPLUS_SETUP.md)** - PushPlus 推送配置指南
+- **[SCHEDULE_CONFIG.md](./SCHEDULE_CONFIG.md)** - 定时任务配置指南
 - **[DEPLOYMENT.md](./DEPLOYMENT.md)** - 云端部署指南
+
+### 功能说明
+- **[PRECISE_REMINDER.md](./PRECISE_REMINDER.md)** - 精确提醒功能说明
+- **[OPTIMIZATION_SUMMARY.md](./OPTIMIZATION_SUMMARY.md)** - 功能优化总结
 
 ## 🔐 安全说明
 

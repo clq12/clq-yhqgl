@@ -15,7 +15,8 @@ export interface PushPlusMessage {
  */
 export async function sendPushPlus(message: PushPlusMessage): Promise<{ success: boolean; error?: string }> {
   try {
-    const url = "http://www.pushplus.plus/send"
+    // 使用 HTTPS 协议
+    const url = "https://www.pushplus.plus/send"
 
     const params = new URLSearchParams({
       token: message.token,
@@ -27,6 +28,29 @@ export async function sendPushPlus(message: PushPlusMessage): Promise<{ success:
     const response = await fetch(`${url}?${params.toString()}`, {
       method: "GET",
     })
+
+    // 检查响应状态
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`PushPlus API HTTP 错误: ${response.status}`)
+      console.error(`响应内容: ${errorText.substring(0, 200)}`)
+      return {
+        success: false,
+        error: `HTTP 错误: ${response.status}`
+      }
+    }
+
+    // 检查响应类型
+    const contentType = response.headers.get("content-type")
+    if (!contentType || !contentType.includes("application/json")) {
+      const errorText = await response.text()
+      console.error(`PushPlus API 返回非 JSON 响应: ${contentType}`)
+      console.error(`响应内容: ${errorText.substring(0, 200)}`)
+      return {
+        success: false,
+        error: `API 返回非 JSON 格式，可能是 Token 无效或 API 地址错误`
+      }
+    }
 
     const result = await response.json()
 

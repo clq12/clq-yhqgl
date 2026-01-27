@@ -116,69 +116,121 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
   // - 带时间的日期范围：2026.01.24 10:51-2026.01.27 10:51
   // - OCR识别格式（可能缺少点号）：2026.012410:51-2026.012710:51
   // - 混合格式：2026.01.25 17:13-2026.0128 17:15
-  const datePatterns = [
-    // 标准日期范围（横杠/斜杠）
-    /(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})[日]?[-–到至](\d{4})[-/年](\d{1,2})[-/月](\d{1,2})[日]?/,
-    // 日期范围（点号分隔，带时间）
-    /(\d{4})\.(\d{1,2})\.(\d{1,2})\s*\d{1,2}:\d{2}[-–到至](\d{4})\.(\d{1,2})\.(\d{1,2})/,
-    // 日期范围（点号分隔）
-    /(\d{4})\.(\d{1,2})\.(\d{1,2})[-–到至](\d{4})\.(\d{1,2})\.(\d{1,2})/,
-    // 混合格式日期范围（标准+OCR，带时间）：2026.01.25 17:13-2026.0128 17:15
-    /(\d{4})\.(\d{1,2})\.(\d{1,2})\s*\d{1,2}:\d{2}[-–到至](\d{4})\.?(\d{2})(\d{2})(?![.\d])/,
-    /(\d{4})\.?(\d{2})(\d{2})\s*\d{1,2}:\d{2}[-–到至](\d{4})\.(\d{1,2})\.(\d{1,2})/,
-    // 混合格式日期范围（标准+OCR）：2026.01.25-2026.0128
-    /(\d{4})\.(\d{1,2})\.(\d{1,2})[-–到至](\d{4})\.?(\d{2})(\d{2})(?![.\d])/,
-    /(\d{4})\.?(\d{2})(\d{2})[-–到至](\d{4})\.(\d{1,2})\.(\d{1,2})/,
-    // OCR识别格式（日期时间连在一起）：2026.012410:51-2026.012710:51
-    /(\d{4})\.?(\d{2})(\d{2})\d{1,2}:\d{2}[-–到至](\d{4})\.?(\d{2})(\d{2})\d{1,2}:\d{2}/,
-    // OCR识别格式（缺少点号，带时间）：2026.0124 10:51-2026.0127 10:51
-    /(\d{4})\.?(\d{2})(\d{2})\s*\d{1,2}:\d{2}[-–到至](\d{4})\.?(\d{2})(\d{2})(?![.\d])/,
-    /(\d{4})\.?(\d{2})(\d{2})[-–到至](\d{4})\.?(\d{2})(\d{2})(?![.\d])/,
-    // 完整日期格式（带年份）
-    /(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})[日]?/,
-    /(\d{4})\.(\d{1,2})\.(\d{1,2})/,
-    /(\d{4})\.?(\d{2})(\d{2})(?![.\d])/,
-    // 短日期格式（不带年份，放在最后）
-    /(\d{1,2})[-/月](\d{1,2})[日]?/,
-    /(\d{4})[/](\d{1,2})[/](\d{1,2})/,  // 2026/02/23
-  ]
+  // - 月份.日期过期格式：1.30过期、2.5过期
+  // - 本月日期格式：这个月30过期、本月15号
+  // - 相对天数格式：3天后过期、7天后
+  // - 下月日期格式：下个月5号过期、下月1号
 
+  const now = new Date()
+  const currentYear = now.getFullYear()
+  const currentMonth = now.getMonth() + 1  // 1-12
+  const currentDay = now.getDate()
+
+  // 优先检查相对日期格式（这个月、下月、N天后）
   let matchedDate: Date | null = null
-  const currentYear = new Date().getFullYear()
 
-  for (const pattern of datePatterns) {
-    const match = text.match(pattern)
-    if (match) {
-      let year, month, day
+  // 检查"这个月30过期"、"本月15号"等格式
+  const thisMonthPattern = /(?:这个|本)月\s*(\d{1,2})\s*(?:号|日)?\s*(?:过期|$)/
+  const thisMonthMatch = text.match(thisMonthPattern)
+  if (thisMonthMatch) {
+    const day = parseInt(thisMonthMatch[1])
+    const date = new Date(currentYear, currentMonth - 1, day)
+    if (!isNaN(date.getTime())) {
+      matchedDate = date
+      result.endDate = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    }
+  }
 
-      if (match.length >= 7) {
-        // 日期范围格式：取结束日期
-        year = parseInt(match[4])
-        month = parseInt(match[5])
-        day = parseInt(match[6])
-      } else if (match.length === 4) {
-        // 完整日期格式：2024-12-31
-        year = parseInt(match[1])
-        month = parseInt(match[2])
-        day = parseInt(match[3])
-      } else {
-        // 短日期格式：12-31（使用当前年份）
-        year = currentYear
-        month = parseInt(match[1])
-        day = parseInt(match[2])
-      }
+  // 检查"下个月5号过期"、"下月1号"等格式
+  const nextMonthPattern = /下?(?:个)?月\s*(\d{1,2})\s*(?:号|日)?\s*(?:过期|$)/
+  const nextMonthMatch = text.match(nextMonthPattern)
+  if (nextMonthMatch && !matchedDate) {
+    const day = parseInt(nextMonthMatch[1])
+    const nextMonthDate = new Date(currentYear, currentMonth, day)  // currentMonth + 1
+    if (!isNaN(nextMonthDate.getTime())) {
+      matchedDate = nextMonthDate
+      result.endDate = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    }
+  }
 
-      // 验证日期有效性
-      const date = new Date(year, month - 1, day)
-      if (!isNaN(date.getTime())) {
-        // 如果短日期且已过期，可能是明年的日期
-        if (match.length === 3 && date < new Date()) {
-          date.setFullYear(currentYear + 1)
+  // 检查"N天后过期"、"N天后"等格式
+  const daysLaterPattern = /(\d+)\s*天后\s*(?:过期|$)/
+  const daysLaterMatch = text.match(daysLaterPattern)
+  if (daysLaterMatch && !matchedDate) {
+    const days = parseInt(daysLaterMatch[1])
+    const futureDate = new Date(now)
+    futureDate.setDate(futureDate.getDate() + days)
+    if (!isNaN(futureDate.getTime())) {
+      matchedDate = futureDate
+      result.endDate = `${futureDate.getFullYear()}-${String(futureDate.getMonth() + 1).padStart(2, '0')}-${String(futureDate.getDate()).padStart(2, '0')}`
+    }
+  }
+
+  // 如果没有匹配到相对日期，再检查标准日期格式
+  if (!matchedDate) {
+    const datePatterns = [
+      // 日期范围格式（横杠/斜杠）
+      /(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})[日]?[-–到至](\d{4})[-/年](\d{1,2})[-/月](\d{1,2})[日]?/,
+      // 日期范围（点号分隔，带时间）
+      /(\d{4})\.(\d{1,2})\.(\d{1,2})\s*\d{1,2}:\d{2}[-–到至](\d{4})\.(\d{1,2})\.(\d{1,2})/,
+      // 日期范围（点号分隔）
+      /(\d{4})\.(\d{1,2})\.(\d{1,2})[-–到至](\d{4})\.(\d{1,2})\.(\d{1,2})/,
+      // 混合格式日期范围（标准+OCR，带时间）：2026.01.25 17:13-2026.0128 17:15
+      /(\d{4})\.(\d{1,2})\.(\d{1,2})\s*\d{1,2}:\d{2}[-–到至](\d{4})\.?(\d{2})(\d{2})(?![.\d])/,
+      /(\d{4})\.?(\d{2})(\d{2})\s*\d{1,2}:\d{2}[-–到至](\d{4})\.(\d{1,2})\.(\d{1,2})/,
+      // 混合格式日期范围（标准+OCR）：2026.01.25-2026.0128
+      /(\d{4})\.(\d{1,2})\.(\d{1,2})[-–到至](\d{4})\.?(\d{2})(\d{2})(?![.\d])/,
+      /(\d{4})\.?(\d{2})(\d{2})[-–到至](\d{4})\.(\d{1,2})\.(\d{1,2})/,
+      // OCR识别格式（日期时间连在一起）：2026.012410:51-2026.012710:51
+      /(\d{4})\.?(\d{2})(\d{2})\d{1,2}:\d{2}[-–到至](\d{4})\.?(\d{2})(\d{2})\d{1,2}:\d{2}/,
+      // OCR识别格式（缺少点号，带时间）：2026.0124 10:51-2026.0127 10:51
+      /(\d{4})\.?(\d{2})(\d{2})\s*\d{1,2}:\d{2}[-–到至](\d{4})\.?(\d{2})(\d{2})(?![.\d])/,
+      /(\d{4})\.?(\d{2})(\d{2})[-–到至](\d{4})\.?(\d{2})(\d{2})(?![.\d])/,
+      // 完整日期格式（带年份）
+      /(\d{4})[-/年](\d{1,2})[-/月](\d{1,2})[日]?/,
+      /(\d{4})\.(\d{1,2})\.(\d{1,2})/,
+      /(\d{4})\.?(\d{2})(\d{2})(?![.\d])/,
+      // 短日期格式（不带年份，放在最后）
+      /(\d{1,2})[-/月](\d{1,2})[日]?/,
+      /(\d{4})[/](\d{1,2})[/](\d{1,2})/,  // 2026/02/23
+      // 月份.日期过期格式：1.30过期、2.5过期
+      /(\d{1,2})\.(\d{1,2})(?:\s*过期|$)/,
+    ]
+
+    for (const pattern of datePatterns) {
+      const match = text.match(pattern)
+      if (match) {
+        let year, month, day
+
+        if (match.length >= 7) {
+          // 日期范围格式：取结束日期
+          year = parseInt(match[4])
+          month = parseInt(match[5])
+          day = parseInt(match[6])
+        } else if (match.length === 4) {
+          // 完整日期格式：2024-12-31
+          year = parseInt(match[1])
+          month = parseInt(match[2])
+          day = parseInt(match[3])
+        } else {
+          // 短日期格式：12-31（使用当前年份）
+          year = currentYear
+          month = parseInt(match[1])
+          day = parseInt(match[2])
         }
-        matchedDate = date
-        // 使用本地日期格式化，避免时区问题
-        result.endDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-        break
+
+        // 验证日期有效性
+        const date = new Date(year, month - 1, day)
+        if (!isNaN(date.getTime())) {
+          // 如果短日期且已过期，可能是明年的日期
+          if (match.length === 3 && date < new Date()) {
+            date.setFullYear(currentYear + 1)
+          }
+          matchedDate = date
+          // 使用本地日期格式化，避免时区问题
+          result.endDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+          break
+        }
       }
     }
   }
@@ -315,27 +367,38 @@ async function extractCouponInfoWithAI(text: string): Promise<ExtractedCouponInf
 2. "淘宝优惠券满100减20元有效期至2024-12-31 23点"
 3. "建设银行立减金，满2000减5元，有效期至2024-12-31 23点，饮品通用"
 4. "蜜雪冰城饮品优惠券 8折 有效期至2026-01-30"
+5. "华莱士串 1.30过期" （1月30日过期）
+6. "华莱士串 这个月30过期" （本月30日过期）
+7. "华莱士串 3天后过期" （3天后过期）
+8. "华莱士串 下个月5号过期" （下个月5号过期）
 
 提取规则：
-1. title: 优惠券标题（优先提取店铺/商品名+优惠券类型，如"华香脆骨串优惠券"、"建设银行立减金"）
+1. title: 优惠券标题（优先提取店铺/商品名+优惠券类型，如"华香脆骨串优惠券"、"建设银行立减金"、"华莱士串"）
 2. discountAmount: 折扣金额或折扣数值（如减5元则为5，8折则为8）
 3. discountType: 折扣类型（amount=减免金额, percentage=折扣, full=满减）
 4. fullAmount: 满减金额（仅当discountType为full时需要）
 5. endDate: 截止日期，格式为YYYY-MM-DD（如2026-01-31）
 6. endHour: 截止小时，0-23之间的整数，默认为23
-7. storeName: 店铺或平台名称（从开头提取，如"华香脆骨串"、"淘宝"、"建设银行"、"蜜雪冰城"）
-8. description: 描述信息（如"饮品"、"脆骨串"等）
+7. storeName: 店铺或平台名称（从开头提取，如"华香脆骨串"、"淘宝"、"建设银行"、"蜜雪冰城"、"华莱士"）
+8. description: 描述信息（如"饮品"、"脆骨串"、"串"等）
 
 注意事项：
 - 日期格式必须为YYYY-MM-DD
-- 支持的日期格式：2026-01-31、2026年1月31日、1月31日
-- 支持的时间格式：23:59、23点、23时
+- 支持的日期格式：
+  * 标准格式：2026-01-31、2026年1月31日、1月31日
+  * 带时间的日期：23:59、23点、23时
+  * 月份.日期格式：1.30过期、2.5过期
+  * 相对日期格式：这个月30过期、3天后过期、下个月5号过期
+- 相对日期处理规则：
+  * "这个月30过期" = 当前年份+当前月份+30日
+  * "3天后过期" = 当前日期+3天
+  * "下个月5号过期" = 当前年份+下个月+5日
 - 如果文本中没有明确截止时间，endHour默认设为23
 - 折扣类型判断：
-  - 如果包含"满X可用"、"满X减X"，则为full
-  - 如果包含"X折"但不包含"满"，则为percentage
-  - 如果包含"减X元"、"减免X元"，则为amount
-  - 如果只提到"优惠券"但没有折扣信息，设为null
+  * 如果包含"满X可用"、"满X减X"、"满X-Y"，则为full
+  * 如果包含"X折"但不包含"满"，则为percentage
+  * 如果包含"减X元"、"减免X元"，则为amount
+  * 如果只提到"优惠券"但没有折扣信息，设为null
 - 只返回JSON格式，不要包含任何其他文字
 - 如果无法提取某个字段，则不包含该字段或设为null
 

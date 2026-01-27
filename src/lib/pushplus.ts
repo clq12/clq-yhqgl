@@ -38,6 +38,36 @@ export async function sendPushPlus(message: PushPlusMessage): Promise<boolean> {
 }
 
 /**
+ * 计算剩余天数和小时数
+ */
+function calculateRemainingTime(coupon: any): { days: number; hours: number; text: string } {
+  const now = new Date()
+  const endDate = new Date(coupon.endDate)
+
+  // 设置截止时间的小时
+  const endHour = coupon.endHour ?? 23
+  endDate.setHours(endHour, 0, 0, 0)
+
+  const diffMs = endDate.getTime() - now.getTime()
+
+  // 计算天数和小时数
+  const totalHours = Math.ceil(diffMs / (1000 * 60 * 60))
+  const days = Math.floor(totalHours / 24)
+  const hours = totalHours % 24
+
+  // 生成显示文本
+  let text = ""
+  if (days > 0) {
+    text += `${days}天`
+  }
+  if (hours > 0 || days === 0) {
+    text += `${hours}小时`
+  }
+
+  return { days, hours, text }
+}
+
+/**
  * 生成优惠券到期提醒消息
  */
 export function generateExpiringMessage(coupons: any[], days: number): string {
@@ -61,9 +91,8 @@ export function generateExpiringMessage(coupons: any[], days: number): string {
 
   coupons.forEach((coupon, index) => {
     const endDate = new Date(coupon.endDate).toLocaleDateString("zh-CN")
-    const discount = coupon.discountAmount
-      ? `${coupon.discountAmount}元`
-      : coupon.description || "查看详情"
+    const { text: remainingTime } = calculateRemainingTime(coupon)
+    const notes = coupon.notes || "无"
 
     html += `
       <div style="background: #fff5f5; border-left: 4px solid #e11d48; padding: 16px; margin-bottom: 16px; border-radius: 4px;">
@@ -71,9 +100,9 @@ export function generateExpiringMessage(coupons: any[], days: number): string {
           ${index + 1}. ${coupon.title}
         </h3>
         <div style="color: #666; font-size: 14px; line-height: 1.8;">
+          <div style="margin-bottom: 4px;">⏰ 剩余时间：<strong style="color: #e11d48;">${remainingTime}</strong></div>
           <div style="margin-bottom: 4px;">📅 到期时间：<strong style="color: #e11d48;">${endDate}</strong></div>
-          <div style="margin-bottom: 4px;">💰 优惠力度：<strong style="color: #e11d48;">${discount}</strong></div>
-          ${coupon.notes ? `<div style="margin-bottom: 4px;">📝 备注：${coupon.notes}</div>` : ""}
+          <div style="margin-bottom: 4px;">📝 备注：${notes}</div>
         </div>
       </div>
     `

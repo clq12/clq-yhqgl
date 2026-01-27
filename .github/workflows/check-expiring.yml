@@ -1,11 +1,12 @@
 name: Check Expiring Coupons
 
-# 每小时执行一次（UTC时间）
-# 注意：GitHub Actions 使用 UTC 时间
-# 如果应用使用北京时间，请根据时差调整 cron 表达式
+# 每天执行两次（北京时间）
+# 北京时间 7:30 = UTC 23:30（前一天）
+# 北京时间 16:30 = UTC 8:30（当天）
 on:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '30 23 * * *'  # 北京时间7:30
+    - cron: '30 8 * * *'   # 北京时间16:30
   # 允许手动触发工作流
   workflow_dispatch:
 

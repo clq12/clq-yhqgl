@@ -155,30 +155,35 @@ pnpm start
 
 🚀 **5分钟快速配置指南**：[查看快速配置](./QUICK_START_SCHEDULE.md)
 
-#### Vercel Cron Jobs（推荐）
+⚠️ **重要提示**：Vercel 免费版每月约 100 次执行限制，每小时检查会超出限制。
 
-如果部署在 Vercel，只需在项目根目录创建 `vercel.json`：
+**推荐方案：**
+- ✅ **cron-job.org**（完全免费，支持每小时执行）
+- ⚠️ Vercel 每小时（需要付费版，$20/月）
+- ✅ Vercel 每6小时（免费版，但提醒有延迟）
 
-```json
-{
-  "crons": [
-    {
-      "path": "/api/check-expiring",
-      "schedule": "0 * * * *"
-    }
-  ]
-}
-```
+详细配置请查看 [Vercel Cron Jobs 配置指南](./VERCEL_CRON_GUIDE.md)。
 
-配置环境变量后，Vercel 会自动启用定时任务。详细配置请查看 [定时任务配置指南](./SCHEDULE_CONFIG.md)。
+#### 快速配置到 cron-job.org（推荐）
+
+1. 访问 [cron-job.org](https://cron-job.org/) 并注册账号（免费）
+2. 创建新的 cronjob：
+   - **URL**: `https://你的应用.vercel.app/api/check-expiring`
+   - **Method**: GET
+   - **Execution log**: 保留最近10条
+3. 时间设置：
+   - Days: 选中所有天 ☑️
+   - Hours: 选中所有小时（0-23）☑️
+   - Minutes: 0
+4. 点击 "Save" 保存
+
+完成！cron-job.org 会每小时自动调用你的接口。
 
 #### 其他平台
 
-- **cron-job.org**：免费、简单，适用于任何平台
 - **GitHub Actions**：适用于开源项目
 - **阿里云 FC**：适用于阿里云部署
-
-详细配置请查看 [定时任务配置指南](./SCHEDULE_CONFIG.md)。
+- **Vercel Cron Jobs**：详细限制说明请查看 [Vercel Cron Jobs 配置指南](./VERCEL_CRON_GUIDE.md)
 
 ### 提醒时间
 

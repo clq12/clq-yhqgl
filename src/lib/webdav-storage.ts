@@ -173,7 +173,94 @@ async function createBackup(): Promise<void> {
 }
 
 /**
- * 获取即将到期的优惠券
+ * 获取即将到期的优惠券（精确到小时）
+ * @param hours 提前多少小时提醒
+ */
+export async function getExpiringCouponsByHours(hours: number): Promise<Coupon[]> {
+  const coupons = await getAllCoupons()
+  const now = new Date()
+
+  return coupons.filter((coupon) => {
+    // 排除已使用的优惠券
+    if (coupon.isUsed) {
+      return false
+    }
+
+    const endDate = new Date(coupon.endDate)
+    const endHour = (coupon as any).endHour
+
+    // 设置截止时间的小时数
+    if (endHour !== null && endHour !== undefined) {
+      endDate.setHours(endHour, 0, 0, 0)
+    } else {
+      endDate.setHours(23, 0, 0, 0)
+    }
+
+    // 计算剩余小时数
+    const diff = endDate.getTime() - now.getTime()
+    const diffHours = Math.ceil(diff / (1000 * 60 * 60))
+
+    return diffHours >= 0 && diffHours <= hours
+  })
+}
+
+/**
+ * 获取在特定提醒时间点的优惠券（精确到小时）
+ * @param remindDays 提醒天数数组 [7, 3, 1]
+ * @returns 返回需要在当前时刻提醒的优惠券列表
+ */
+export async function getCouponsToRemindNow(remindDays: number[] = [7, 3, 1]): Promise<{ coupons: Coupon[], reasonDays: number }> {
+  const coupons = await getAllCoupons()
+  const now = new Date()
+  const currentHour = now.getHours()
+
+  const needRemind: Coupon[] = []
+  let matchedDays = 0
+
+  for (const coupon of coupons) {
+    // 排除已使用的优惠券
+    if (coupon.isUsed) {
+      continue
+    }
+
+    const endDate = new Date(coupon.endDate)
+    const endHour = (coupon as any).endHour || 23
+
+    // 设置截止时间的小时数
+    endDate.setHours(endHour, 0, 0, 0)
+
+    // 检查是否已经在该天数提醒过
+    const remindedDays = (coupon as any).remindedDays || []
+
+    // 遍历每个提醒天数
+    for (const days of remindDays) {
+      if (remindedDays.includes(days)) {
+        continue // 已经提醒过，跳过
+      }
+
+      // 计算提前days天的时间点
+      const remindDate = new Date(endDate)
+      remindDate.setDate(remindDate.getDate() - days)
+
+      // 检查当前时间是否在提醒时间点（精确到小时）
+      // 例如：7天前23点过期，应该在今天23点提醒
+      if (remindDate.getFullYear() === now.getFullYear() &&
+          remindDate.getMonth() === now.getMonth() &&
+          remindDate.getDate() === now.getDate() &&
+          remindDate.getHours() === currentHour) {
+        needRemind.push(coupon)
+        matchedDays = days
+        break // 匹配到一个天数就退出
+      }
+    }
+  }
+
+  return { coupons: needRemind, reasonDays: matchedDays }
+}
+
+/**
+ * 获取即将到期的优惠券（按天计算，保留兼容性）
+ * @param days 提前多少天提醒
  */
 export async function getExpiringCoupons(days: number): Promise<Coupon[]> {
   const coupons = await getAllCoupons()

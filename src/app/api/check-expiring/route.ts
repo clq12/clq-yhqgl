@@ -125,16 +125,18 @@ export async function GET(request: NextRequest) {
 
       console.log(`优惠券 "${coupon.title}": 剩余 ${days}天 ${hours}小时`)
 
-      // 分组
-      if (days <= 7) {
+      // 分组（每张优惠券只出现在最紧急的那个组中，不重复）
+      if (days <= 1) {
+        // 1天内到期（最紧急）
+        within1Day.push(coupon)
+      } else if (days <= 3) {
+        // 3天内到期
+        within3Days.push(coupon)
+      } else if (days <= 7) {
+        // 7天内到期
         within7Days.push(coupon)
       }
-      if (days <= 3) {
-        within3Days.push(coupon)
-      }
-      if (days <= 1) {
-        within1Day.push(coupon)
-      }
+      // 超过7天的不提醒
     }
 
     console.log(`分组结果: 1天内=${within1Day.length}张, 3天内=${within3Days.length}张, 7天内=${within7Days.length}张`)

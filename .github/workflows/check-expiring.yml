@@ -27,7 +27,7 @@ jobs:
         id: check
         run: |
           echo "开始检查即将到期的优惠券..."
-          RESPONSE=$(curl -s -w "\n%{http_code}" https://你的应用地址/api/check-expiring)
+          RESPONSE=$(curl -s -w "\n%{http_code}" https://clq-rosy.vercel.app/api/check-expiring)
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | sed '$d')
 

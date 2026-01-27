@@ -4,7 +4,7 @@ import { useMemo } from "react"
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import type { Coupon } from "@/storage/database/shared/schema"
+import type { Coupon } from "@/lib/webdav-storage"
 
 interface StatDashboardProps {
   coupons: Coupon[]

@@ -21,7 +21,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon, ScanText } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
-import type { Coupon } from "@/storage/database/shared/schema"
+import type { Coupon } from "@/lib/webdav-storage"
 import OcrCouponRecognizer, { type ExtractedCouponInfo } from "./OcrCouponRecognizer"
 
 const couponSchema = z.object({

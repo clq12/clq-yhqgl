@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { Plus, Bell, Calendar, Trash2, Edit, CheckCircle, AlertCircle, Info, Settings, Check, BarChart3, CheckSquare, XSquare, Clock, Trash, ChevronDown, ScanText, Download, Upload as ImportIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -35,7 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { Coupon } from "@/storage/database/shared/schema"
+import type { Coupon } from "@/lib/webdav-storage"
 
 interface RemindStatusItem {
   id: string
@@ -63,6 +64,7 @@ export default function Home() {
   const [sortBy, setSortBy] = useState<'discount' | 'remaining' | 'name' | null>(null)
   const [sortByOrder, setSortByOrder] = useState<'asc' | 'desc'>('desc')
   const [filterExpiring, setFilterExpiring] = useState<'1day' | '3day' | '7day' | 'all'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [isBulkMode, setIsBulkMode] = useState(false)
   const [isStatDialogOpen, setIsStatDialogOpen] = useState(false)
@@ -524,6 +526,29 @@ export default function Home() {
   const getFilteredAndSortedCoupons = () => {
     let filtered = [...coupons]
 
+    // 应用搜索
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim()
+      filtered = filtered.filter(c => {
+        // 搜索标题、描述和备注
+        const title = c.title.toLowerCase()
+        const description = (c.description || '').toLowerCase()
+        const notes = (c.notes || '').toLowerCase()
+        const discountText = c.discountType === 'percentage'
+          ? `${c.discountAmount}%折扣`
+          : c.discountType === 'amount'
+            ? `减免${c.discountAmount}元`
+            : c.discountType === 'full'
+              ? `满减`
+              : ''
+
+        return title.includes(query) ||
+               description.includes(query) ||
+               notes.includes(query) ||
+               discountText.includes(query)
+      })
+    }
+
     // 应用筛选
     if (filterExpiring !== 'all') {
       const days = filterExpiring === '1day' ? 1 : filterExpiring === '3day' ? 3 : 7
@@ -983,6 +1008,27 @@ export default function Home() {
         {/* 排序和筛选工具栏 */}
         <div className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-6 border">
           <div className="flex flex-wrap gap-3 items-center">
+            {/* 搜索 */}
+            <div className="flex items-center gap-2 flex-1 min-w-[200px] max-w-[400px]">
+              <Input
+                type="text"
+                placeholder="搜索优惠券..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="text-sm"
+              />
+              {searchQuery && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setSearchQuery('')}
+                  className="text-xs"
+                >
+                  清除
+                </Button>
+              )}
+            </div>
+
             {/* 排序 */}
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">排序：</span>

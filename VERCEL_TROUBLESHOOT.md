@@ -4,137 +4,174 @@
 
 ### 当前状态检查
 
-✅ Git 状态：工作区干净，所有文件已提交
-✅ 远程仓库：代码已推送到 GitHub (https://github.com/clq12/clq-.git)
-✅ 最新提交：feat: 添加优惠券搜索功能
+✅ Git 状态：所有文件已提交
+✅ 远程仓库：https://github.com/clq12/clq-.git
+✅ 最新提交：chore: trigger redeploy for search feature
 
-### 解决方案
+### 需要你手动执行的步骤
 
-#### 方法 1：在 Vercel 控制台手动重新部署（推荐）
-
-1. 访问 [Vercel Dashboard](https://vercel.com/dashboard)
-2. 找到你的项目
-3. 点击 "Deployments" 标签
-4. 找到最新的部署
-5. 点击右侧的 "..." 菜单
-6. 选择 "Redeploy"
-7. 确认重新部署
-
-#### 方法 2：创建空提交触发部署
+由于在沙箱环境中无法直接推送代码，请你在本地执行以下命令：
 
 ```bash
-# 创建一个空提交来触发部署
-git commit --allow-empty -m "chore: trigger redeploy"
+# 1. 拉取最新代码
+git pull origin main
 
-# 推送到 GitHub
+# 2. 推送到 GitHub
 git push origin main
 ```
 
-#### 方法 3：使用 Vercel CLI（已安装）
+### 推送后，Vercel 会自动部署
 
-```bash
-# 安装 Vercel CLI（如果还没安装）
-npm i -g vercel
-
-# 登录 Vercel
-vercel login
-
-# 触发重新部署
-vercel --prod
-```
-
-#### 方法 4：修改一个文件触发部署
-
-```bash
-# 添加一行注释到 README.md
-echo "" >> README.md
-git add README.md
-git commit -m "chore: trigger redeploy"
-git push origin main
-```
+推送成功后，Vercel 会：
+1. 检测到新的 commit
+2. 自动触发构建
+3. 部署最新版本
+4. 生效搜索功能和定时任务
 
 ### 验证部署
 
-1. **检查构建日志**
-   - 在 Vercel Dashboard 查看最新部署的构建日志
-   - 确认没有错误
+推送成功后，请检查：
 
-2. **检查文件**
-   - 访问应用 URL
-   - 测试搜索功能（应该能看到搜索框）
+1. **Vercel Dashboard**
+   - 访问 [Vercel Dashboard](https://vercel.com/dashboard)
+   - 查看部署状态
+   - 确认构建成功
 
-3. **检查定时任务**
-   - 在 Vercel Dashboard 的 Settings → Cron 中查看
-   - 确认定时任务已启用（每小时执行）
+2. **测试应用**
+   - 访问你的应用 URL
+   - 检查搜索功能是否正常
+   - 测试排序和筛选
 
-### 常见问题
-
-#### Q: 重新部署后还是看不到更新？
-
-**排查步骤：**
-1. 清除浏览器缓存（Ctrl + Shift + R）
-2. 检查 Vercel 构建日志，确认使用了最新的 commit
-3. 确认环境变量已配置
-
-#### Q: 定时任务不工作？
-
-**检查清单：**
-- [ ] vercel.json 文件存在且格式正确
-- [ ] 环境变量已配置（WEBDAV_URL, WEBDAV_USERNAME, WEBDAV_PASSWORD, PUSHPLUS_TOKEN）
-- [ ] Cron Jobs 已启用（在 Vercel Dashboard 的 Settings → Cron 中）
-
-#### Q: 构建失败？
-
-**可能原因：**
-1. 依赖安装失败
-2. 类型错误
-3. 环境变量缺失
-
-**解决方案：**
-1. 查看构建日志中的错误信息
-2. 检查 package.json 中的依赖
-3. 确认所有必需的环境变量已配置
-
-### 推荐流程
-
-1. **创建空提交**（最简单）
-   ```bash
-   git commit --allow-empty -m "chore: trigger redeploy"
-   git push origin main
+3. **配置环境变量**（如果还没配置）
+   ```
+   WEBDAV_URL=https://dav.jianguoyun.com/dav/
+   WEBDAV_USERNAME=你的坚果云账号
+   WEBDAV_PASSWORD=你的坚果云应用密码
+   PUSHPLUS_TOKEN=你的PushPlus Token
    ```
 
-2. **等待 Vercel 自动部署**
-   - Vercel 会检测到新的 commit
-   - 自动触发构建和部署
+4. **验证定时任务**
+   - 在 Vercel Dashboard 的 Settings → Cron 中查看
+   - 确认定时任务配置为每小时执行
 
-3. **验证功能**
-   - 访问应用 URL
-   - 测试搜索功能
-   - 检查定时任务
+### 最新更新内容
 
-### 当前项目配置
+本次更新包含：
 
-**文件清单：**
-- ✅ vercel.json（定时任务配置）
-- ✅ .github/workflows/check-expiring.yml（GitHub Actions）
-- ✅ PUSHPLUS_SETUP.md（推送配置）
-- ✅ SCHEDULE_CONFIG.md（定时任务配置）
-- ✅ QUICK_START_SCHEDULE.md（快速配置）
-- ✅ PRECISE_REMINDER.md（精确提醒）
-- ✅ OPTIMIZATION_SUMMARY.md（优化总结）
+#### 新增功能
+1. **搜索功能**
+   - 支持搜索标题、描述、备注
+   - 支持搜索折扣类型（折扣、减免、满减）
+   - 实时搜索，无需点击按钮
 
-**最新功能：**
-- ✅ 搜索功能（标题、描述、备注）
-- ✅ 精确到小时的提醒
+2. **优化改进**
+   - 修复类型兼容性问题
+   - 优化搜索过滤逻辑
+   - 改进用户体验
+
+#### 文档更新
+- **VERCEL_TROUBLESHOOT.md**：Vercel 部署问题排查指南
+
+#### 配置文件
+- **vercel.json**：定时任务配置（每小时执行）
+
+### 手动触发部署的备选方案
+
+如果推送后 Vercel 还是没有自动部署，可以：
+
+1. **在 Vercel 控制台手动重新部署**
+   - 访问 Vercel Dashboard
+   - 找到你的项目
+   - 点击 "Deployments" 标签
+   - 点击最新部署右侧的 "..." 菜单
+   - 选择 "Redeploy"
+
+2. **使用 Vercel CLI**
+   ```bash
+   npm i -g vercel
+   vercel login
+   vercel --prod
+   ```
+
+### 环境变量配置清单
+
+在 Vercel 项目设置中添加以下环境变量：
+
+```bash
+# WebDAV 配置
+WEBDAV_URL=https://dav.jianguoyun.com/dav/
+WEBDAV_USERNAME=你的坚果云账号
+WEBDAV_PASSWORD=你的坚果云应用密码
+
+# PushPlus 配置
+PUSHPLUS_TOKEN=你的PushPlus Token
+```
+
+**获取方式：**
+- WebDAV：在坚果云中创建应用密码
+- PushPlus：在 [pushplus.plus](https://www.pushplus.plus/) 获取 Token
+
+### 定时任务配置
+
+Vercel Cron Jobs 已在 `vercel.json` 中配置：
+
+```json
+{
+  "crons": [
+    {
+      "path": "/api/check-expiring",
+      "schedule": "0 * * * *"
+    }
+  ]
+}
+```
+
+这意味着：
+- 每小时执行一次检查
+- 自动发送到期提醒
+- 精确到小时的提醒功能
+
+### 测试定时任务
+
+配置完成后，可以手动测试：
+
+```bash
+# 访问检查接口
+curl https://你的应用地址/api/check-expiring
+```
+
+预期响应：
+```json
+{
+  "success": true,
+  "message": "检查完成，发送了 0 条提醒",
+  "data": {
+    "totalSent": 0
+  }
+}
+```
+
+### 快速配置链接
+
+详细配置指南：
+- **[定时任务快速配置](./QUICK_START_SCHEDULE.md)** - 5分钟快速配置
+- **[定时任务详细配置](./SCHEDULE_CONFIG.md)** - 完整配置指南
+- **[PushPlus 配置](./PUSHPLUS_SETUP.md)** - 推送功能配置
+
+### 总结
+
+**你现在需要做的：**
+1. 在本地执行 `git push origin main`
+2. 等待 Vercel 自动部署（通常 1-2 分钟）
+3. 访问应用测试搜索功能
+4. 配置环境变量（如果还没配置）
+5. 验证定时任务
+
+**部署成功后的效果：**
+- ✅ 可以在首页看到搜索框
+- ✅ 可以实时搜索优惠券
+- ✅ 每小时自动检查到期提醒
+- ✅ 精确到小时的推送提醒
 - ✅ AI 智能识别（默认启用）
-- ✅ 批量 OCR 识别
-- ✅ 统计分析
 
-### 下一步
-
-1. 使用方法 1 或方法 2 触发重新部署
-2. 在 Vercel 配置环境变量
-3. 测试所有功能
-4. 设置定时任务（如果还没设置）
-
-需要我帮你执行哪个方法？
+推送完成后告诉我，我可以帮你验证部署是否成功！

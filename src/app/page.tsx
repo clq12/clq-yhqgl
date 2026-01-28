@@ -75,6 +75,7 @@ export default function Home() {
   const [exportFilter, setExportFilter] = useState<'all' | 'used' | 'unused' | 'expired'>('all')
   const [importMode, setImportMode] = useState<'merge' | 'skip' | 'overwrite'>('merge')
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false)
+  const [usedCouponsExpanded, setUsedCouponsExpanded] = useState(false)  // 已使用优惠券展开状态
 
   // 检查 WebDAV 配置
   const checkWebDAVConfig = async () => {
@@ -579,7 +580,10 @@ export default function Home() {
       })
     }
 
-    return filtered
+    // 将已使用的优惠券移到最下方
+    const unusedCoupons = filtered.filter(c => !(c as any).isUsed)
+    const usedCoupons = filtered.filter(c => (c as any).isUsed)
+    return [...unusedCoupons, ...usedCoupons]
   }
 
   useEffect(() => {
@@ -1170,12 +1174,11 @@ export default function Home() {
               </div>
             )}
 
-            {/* 优惠券卡片 */}
-            {getFilteredAndSortedCoupons().map((coupon) => {
+            {/* 未使用的优惠券 */}
+            {getFilteredAndSortedCoupons().filter((c) => !(c as any).isUsed).map((coupon) => {
               const daysRemaining = getDaysRemaining(coupon)
               const expired = isExpired(coupon)
               const expiringSoon = isExpiringSoon(coupon) && !expired
-              const isUsed = (coupon as any).isUsed
               const endHour = (coupon as any).endHour
               const timeText = endHour !== null && endHour !== undefined
                 ? `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${endHour}点`
@@ -1186,9 +1189,7 @@ export default function Home() {
                 <Card
                   key={coupon.id}
                   className={`p-4 ${
-                    isUsed
-                      ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 opacity-75"
-                      : expired
+                    expired
                       ? "bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-800"
                       : expiringSoon
                       ? "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800"
@@ -1208,22 +1209,19 @@ export default function Home() {
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-2">
-                        <h3 className={`font-semibold truncate ${isUsed ? 'line-through text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-white'}`}>
+                        <h3 className={`font-semibold truncate text-gray-900 dark:text-white`}>
                           {coupon.title}
                         </h3>
                         {discountText && (
                           <Badge variant="secondary">{discountText}</Badge>
                         )}
-                        {isUsed && (
-                          <Badge className="bg-green-500">已使用</Badge>
-                        )}
-                        {expired && !isUsed && (
+                        {expired && (
                           <Badge variant="destructive">已过期</Badge>
                         )}
-                        {expiringSoon && !expired && !isUsed && (
+                        {expiringSoon && !expired && (
                           <Badge className="bg-orange-500">即将到期</Badge>
                         )}
-                        {coupon.isReminded && !isUsed && (
+                        {coupon.isReminded && (
                           <Badge
                             variant="outline"
                             className={`gap-1 ${
@@ -1238,7 +1236,7 @@ export default function Home() {
                         )}
                       </div>
                       {coupon.description && (
-                        <p className={`text-sm mb-3 line-clamp-2 ${isUsed ? 'text-gray-500 dark:text-gray-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                        <p className="text-sm mb-3 line-clamp-2 text-gray-600 dark:text-gray-400">
                           {coupon.description}
                         </p>
                       )}
@@ -1249,7 +1247,7 @@ export default function Home() {
                             截止：{timeText}
                           </span>
                         </div>
-                        {!isUsed && daysRemaining >= 0 && (
+                        {daysRemaining >= 0 && (
                           <span className="text-gray-900 dark:text-white font-medium">
                             {daysRemaining === 0 ? "今天到期" : `剩余${daysRemaining}天`}
                           </span>
@@ -1257,7 +1255,7 @@ export default function Home() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      {!isUsed && !coupon.isReminded && !expired && expiringSoon && (
+                      {!coupon.isReminded && !expired && expiringSoon && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -1268,7 +1266,7 @@ export default function Home() {
                           <Bell className="h-4 w-4" />
                         </Button>
                       )}
-                      {!isUsed && !expired && (
+                      {!expired && (
                         <Button
                           size="sm"
                           variant="ghost"
@@ -1277,17 +1275,6 @@ export default function Home() {
                           title="标记为已使用"
                         >
                           <CheckCircle className="h-4 w-4" />
-                        </Button>
-                      )}
-                      {isUsed && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleMarkUsed(coupon.id, false)}
-                          className="text-gray-600 hover:text-gray-700 dark:text-gray-400"
-                          title="取消已使用"
-                        >
-                          <Trash2 className="h-4 w-4" />
                         </Button>
                       )}
                       <Button
@@ -1330,6 +1317,123 @@ export default function Home() {
                 </Card>
               )
             })}
+
+            {/* 已使用的优惠券 */}
+            {getFilteredAndSortedCoupons().filter((c) => (c as any).isUsed).length > 0 && (
+              <div className="mt-8">
+                <div className="flex items-center justify-between mb-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setUsedCouponsExpanded(!usedCouponsExpanded)}
+                    className="gap-2"
+                  >
+                    <ChevronDown className={`h-4 w-4 transition-transform ${usedCouponsExpanded ? 'rotate-180' : ''}`} />
+                    已使用的优惠券 ({getFilteredAndSortedCoupons().filter((c) => (c as any).isUsed).length})
+                  </Button>
+                </div>
+
+                {usedCouponsExpanded && (
+                  <div className="space-y-4">
+                    {getFilteredAndSortedCoupons().filter((c) => (c as any).isUsed).map((coupon) => {
+                      const endHour = (coupon as any).endHour
+                      const timeText = endHour !== null && endHour !== undefined
+                        ? `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${endHour}点`
+                        : `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} 23点`
+                      const discountText = getDiscountText(coupon)
+
+                      return (
+                        <Card
+                          key={coupon.id}
+                          className="p-4 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 opacity-75"
+                        >
+                          <div className="flex items-start gap-3">
+                            {/* 批量选择复选框 */}
+                            {isBulkMode && (
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.includes(coupon.id)}
+                                onChange={() => toggleSelection(coupon.id)}
+                                className="h-4 w-4 mt-1 rounded border-gray-300"
+                              />
+                            )}
+
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-2">
+                                <h3 className="font-semibold truncate line-through text-gray-500 dark:text-gray-400">
+                                  {coupon.title}
+                                </h3>
+                                {discountText && (
+                                  <Badge variant="secondary">{discountText}</Badge>
+                                )}
+                                <Badge className="bg-green-500">已使用</Badge>
+                              </div>
+                              {coupon.description && (
+                                <p className="text-sm mb-3 line-clamp-2 text-gray-500 dark:text-gray-400">
+                                  {coupon.description}
+                                </p>
+                              )}
+                              <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                                <div className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  <span>截止：{timeText}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => handleMarkUsed(coupon.id, false)}
+                                className="text-gray-600 hover:text-gray-700 dark:text-gray-400"
+                                title="取消已使用"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  setEditingCoupon(coupon)
+                                  setIsAddingMode(false)
+                                  setIsFormDialogOpen(true)
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button size="sm" variant="ghost" className="text-red-600 hover:text-red-700">
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>确认删除</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      您确定要删除这个优惠券吗？此操作无法撤销。
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>取消</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => handleDeleteCoupon(coupon.id)}
+                                      className="bg-red-600 hover:bg-red-700"
+                                    >
+                                      删除
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </div>
+                        </Card>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

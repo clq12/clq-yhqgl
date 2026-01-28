@@ -8,6 +8,7 @@ export interface ExtractedCouponInfo {
   fullAmount?: number
   endDate?: string
   endHour?: number
+  endMinute?: number
   storeName?: string
   description?: string
 }
@@ -202,8 +203,8 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
     }
   }
 
-  // 检查"本周日作废"、"下周一下午3点失效"等格式
-  const weekDayPattern = /(?:本|下)周\s*(?:一|二|三|四|五|六|日|天|周末)\s*(?:下午|上午|晚上)?\s*(?:\d{1,2}\s*点)?\s*(?:过期|到期|失效|作废)/
+  // 检查"本周日作废"、"下周一下午3点15分失效"等格式
+  const weekDayPattern = /(?:本|下)周\s*(?:一|二|三|四|五|六|日|天|周末)\s*(?:下午|上午|晚上)?\s*(?:\d{1,2}\s*点(?:\s*\d{1,2}\s*分)?)?\s*(?:过期|到期|失效|作废)/
   const weekDayMatch = text.match(weekDayPattern)
   if (weekDayMatch && !matchedDate) {
     const weekKeyword = weekDayMatch[0].substring(0, 2) // "本周"或"下周"
@@ -238,17 +239,33 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
       const daysUntilTarget = targetDay - currentDayOfWeek
       targetDate.setDate(targetDate.getDate() + daysUntilTarget + 7)
     }
-    
+
     // 提取时间信息（如果有）
-    const timePattern = /(\d{1,2})\s*点/
+    // 检查AM/PM格式
+    let isPM = restText.includes('下午') || restText.includes('晚')
+    let isAM = restText.includes('上午') || restText.includes('早')
+
+    // 提取小时和分钟
+    const timePattern = /(\d{1,2})\s*点(?:\s*(\d{1,2})\s*分)?/
     const timeMatch = restText.match(timePattern)
     if (timeMatch) {
       const hour = parseInt(timeMatch[1])
-      if (hour >= 0 && hour <= 23) {
-        result.endHour = hour
+      const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0
+
+      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+        // 处理AM/PM格式
+        let finalHour = hour
+        if (isPM && hour < 12) {
+          finalHour = hour + 12  // 下午3点 = 15点
+        } else if (isAM && hour === 12) {
+          finalHour = 0  // 上午12点 = 0点
+        }
+
+        result.endHour = finalHour
+        result.endMinute = minute
       }
     }
-    
+
     if (!isNaN(targetDate.getTime())) {
       matchedDate = targetDate
       result.endDate = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`
@@ -372,34 +389,68 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
     }
   }
 
-  // 6. 提取截止时间（默认23点）
-  // 支持格式：23点、23:00、23时，但不能是日期范围中的时间（如 2026.01.24 10:51-2026.01.27 10:51）
+  // 6. 提取截止时间（默认23点59分）
+  // 支持格式：
+  // - 23点、23点30分、23:30、23时、23时30分
+  // - 下午3点、下午3点15分、上午10点、上午10点30分
+  // - 但不能是日期范围中的时间（如 2026.01.24 10:51-2026.01.27 10:51）
   // 只匹配明显是截止时间的格式（后跟"过期"、"可用"等关键词）
+
+  // 先检查是否包含AM/PM格式（下午/上午）
+  let isPM = false
+  let isAM = false
+  if (text.includes('下午') || text.includes('晚')) {
+    isPM = true
+  } else if (text.includes('上午') || text.includes('早')) {
+    isAM = true
+  }
+
+  // 时间格式正则表达式
   const timePatterns = [
-    /(\d{1,2})点(?:过期)?/,
-    /(\d{1,2}):(\d{2})(?![\d])/,  // 后面不能跟数字（排除日期范围中的时间）
+    // 完整格式：23点30分、23时30分
+    /(\d{1,2})点(\d{1,2})分/,
+    /(\d{1,2})时(\d{1,2})分/,
+    // 简短格式：23点、23时
+    /(\d{1,2})点/,
     /(\d{1,2})时/,
+    // 冒号格式：23:30
+    /(\d{1,2}):(\d{2})(?![\d])/,  // 后面不能跟数字（排除日期范围中的时间）
   ]
+
   for (const pattern of timePatterns) {
     const match = text.match(pattern)
     if (match) {
       const hour = parseInt(match[1])
-      // 验证这是一个合理的时间，且不包含在日期范围内
-      if (hour >= 0 && hour <= 23) {
+      let minute = match[2] ? parseInt(match[2]) : 0
+
+      // 验证这是一个合理的时间
+      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
         // 检查这个时间后面是不是日期分隔符（如 -、到），如果是则跳过
         const timeIndex = text.indexOf(match[0])
         const nextChars = text.substring(timeIndex + match[0].length, timeIndex + match[0].length + 2)
-        if (!nextChars.match(/^[-–到至]/)) {
-          result.endHour = hour
-          break
+        if (nextChars.match(/^[-–到至]/)) {
+          continue
         }
+
+        // 处理AM/PM格式
+        let finalHour = hour
+        if (isPM && hour < 12) {
+          finalHour = hour + 12  // 下午3点 = 15点
+        } else if (isAM && hour === 12) {
+          finalHour = 0  // 上午12点 = 0点
+        }
+
+        result.endHour = finalHour
+        result.endMinute = minute
+        break
       }
     }
   }
 
-  // 默认23点
+  // 默认23点59分
   if (!result.endHour) {
     result.endHour = 23
+    result.endMinute = 59
   }
 
   // 8. 提取描述信息（如"饮品通用"、"C1"等）
@@ -501,8 +552,8 @@ async function extractCouponInfoWithAI(text: string): Promise<ExtractedCouponInf
 
 支持的输入格式示例：
 1. "华香脆骨串优惠券 有效期至2026-01-31 23:59"
-2. "淘宝优惠券满100减20元有效期至2024-12-31 23点"
-3. "建设银行立减金，满2000减5元，有效期至2024-12-31 23点，饮品通用"
+2. "淘宝优惠券满100减20元有效期至2024-12-31 23点30分"
+3. "建设银行立减金，满2000减5元，有效期至2024-12-31 23时59分，饮品通用"
 4. "蜜雪冰城饮品优惠券 8折 有效期至2026-01-30"
 5. "华莱士串 1.30过期" （1月30日过期）
 6. "华莱士串 这个月30过期" （本月30日过期）
@@ -514,7 +565,7 @@ async function extractCouponInfoWithAI(text: string): Promise<ExtractedCouponInf
 12. "古茗 今天到期" （今天到期）
 13. "蜜雪冰城 明天失效" （明天失效）
 14. "茶百道 本周日作废" （本周日作废）
-15. "蜜雪冰城 下周一下午3点失效" （下周一下午失效，3点）
+15. "蜜雪冰城 下周一下午3点15分失效" （下周一下午失效，15点15分）
 16. "茶百道 本月底过期" （本月最后一天）
 17. "蜜雪冰城 下月底作废" （下月最后一天）
 18. "茶百道 下个季度初失效" （下个季度第一天）
@@ -527,11 +578,19 @@ async function extractCouponInfoWithAI(text: string): Promise<ExtractedCouponInf
 4. fullAmount: 满减金额（仅当discountType为full时需要）
 5. endDate: 截止日期，格式为YYYY-MM-DD（如2026-01-31）
 6. endHour: 截止小时，0-23之间的整数，默认为23
-7. storeName: 店铺或平台名称（从开头提取，如"华香脆骨串"、"淘宝"、"建设银行"、"蜜雪冰城"、"华莱士"）
-8. description: 描述信息（如"饮品"、"脆骨串"、"串"等）
+7. endMinute: 截止分钟，0-59之间的整数，默认为59
+8. storeName: 店铺或平台名称（从开头提取，如"华香脆骨串"、"淘宝"、"建设银行"、"蜜雪冰城"、"华莱士"）
+9. description: 描述信息（如"饮品"、"脆骨串"、"串"等）
 
 注意事项：
 - 日期格式必须为YYYY-MM-DD
+- 时间格式：
+  * 默认时间：23:59（23点59分）
+  * 完整格式：23:59、23点59分、23时59分
+  * 简短格式：23点、23时
+  * AM/PM格式：下午3点15分=15:15、上午10点30分=10:30、下午3点=15:00
+  * 如果只提到"下午3点"，分钟默认为0
+  * 如果只提到"23点"，分钟默认为0
 - 支持的日期格式：
   * 标准格式：2026-01-31、2026年1月31日、1月31日
   * 带时间的日期：23:59、23点、23时
@@ -561,7 +620,7 @@ async function extractCouponInfoWithAI(text: string): Promise<ExtractedCouponInf
   * "2026-03-15之前使用" = 2026-03-14（不包含当日，减1天）
   * "有效期至2026-01-31" = 2026-01-31
 - 支持的关键词：过期、到期、失效、作废、有效期至
-- 如果文本中没有明确截止时间，endHour默认设为23
+- 如果文本中没有明确截止时间，endHour默认设为23，endMinute默认设为59
 - 折扣类型判断：
   * 如果包含"满X可用"、"满X减X"、"满X-Y"，则为full
   * 如果包含"X折"但不包含"满"，则为percentage
@@ -578,6 +637,7 @@ async function extractCouponInfoWithAI(text: string): Promise<ExtractedCouponInf
   "fullAmount": 2000,
   "endDate": "2026-01-31",
   "endHour": 23,
+  "endMinute": 59,
   "storeName": "华香脆骨串",
   "description": "脆骨串"
 }`
@@ -600,7 +660,7 @@ async function extractCouponInfoWithAI(text: string): Promise<ExtractedCouponInf
       
       // 验证和转换数据
       const result: ExtractedCouponInfo = {}
-      
+
       if (parsedData.title) result.title = parsedData.title
       if (parsedData.storeName) result.storeName = parsedData.storeName
       if (parsedData.description) result.description = parsedData.description
@@ -608,12 +668,13 @@ async function extractCouponInfoWithAI(text: string): Promise<ExtractedCouponInf
       if (parsedData.fullAmount) result.fullAmount = Number(parsedData.fullAmount)
       if (parsedData.endDate) result.endDate = parsedData.endDate
       if (parsedData.endHour) result.endHour = Number(parsedData.endHour)
-      
+      if (parsedData.endMinute) result.endMinute = Number(parsedData.endMinute)
+
       // 验证折扣类型
       if (parsedData.discountType && ['amount', 'percentage', 'full'].includes(parsedData.discountType)) {
         result.discountType = parsedData.discountType
       }
-      
+
       // 如果AI没有提取到完整信息，回退到规则匹配
       if (!result.title || !result.discountAmount || !result.discountType) {
         console.log('AI提取不完整，回退到规则匹配')

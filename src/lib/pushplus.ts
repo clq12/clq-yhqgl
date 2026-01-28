@@ -78,17 +78,34 @@ export async function sendPushPlus(message: PushPlusMessage): Promise<{ success:
 }
 
 /**
- * 计算剩余天数和小时数
+ * 计算剩余天数和小时数（使用北京时间 UTC+8）
  */
 function calculateRemainingTime(coupon: any): { days: number; hours: number; text: string } {
   const now = new Date()
-  const endDate = new Date(coupon.endDate)
+  
+  // 获取截止时间的小时和分钟
+  const endHour = (coupon as any).endHour ?? 23
+  const endMinute = (coupon as any).endMinute ?? 59
+  
+  // 解析截止日期（使用UTC时间，避免时区影响）
+  const endDate = new Date(coupon.endDate + 'T00:00:00Z')
+  
+  // 设置截止时间（UTC时间）
+  // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
+  let utcHour = endHour - 8
+  if (utcHour < 0) {
+    utcHour += 24
+    endDate.setDate(endDate.getDate() - 1)
+  }
+  endDate.setUTCHours(utcHour, endMinute, 0, 0)
+  
+  // 当前时间（UTC）
+  const nowUTC = now.getTime()
+  
+  // 截止时间（UTC）
+  const endTimeUTC = endDate.getTime()
 
-  // 设置截止时间的小时
-  const endHour = coupon.endHour ?? 23
-  endDate.setHours(endHour, 0, 0, 0)
-
-  const diffMs = endDate.getTime() - now.getTime()
+  const diffMs = endTimeUTC - nowUTC
 
   // 计算天数和小时数
   const totalHours = Math.ceil(diffMs / (1000 * 60 * 60))
@@ -105,6 +122,20 @@ function calculateRemainingTime(coupon: any): { days: number; hours: number; tex
   }
 
   return { days, hours, text }
+}
+
+/**
+ * 格式化到期时间（北京时间 UTC+8）
+ */
+function formatExpiryDate(coupon: any): string {
+  const endHour = (coupon as any).endHour
+  const endMinute = (coupon as any).endMinute ?? 59
+  
+  if (endHour !== null && endHour !== undefined) {
+    return `${coupon.endDate} ${endHour}:${endMinute.toString().padStart(2, '0')}`
+  } else {
+    return `${coupon.endDate} 23:59`
+  }
 }
 
 /**
@@ -130,7 +161,7 @@ export function generateExpiringMessage(coupons: any[], days: number): string {
   `
 
   coupons.forEach((coupon, index) => {
-    const endDate = new Date(coupon.endDate).toLocaleDateString("zh-CN")
+    const endDate = formatExpiryDate(coupon)
     const { text: remainingTime } = calculateRemainingTime(coupon)
     const notes = coupon.notes || "无"
 
@@ -215,7 +246,7 @@ export function generateGroupedExpiringMessage(groups: {
     `
 
     coupons.forEach((coupon, index) => {
-      const endDate = new Date(coupon.endDate).toLocaleDateString("zh-CN")
+      const endDate = formatExpiryDate(coupon)
       const { text: remainingTime } = calculateRemainingTime(coupon)
       const notes = coupon.notes || "无"
 

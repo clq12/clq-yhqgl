@@ -117,9 +117,9 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
   // - OCR识别格式（可能缺少点号）：2026.012410:51-2026.012710:51
   // - 混合格式：2026.01.25 17:13-2026.0128 17:15
   // - 月份.日期过期格式：1.30过期、2.5过期
-  // - 本月日期格式：这个月30过期、本月15号
-  // - 相对天数格式：3天后过期、7天后
-  // - 下月日期格式：下个月5号过期、下月1号
+  // - 本月日期格式：这个月30过期、本月15号（支持"过期"和"到期"）
+  // - 相对天数格式：3天后过期、7天后到期、29天后（支持"过期"和"到期"）
+  // - 下月日期格式：下个月5号过期、下月1号（支持"过期"和"到期"）
 
   const now = new Date()
   const currentYear = now.getFullYear()
@@ -130,7 +130,7 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
   let matchedDate: Date | null = null
 
   // 检查"这个月30过期"、"本月15号"等格式
-  const thisMonthPattern = /(?:这个|本)月\s*(\d{1,2})\s*(?:号|日)?\s*(?:过期|$)/
+  const thisMonthPattern = /(?:这个|本)月\s*(\d{1,2})\s*(?:号|日)?\s*(?:过期|到期|$)/
   const thisMonthMatch = text.match(thisMonthPattern)
   if (thisMonthMatch) {
     const day = parseInt(thisMonthMatch[1])
@@ -142,7 +142,7 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
   }
 
   // 检查"下个月5号过期"、"下月1号"等格式
-  const nextMonthPattern = /下?(?:个)?月\s*(\d{1,2})\s*(?:号|日)?\s*(?:过期|$)/
+  const nextMonthPattern = /下?(?:个)?月\s*(\d{1,2})\s*(?:号|日)?\s*(?:过期|到期|$)/
   const nextMonthMatch = text.match(nextMonthPattern)
   if (nextMonthMatch && !matchedDate) {
     const day = parseInt(nextMonthMatch[1])
@@ -153,8 +153,8 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
     }
   }
 
-  // 检查"N天后过期"、"N天后"等格式
-  const daysLaterPattern = /(\d+)\s*天后\s*(?:过期|$)/
+  // 检查"N天后过期"、"N天后"、"N天后到期"等格式
+  const daysLaterPattern = /(\d+)\s*天后\s*(?:过期|到期|$)/
   const daysLaterMatch = text.match(daysLaterPattern)
   if (daysLaterMatch && !matchedDate) {
     const days = parseInt(daysLaterMatch[1])
@@ -370,7 +370,8 @@ async function extractCouponInfoWithAI(text: string): Promise<ExtractedCouponInf
 5. "华莱士串 1.30过期" （1月30日过期）
 6. "华莱士串 这个月30过期" （本月30日过期）
 7. "华莱士串 3天后过期" （3天后过期）
-8. "华莱士串 下个月5号过期" （下个月5号过期）
+8. "华莱士串 29天后到期" （29天后到期）
+9. "华莱士串 下个月5号过期" （下个月5号过期）
 
 提取规则：
 1. title: 优惠券标题（优先提取店铺/商品名+优惠券类型，如"华香脆骨串优惠券"、"建设银行立减金"、"华莱士串"）
@@ -392,6 +393,7 @@ async function extractCouponInfoWithAI(text: string): Promise<ExtractedCouponInf
 - 相对日期处理规则：
   * "这个月30过期" = 当前年份+当前月份+30日
   * "3天后过期" = 当前日期+3天
+  * "3天后到期" = 当前日期+3天（"过期"和"到期"都支持）
   * "下个月5号过期" = 当前年份+下个月+5日
 - 如果文本中没有明确截止时间，endHour默认设为23
 - 折扣类型判断：

@@ -173,7 +173,7 @@ async function createBackup(): Promise<void> {
 }
 
 /**
- * 获取即将到期的优惠券（精确到小时）
+ * 获取即将到期的优惠券（精确到小时，使用北京时间 UTC+8）
  * @param hours 提前多少小时提醒
  */
 export async function getExpiringCouponsByHours(hours: number): Promise<Coupon[]> {
@@ -186,18 +186,30 @@ export async function getExpiringCouponsByHours(hours: number): Promise<Coupon[]
       return false
     }
 
-    const endDate = new Date(coupon.endDate)
+    // 获取截止时间的小时和分钟
     const endHour = (coupon as any).endHour
-
-    // 设置截止时间的小时数
-    if (endHour !== null && endHour !== undefined) {
-      endDate.setHours(endHour, 0, 0, 0)
-    } else {
-      endDate.setHours(23, 0, 0, 0)
+    const endMinute = (coupon as any).endMinute ?? 59
+    
+    // 解析截止日期（使用UTC时间，避免时区影响）
+    const endDate = new Date(coupon.endDate + 'T00:00:00Z')
+    
+    // 设置截止时间（UTC时间）
+    // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
+    let utcHour = (endHour ?? 23) - 8
+    if (utcHour < 0) {
+      utcHour += 24
+      endDate.setDate(endDate.getDate() - 1)
     }
+    endDate.setUTCHours(utcHour, endMinute, 0, 0)
+
+    // 当前时间（UTC）
+    const nowUTC = now.getTime()
+    
+    // 截止时间（UTC）
+    const endTimeUTC = endDate.getTime()
 
     // 计算剩余小时数
-    const diff = endDate.getTime() - now.getTime()
+    const diff = endTimeUTC - nowUTC
     const diffHours = Math.ceil(diff / (1000 * 60 * 60))
 
     return diffHours >= 0 && diffHours <= hours
@@ -205,15 +217,17 @@ export async function getExpiringCouponsByHours(hours: number): Promise<Coupon[]
 }
 
 /**
- * 获取在特定提醒时间点的优惠券（精确到小时）
+ * 获取在特定提醒时间点的优惠券（精确到小时，使用北京时间 UTC+8）
  * @param remindDays 提醒天数数组 [7, 3, 1]
  * @returns 返回需要在当前时刻提醒的优惠券列表
  */
 export async function getCouponsToRemindNow(remindDays: number[] = [7, 3, 1]): Promise<{ coupons: Coupon[], reasonDays: number }> {
   const coupons = await getAllCoupons()
   const now = new Date()
-  const currentHour = now.getHours()
-
+  
+  // 当前时间（UTC）
+  const nowUTC = now.getTime()
+  
   const needRemind: Coupon[] = []
   let matchedDays = 0
 
@@ -223,12 +237,25 @@ export async function getCouponsToRemindNow(remindDays: number[] = [7, 3, 1]): P
       continue
     }
 
-    const endDate = new Date(coupon.endDate)
-    const endHour = (coupon as any).endHour || 23
-
-    // 设置截止时间的小时数
-    endDate.setHours(endHour, 0, 0, 0)
-
+    // 获取截止时间的小时和分钟
+    const endHour = (coupon as any).endHour
+    const endMinute = (coupon as any).endMinute ?? 59
+    
+    // 解析截止日期（使用UTC时间，避免时区影响）
+    const endDate = new Date(coupon.endDate + 'T00:00:00Z')
+    
+    // 设置截止时间（UTC时间）
+    // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
+    let utcHour = (endHour ?? 23) - 8
+    if (utcHour < 0) {
+      utcHour += 24
+      endDate.setDate(endDate.getDate() - 1)
+    }
+    endDate.setUTCHours(utcHour, endMinute, 0, 0)
+    
+    // 截止时间（UTC）
+    const endTimeUTC = endDate.getTime()
+    
     // 检查是否已经在该天数提醒过
     const remindedDays = (coupon as any).remindedDays || []
 
@@ -238,16 +265,16 @@ export async function getCouponsToRemindNow(remindDays: number[] = [7, 3, 1]): P
         continue // 已经提醒过，跳过
       }
 
-      // 计算提前days天的时间点
-      const remindDate = new Date(endDate)
-      remindDate.setDate(remindDate.getDate() - days)
+      // 计算提前days天的时间点（UTC时间戳）
+      const daysMs = days * 24 * 3600000
+      const remindTime = endTimeUTC - daysMs
 
       // 检查当前时间是否在提醒时间点（精确到小时）
-      // 例如：7天前23点过期，应该在今天23点提醒
-      if (remindDate.getFullYear() === now.getFullYear() &&
-          remindDate.getMonth() === now.getMonth() &&
-          remindDate.getDate() === now.getDate() &&
-          remindDate.getHours() === currentHour) {
+      // 计算当前小时和提醒小时的差值
+      const diffHours = Math.abs((nowUTC - remindTime) / (1000 * 60 * 60))
+      
+      // 如果差值小于1小时，说明应该提醒
+      if (diffHours < 1) {
         needRemind.push(coupon)
         matchedDays = days
         break // 匹配到一个天数就退出
@@ -259,7 +286,7 @@ export async function getCouponsToRemindNow(remindDays: number[] = [7, 3, 1]): P
 }
 
 /**
- * 获取即将到期的优惠券（按天计算，保留兼容性）
+ * 获取即将到期的优惠券（按天计算，保留兼容性，使用北京时间 UTC+8）
  * @param days 提前多少天提醒
  */
 export async function getExpiringCoupons(days: number): Promise<Coupon[]> {
@@ -272,17 +299,29 @@ export async function getExpiringCoupons(days: number): Promise<Coupon[]> {
       return false
     }
 
-    const endDate = new Date(coupon.endDate)
+    // 获取截止时间的小时和分钟
     const endHour = (coupon as any).endHour
-
-    // 设置截止时间的小时数
-    if (endHour !== null && endHour !== undefined) {
-      endDate.setHours(endHour, 0, 0, 0)
-    } else {
-      endDate.setHours(23, 0, 0, 0)
+    const endMinute = (coupon as any).endMinute ?? 59
+    
+    // 解析截止日期（使用UTC时间，避免时区影响）
+    const endDate = new Date(coupon.endDate + 'T00:00:00Z')
+    
+    // 设置截止时间（UTC时间）
+    // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
+    let utcHour = (endHour ?? 23) - 8
+    if (utcHour < 0) {
+      utcHour += 24
+      endDate.setDate(endDate.getDate() - 1)
     }
+    endDate.setUTCHours(utcHour, endMinute, 0, 0)
 
-    const diff = endDate.getTime() - now.getTime()
+    // 当前时间（UTC）
+    const nowUTC = now.getTime()
+    
+    // 截止时间（UTC）
+    const endTimeUTC = endDate.getTime()
+
+    const diff = endTimeUTC - nowUTC
     const diffDays = Math.ceil(diff / (1000 * 60 * 60 * 24))
 
     return diffDays >= 0 && diffDays <= days
@@ -290,24 +329,36 @@ export async function getExpiringCoupons(days: number): Promise<Coupon[]> {
 }
 
 /**
- * 获取已过期的优惠券
+ * 获取已过期的优惠券（使用北京时间 UTC+8）
  */
 export async function getExpiredCoupons(): Promise<Coupon[]> {
   const coupons = await getAllCoupons()
   const now = new Date()
 
   return coupons.filter((coupon) => {
-    const endDate = new Date(coupon.endDate)
+    // 获取截止时间的小时和分钟
     const endHour = (coupon as any).endHour
-
-    // 设置截止时间的小时数
-    if (endHour !== null && endHour !== undefined) {
-      endDate.setHours(endHour, 0, 0, 0)
-    } else {
-      endDate.setHours(23, 0, 0, 0)
+    const endMinute = (coupon as any).endMinute ?? 59
+    
+    // 解析截止日期（使用UTC时间，避免时区影响）
+    const endDate = new Date(coupon.endDate + 'T00:00:00Z')
+    
+    // 设置截止时间（UTC时间）
+    // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
+    let utcHour = (endHour ?? 23) - 8
+    if (utcHour < 0) {
+      utcHour += 24
+      endDate.setDate(endDate.getDate() - 1)
     }
+    endDate.setUTCHours(utcHour, endMinute, 0, 0)
 
-    return endDate < now
+    // 当前时间（UTC）
+    const nowUTC = now.getTime()
+    
+    // 截止时间（UTC）
+    const endTimeUTC = endDate.getTime()
+
+    return endTimeUTC < nowUTC
   })
 }
 

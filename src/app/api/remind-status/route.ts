@@ -54,21 +54,32 @@ export async function GET(request: NextRequest) {
     const expiring3Days = await getExpiringCoupons(3)
     const expiring1Day = await getExpiringCoupons(1)
 
-    // 5. 分析提醒状态
+    // 5. 分析提醒状态（使用北京时间 UTC+8）
     const now = new Date()
+    
     const statusList = allCoupons.map(coupon => {
-      const endDate = new Date(coupon.endDate)
       const endHour = (coupon as any).endHour
       const endMinute = (coupon as any).endMinute ?? 59
-
-      // 设置截止时间的小时数和分钟数
-      if (endHour !== null && endHour !== undefined) {
-        endDate.setHours(endHour, endMinute, 0, 0)
-      } else {
-        endDate.setHours(23, endMinute, 0, 0)
+      
+      // 解析截止日期（使用UTC时间，避免时区影响）
+      const endDate = new Date(coupon.endDate + 'T00:00:00Z')
+      
+      // 设置截止时间（UTC时间）
+      // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
+      let utcHour = (endHour ?? 23) - 8
+      if (utcHour < 0) {
+        utcHour += 24
+        endDate.setDate(endDate.getDate() - 1)
       }
-
-      const diff = endDate.getTime() - now.getTime()
+      endDate.setUTCHours(utcHour, endMinute, 0, 0)
+      
+      // 当前时间（UTC）
+      const nowUTC = now.getTime()
+      
+      // 截止时间（UTC）
+      const endTimeUTC = endDate.getTime()
+      
+      const diff = endTimeUTC - nowUTC
       const totalHours = diff / (1000 * 60 * 60)
       const daysRemaining = Math.ceil(totalHours / 24)
       const remindedDays = (coupon as any).remindedDays || []

@@ -9,33 +9,67 @@ import {
 import { sendPushPlus, generateGroupedExpiringMessage } from "@/lib/pushplus"
 
 /**
- * 计算优惠券剩余天数
+ * 计算优惠券剩余天数（使用北京时间 UTC+8）
  */
 function getDaysRemaining(coupon: any): number {
   const now = new Date()
-  const endDate = new Date(coupon.endDate)
-
-  // 设置截止时间的小时
-  const endHour = coupon.endHour ?? 23
-  endDate.setHours(endHour, 0, 0, 0)
-
-  const diffMs = endDate.getTime() - now.getTime()
+  
+  // 获取截止时间的小时和分钟
+  const endHour = (coupon as any).endHour ?? 23
+  const endMinute = (coupon as any).endMinute ?? 59
+  
+  // 解析截止日期（使用UTC时间，避免时区影响）
+  const endDate = new Date(coupon.endDate + 'T00:00:00Z')
+  
+  // 设置截止时间（UTC时间，然后转换为UTC+8时间戳）
+  // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
+  let utcHour = endHour - 8
+  if (utcHour < 0) {
+    utcHour += 24
+    endDate.setDate(endDate.getDate() - 1)
+  }
+  endDate.setUTCHours(utcHour, endMinute, 0, 0)
+  
+  // 当前时间（UTC）
+  const nowUTC = now.getTime()
+  
+  // 截止时间（UTC）
+  const endTimeUTC = endDate.getTime()
+  
+  const diffMs = endTimeUTC - nowUTC
   const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
   return Math.max(0, diffDays)
 }
 
 /**
- * 计算优惠券剩余小时数
+ * 计算优惠券剩余小时数（使用北京时间 UTC+8）
  */
 function getRemainingHours(coupon: any): number {
   const now = new Date()
-  const endDate = new Date(coupon.endDate)
-
-  // 设置截止时间的小时
-  const endHour = coupon.endHour ?? 23
-  endDate.setHours(endHour, 0, 0, 0)
-
-  const diffMs = endDate.getTime() - now.getTime()
+  
+  // 获取截止时间的小时和分钟
+  const endHour = (coupon as any).endHour ?? 23
+  const endMinute = (coupon as any).endMinute ?? 59
+  
+  // 解析截止日期（使用UTC时间，避免时区影响）
+  const endDate = new Date(coupon.endDate + 'T00:00:00Z')
+  
+  // 设置截止时间（UTC时间，然后转换为UTC+8时间戳）
+  // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
+  let utcHour = endHour - 8
+  if (utcHour < 0) {
+    utcHour += 24
+    endDate.setDate(endDate.getDate() - 1)
+  }
+  endDate.setUTCHours(utcHour, endMinute, 0, 0)
+  
+  // 当前时间（UTC）
+  const nowUTC = now.getTime()
+  
+  // 截止时间（UTC）
+  const endTimeUTC = endDate.getTime()
+  
+  const diffMs = endTimeUTC - nowUTC
   const diffHours = Math.ceil(diffMs / (1000 * 60 * 60))
   return Math.max(0, diffHours)
 }

@@ -462,58 +462,94 @@ export default function Home() {
     }
   }
 
-  // 计算剩余天数和小时数（考虑endHour和endMinute）
+  // 计算剩余天数和小时数（考虑endHour和endMinute，使用北京时间 UTC+8）
   const getDaysRemaining = (coupon: Coupon) => {
-    const endDate = new Date(coupon.endDate)
+    const now = new Date()
+    
+    // 获取截止时间的小时和分钟
     const endHour = (coupon as any).endHour
     const endMinute = (coupon as any).endMinute ?? 59
-
-    // 设置截止时间的小时数和分钟数
-    if (endHour !== null && endHour !== undefined) {
-      endDate.setHours(endHour, endMinute, 0, 0)
-    } else {
-      endDate.setHours(23, endMinute, 0, 0) // 默认23:59
+    
+    // 解析截止日期（使用UTC时间，避免时区影响）
+    const endDate = new Date(coupon.endDate + 'T00:00:00Z')
+    
+    // 设置截止时间（UTC时间）
+    // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
+    let utcHour = (endHour ?? 23) - 8
+    if (utcHour < 0) {
+      utcHour += 24
+      endDate.setDate(endDate.getDate() - 1)
     }
-
-    const now = new Date()
-    const diff = endDate.getTime() - now.getTime()
+    endDate.setUTCHours(utcHour, endMinute, 0, 0)
+    
+    // 当前时间（UTC）
+    const nowUTC = now.getTime()
+    
+    // 截止时间（UTC）
+    const endTimeUTC = endDate.getTime()
+    
+    const diff = endTimeUTC - nowUTC
     const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
     return days
   }
 
-  // 获取剩余小时数（用于更精确的排序）
+  // 获取剩余小时数（用于更精确的排序，使用北京时间 UTC+8）
   const getRemainingHours = (coupon: Coupon) => {
-    const endDate = new Date(coupon.endDate)
+    const now = new Date()
+    
+    // 获取截止时间的小时和分钟
     const endHour = (coupon as any).endHour
     const endMinute = (coupon as any).endMinute ?? 59
-
-    // 设置截止时间的小时数和分钟数
-    if (endHour !== null && endHour !== undefined) {
-      endDate.setHours(endHour, endMinute, 0, 0)
-    } else {
-      endDate.setHours(23, endMinute, 0, 0)
+    
+    // 解析截止日期（使用UTC时间，避免时区影响）
+    const endDate = new Date(coupon.endDate + 'T00:00:00Z')
+    
+    // 设置截止时间（UTC时间）
+    // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
+    let utcHour = (endHour ?? 23) - 8
+    if (utcHour < 0) {
+      utcHour += 24
+      endDate.setDate(endDate.getDate() - 1)
     }
-
-    const now = new Date()
-    const diff = endDate.getTime() - now.getTime()
+    endDate.setUTCHours(utcHour, endMinute, 0, 0)
+    
+    // 当前时间（UTC）
+    const nowUTC = now.getTime()
+    
+    // 截止时间（UTC）
+    const endTimeUTC = endDate.getTime()
+    
+    const diff = endTimeUTC - nowUTC
     return diff / (1000 * 60 * 60) // 返回小时数
   }
 
-  // 获取精确到小时的剩余时间文本
+  // 获取精确到小时的剩余时间文本（使用北京时间 UTC+8）
   const getRemainingTimeText = (coupon: Coupon) => {
-    const endDate = new Date(coupon.endDate)
+    const now = new Date()
+    
+    // 获取截止时间的小时和分钟
     const endHour = (coupon as any).endHour
     const endMinute = (coupon as any).endMinute ?? 59
-
-    // 设置截止时间的小时数和分钟数
-    if (endHour !== null && endHour !== undefined) {
-      endDate.setHours(endHour, endMinute, 0, 0)
-    } else {
-      endDate.setHours(23, endMinute, 0, 0)
+    
+    // 解析截止日期（使用UTC时间，避免时区影响）
+    const endDate = new Date(coupon.endDate + 'T00:00:00Z')
+    
+    // 设置截止时间（UTC时间）
+    // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
+    let utcHour = (endHour ?? 23) - 8
+    if (utcHour < 0) {
+      utcHour += 24
+      endDate.setDate(endDate.getDate() - 1)
     }
-
-    const now = new Date()
-    const diff = endDate.getTime() - now.getTime()
+    endDate.setUTCHours(utcHour, endMinute, 0, 0)
+    
+    // 当前时间（UTC）
+    const nowUTC = now.getTime()
+    
+    // 截止时间（UTC）
+    const endTimeUTC = endDate.getTime()
+    
+    const diff = endTimeUTC - nowUTC
     const totalHours = diff / (1000 * 60 * 60)
 
     if (totalHours < 0) {

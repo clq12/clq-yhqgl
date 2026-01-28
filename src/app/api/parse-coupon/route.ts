@@ -235,8 +235,73 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
         targetDate.setDate(targetDate.getDate() + daysUntilTarget + 7)
       }
     } else {
-      // 下周
+      // 下周：明确是下周，不管本周是否已经有这一天
       const daysUntilTarget = targetDay - currentDayOfWeek
+      targetDate.setDate(targetDate.getDate() + daysUntilTarget + 7)
+    }
+
+    // 提取时间信息（如果有）
+    // 检查AM/PM格式
+    let isPM = restText.includes('下午') || restText.includes('晚')
+    let isAM = restText.includes('上午') || restText.includes('早')
+
+    // 提取小时和分钟
+    const timePattern = /(\d{1,2})\s*点(?:\s*(\d{1,2})\s*分)?/
+    const timeMatch = restText.match(timePattern)
+    if (timeMatch) {
+      const hour = parseInt(timeMatch[1])
+      const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0
+
+      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+        // 处理AM/PM格式
+        let finalHour = hour
+        if (isPM && hour < 12) {
+          finalHour = hour + 12  // 下午3点 = 15点
+        } else if (isAM && hour === 12) {
+          finalHour = 0  // 上午12点 = 0点
+        }
+
+        result.endHour = finalHour
+        result.endMinute = minute
+      }
+    }
+
+    if (!isNaN(targetDate.getTime())) {
+      matchedDate = targetDate
+      result.endDate = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`
+    }
+  }
+
+  // 检查"周六过期"、"周一到期"等格式（没有"本周"或"下周"前缀，需要判断本周还是下周）
+  const weekDayNoPrefixPattern = /(?:周)(?:一|二|三|四|五|六|日|天)\s*(?:下午|上午|晚上)?\s*(?:\d{1,2}\s*点(?:\s*\d{1,2}\s*分)?)?\s*(?:过期|到期|失效|作废|$)/
+  const weekDayNoPrefixMatch = text.match(weekDayNoPrefixPattern)
+  if (weekDayNoPrefixMatch && !matchedDate) {
+    const restText = weekDayNoPrefixMatch[0]
+    
+    // 提取星期几（一=1, 二=2, ... 六=6, 日/天=0）
+    let targetDay = 0
+    if (restText.includes('一')) targetDay = 1
+    else if (restText.includes('二')) targetDay = 2
+    else if (restText.includes('三')) targetDay = 3
+    else if (restText.includes('四')) targetDay = 4
+    else if (restText.includes('五')) targetDay = 5
+    else if (restText.includes('六')) targetDay = 6
+    else if (restText.includes('日') || restText.includes('天')) targetDay = 0
+    
+    // 判断是本周还是下周
+    // 规则：如果目标星期几 > 当前星期几，就是本周；否则是下周
+    // 例如：现在是周三（3），说"周一"（1），因为 1 <= 3，所以是下周一
+    //      现在是周三（3），说"周六"（6），因为 6 > 3，所以是本周六
+    //      现在是周日（0），说"周一"（1），因为 1 > 0，所以是本周一
+    const currentDayOfWeek = now.getDay() // 0-6
+    const targetDate = new Date(now)
+    
+    const daysUntilTarget = targetDay - currentDayOfWeek
+    if (daysUntilTarget > 0) {
+      // 目标日还没有到，是本周
+      targetDate.setDate(targetDate.getDate() + daysUntilTarget)
+    } else {
+      // 目标日已经过了（或就是今天），是下周
       targetDate.setDate(targetDate.getDate() + daysUntilTarget + 7)
     }
 

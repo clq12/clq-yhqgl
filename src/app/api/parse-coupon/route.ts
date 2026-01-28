@@ -121,6 +121,11 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
   // - 相对天数格式：3天后过期、7天后到期、29天后失效（支持"过期/到期/失效/作废"）
   // - 下月日期格式：下个月5号过期、下月1号到期（支持"过期/到期/失效/作废"）
   // - 有效期格式：有效期至2026-01-31、有效期2026-01-31
+  // - 今天明天格式：今天到期、明天失效（支持"下午/上午/晚上"）
+  // - 本周下周格式：本周日作废、下周一下午3点失效
+  // - 月底格式：本月底过期、下月底作废
+  // - 季度格式：下个季度初失效
+  // - 之前使用格式：2026-03-15之前使用（不包含当日，日期减1天）
 
   const now = new Date()
   const currentYear = now.getFullYear()
@@ -178,6 +183,117 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
     if (!isNaN(date.getTime())) {
       matchedDate = date
       result.endDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    }
+  }
+
+  // 检查"今天到期"、"明天失效"等格式
+  const todayTomorrowPattern = /(?:今|明)天\s*(?:下午|上午|晚上)?\s*(?:过期|到期|失效|作废)/
+  const todayTomorrowMatch = text.match(todayTomorrowPattern)
+  if (todayTomorrowMatch && !matchedDate) {
+    const keyword = todayTomorrowMatch[0].substring(0, 2) // "今天"或"明天"
+    const targetDate = new Date(now)
+    if (keyword === '明天') {
+      targetDate.setDate(targetDate.getDate() + 1)
+    }
+    // 如果包含"下午"，可以记录时间信息（这里暂时只记录日期）
+    if (!isNaN(targetDate.getTime())) {
+      matchedDate = targetDate
+      result.endDate = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`
+    }
+  }
+
+  // 检查"本周日作废"、"下周一下午3点失效"等格式
+  const weekDayPattern = /(?:本|下)周\s*(?:一|二|三|四|五|六|日|天|周末)\s*(?:下午|上午|晚上)?\s*(?:\d{1,2}\s*点)?\s*(?:过期|到期|失效|作废)/
+  const weekDayMatch = text.match(weekDayPattern)
+  if (weekDayMatch && !matchedDate) {
+    const weekKeyword = weekDayMatch[0].substring(0, 2) // "本周"或"下周"
+    const restText = weekDayMatch[0].substring(2) // 剩余文本
+    
+    // 提取星期几（一=1, 二=2, ... 六=6, 日/天=0, 周末=6或0）
+    let targetDay = 0
+    if (restText.includes('一')) targetDay = 1
+    else if (restText.includes('二')) targetDay = 2
+    else if (restText.includes('三')) targetDay = 3
+    else if (restText.includes('四')) targetDay = 4
+    else if (restText.includes('五')) targetDay = 5
+    else if (restText.includes('六')) targetDay = 6
+    else if (restText.includes('日') || restText.includes('天')) targetDay = 0
+    else if (restText.includes('周末')) targetDay = 6 // 周末默认周六
+    
+    // 计算目标日期
+    const currentDayOfWeek = now.getDay() // 0-6
+    const targetDate = new Date(now)
+    
+    if (weekKeyword === '本周') {
+      // 本周的目标日
+      const daysUntilTarget = targetDay - currentDayOfWeek
+      if (daysUntilTarget >= 0) {
+        targetDate.setDate(targetDate.getDate() + daysUntilTarget)
+      } else {
+        // 已经过了本周的这一天，应该是下周的同一天
+        targetDate.setDate(targetDate.getDate() + daysUntilTarget + 7)
+      }
+    } else {
+      // 下周
+      const daysUntilTarget = targetDay - currentDayOfWeek
+      targetDate.setDate(targetDate.getDate() + daysUntilTarget + 7)
+    }
+    
+    // 提取时间信息（如果有）
+    const timePattern = /(\d{1,2})\s*点/
+    const timeMatch = restText.match(timePattern)
+    if (timeMatch) {
+      const hour = parseInt(timeMatch[1])
+      if (hour >= 0 && hour <= 23) {
+        result.endHour = hour
+      }
+    }
+    
+    if (!isNaN(targetDate.getTime())) {
+      matchedDate = targetDate
+      result.endDate = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`
+    }
+  }
+
+  // 检查"本月底过期"、"下月底作废"等格式
+  const monthEndPattern = /(?:本|下)月\s*底\s*(?:过期|到期|失效|作废)/
+  const monthEndMatch = text.match(monthEndPattern)
+  if (monthEndMatch && !matchedDate) {
+    const monthKeyword = monthEndMatch[0].substring(0, 2) // "本月"或"下月"
+    const targetDate = new Date(now)
+    
+    if (monthKeyword === '本月') {
+      // 本月最后一天
+      targetDate.setMonth(targetDate.getMonth() + 1, 0)
+    } else {
+      // 下月最后一天
+      targetDate.setMonth(targetDate.getMonth() + 2, 0)
+    }
+    
+    if (!isNaN(targetDate.getTime())) {
+      matchedDate = targetDate
+      result.endDate = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`
+    }
+  }
+
+  // 检查"下个季度初失效"等格式
+  const nextQuarterPattern = /下个季度\s*(?:初|开始)\s*(?:过期|到期|失效|作废)/
+  const nextQuarterMatch = text.match(nextQuarterPattern)
+  if (nextQuarterMatch && !matchedDate) {
+    const currentMonth = now.getMonth() // 0-11
+    const targetDate = new Date(now)
+    
+    // 计算下个季度的第一个月
+    const currentQuarter = Math.floor(currentMonth / 3) // 0, 1, 2, 3
+    const nextQuarter = (currentQuarter + 1) % 4
+    const targetYear = nextQuarter === 0 ? now.getFullYear() + 1 : now.getFullYear()
+    const targetMonth = nextQuarter * 3
+    
+    targetDate.setFullYear(targetYear, targetMonth, 1)
+    
+    if (!isNaN(targetDate.getTime())) {
+      matchedDate = targetDate
+      result.endDate = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`
     }
   }
 
@@ -242,8 +358,14 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
             date.setFullYear(currentYear + 1)
           }
           matchedDate = date
+          
+          // 检查是否包含"之前使用"关键词（不包含当日，日期减1天）
+          if (text.includes('之前使用')) {
+            date.setDate(date.getDate() - 1)
+          }
+          
           // 使用本地日期格式化，避免时区问题
-          result.endDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+          result.endDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
           break
         }
       }
@@ -389,6 +511,14 @@ async function extractCouponInfoWithAI(text: string): Promise<ExtractedCouponInf
 9. "华莱士串 下个月5号过期" （下个月5号过期）
 10. "蜜雪冰城 本月15号失效" （本月15号失效）
 11. "茶百道 7天后作废" （7天后作废）
+12. "古茗 今天到期" （今天到期）
+13. "蜜雪冰城 明天失效" （明天失效）
+14. "茶百道 本周日作废" （本周日作废）
+15. "蜜雪冰城 下周一下午3点失效" （下周一下午失效，3点）
+16. "茶百道 本月底过期" （本月最后一天）
+17. "蜜雪冰城 下月底作废" （下月最后一天）
+18. "茶百道 下个季度初失效" （下个季度第一天）
+19. "蜜雪冰城优惠券 2026-03-15之前使用" （2026-03-14，不包含当日）
 
 提取规则：
 1. title: 优惠券标题（优先提取店铺/商品名+优惠券类型，如"华香脆骨串优惠券"、"建设银行立减金"、"华莱士串"）
@@ -408,7 +538,12 @@ async function extractCouponInfoWithAI(text: string): Promise<ExtractedCouponInf
   * 月份.日期格式：1.30过期、2.5到期、3.15失效、4.20作废
   * 相对日期格式：这个月30过期、3天后到期、29天后失效、7天后作废
   * 有效期格式：有效期至2026-01-31、有效期2026-01-31
-- 支持的关键词：过期、到期、失效、作废、有效期至
+  * 今天明天格式：今天到期、明天失效（支持"下午/上午/晚上"）
+  * 本周下周格式：本周日作废、下周一下午3点失效
+  * 月底格式：本月底过期、下月底作废
+  * 季度格式：下个季度初失效
+  * 之前使用格式：2026-03-15之前使用（不包含当日，日期减1天）
+- 支持的关键词：过期、到期、失效、作废、有效期至、之前使用
 - 相对日期处理规则：
   * "这个月30过期" = 当前年份+当前月份+30日
   * "3天后过期" = 当前日期+3天
@@ -416,6 +551,14 @@ async function extractCouponInfoWithAI(text: string): Promise<ExtractedCouponInf
   * "29天后失效" = 当前日期+29天
   * "3天后作废" = 当前日期+3天
   * "下个月5号过期" = 当前年份+下个月+5日
+  * "今天到期" = 当前日期
+  * "明天失效" = 当前日期+1天
+  * "本周日作废" = 本周日（如果已过，则为下周日）
+  * "下周一下午3点失效" = 下周一+15点
+  * "本月底过期" = 本月最后一天
+  * "下月底作废" = 下月最后一天
+  * "下个季度初失效" = 下个季度第一天（如Q1开始=1月1日）
+  * "2026-03-15之前使用" = 2026-03-14（不包含当日，减1天）
   * "有效期至2026-01-31" = 2026-01-31
 - 支持的关键词：过期、到期、失效、作废、有效期至
 - 如果文本中没有明确截止时间，endHour默认设为23

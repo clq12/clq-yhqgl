@@ -116,10 +116,11 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
   // - 带时间的日期范围：2026.01.24 10:51-2026.01.27 10:51
   // - OCR识别格式（可能缺少点号）：2026.012410:51-2026.012710:51
   // - 混合格式：2026.01.25 17:13-2026.0128 17:15
-  // - 月份.日期过期格式：1.30过期、2.5过期
-  // - 本月日期格式：这个月30过期、本月15号（支持"过期"和"到期"）
-  // - 相对天数格式：3天后过期、7天后到期、29天后（支持"过期"和"到期"）
-  // - 下月日期格式：下个月5号过期、下月1号（支持"过期"和"到期"）
+  // - 月份.日期格式：1.30过期、2.5到期、3.15失效、4.20作废
+  // - 本月日期格式：这个月30过期、本月15号到期（支持"过期/到期/失效/作废"）
+  // - 相对天数格式：3天后过期、7天后到期、29天后失效（支持"过期/到期/失效/作废"）
+  // - 下月日期格式：下个月5号过期、下月1号到期（支持"过期/到期/失效/作废"）
+  // - 有效期格式：有效期至2026-01-31、有效期2026-01-31
 
   const now = new Date()
   const currentYear = now.getFullYear()
@@ -129,8 +130,8 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
   // 优先检查相对日期格式（这个月、下月、N天后）
   let matchedDate: Date | null = null
 
-  // 检查"这个月30过期"、"本月15号"等格式
-  const thisMonthPattern = /(?:这个|本)月\s*(\d{1,2})\s*(?:号|日)?\s*(?:过期|到期|$)/
+  // 检查"这个月30过期"、"本月15号到期"等格式
+  const thisMonthPattern = /(?:这个|本)月\s*(\d{1,2})\s*(?:号|日)?\s*(?:过期|到期|失效|作废|$)/
   const thisMonthMatch = text.match(thisMonthPattern)
   if (thisMonthMatch) {
     const day = parseInt(thisMonthMatch[1])
@@ -142,7 +143,7 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
   }
 
   // 检查"下个月5号过期"、"下月1号"等格式
-  const nextMonthPattern = /下?(?:个)?月\s*(\d{1,2})\s*(?:号|日)?\s*(?:过期|到期|$)/
+  const nextMonthPattern = /下?(?:个)?月\s*(\d{1,2})\s*(?:号|日)?\s*(?:过期|到期|失效|作废|$)/
   const nextMonthMatch = text.match(nextMonthPattern)
   if (nextMonthMatch && !matchedDate) {
     const day = parseInt(nextMonthMatch[1])
@@ -154,7 +155,7 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
   }
 
   // 检查"N天后过期"、"N天后"、"N天后到期"等格式
-  const daysLaterPattern = /(\d+)\s*天后\s*(?:过期|到期|$)/
+  const daysLaterPattern = /(\d+)\s*天后\s*(?:过期|到期|失效|作废|$)/
   const daysLaterMatch = text.match(daysLaterPattern)
   if (daysLaterMatch && !matchedDate) {
     const days = parseInt(daysLaterMatch[1])
@@ -163,6 +164,20 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
     if (!isNaN(futureDate.getTime())) {
       matchedDate = futureDate
       result.endDate = `${futureDate.getFullYear()}-${String(futureDate.getMonth() + 1).padStart(2, '0')}-${String(futureDate.getDate()).padStart(2, '0')}`
+    }
+  }
+
+  // 检查"有效期至X"、"有效期X"等格式（如：有效期至2026-01-31、有效期2026-01-31）
+  const validityPattern = /(?:有效期)\s*(?:至|截止)?\s*(\d{4})[-/年\.](\d{1,2})[-/月\.](\d{1,2})(?:[日号]|$)/
+  const validityMatch = text.match(validityPattern)
+  if (validityMatch && !matchedDate) {
+    const year = parseInt(validityMatch[1])
+    const month = parseInt(validityMatch[2])
+    const day = parseInt(validityMatch[3])
+    const date = new Date(year, month - 1, day)
+    if (!isNaN(date.getTime())) {
+      matchedDate = date
+      result.endDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
     }
   }
 
@@ -193,8 +208,8 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
       // 短日期格式（不带年份，放在最后）
       /(\d{1,2})[-/月](\d{1,2})[日]?/,
       /(\d{4})[/](\d{1,2})[/](\d{1,2})/,  // 2026/02/23
-      // 月份.日期过期格式：1.30过期、2.5过期
-      /(\d{1,2})\.(\d{1,2})(?:\s*过期|$)/,
+      // 月份.日期过期格式：1.30过期、2.5到期、3.15失效、4.20作废
+      /(\d{1,2})\.(\d{1,2})(?:\s*(?:过期|到期|失效|作废)|$)/,
     ]
 
     for (const pattern of datePatterns) {
@@ -372,6 +387,8 @@ async function extractCouponInfoWithAI(text: string): Promise<ExtractedCouponInf
 7. "华莱士串 3天后过期" （3天后过期）
 8. "华莱士串 29天后到期" （29天后到期）
 9. "华莱士串 下个月5号过期" （下个月5号过期）
+10. "蜜雪冰城 本月15号失效" （本月15号失效）
+11. "茶百道 7天后作废" （7天后作废）
 
 提取规则：
 1. title: 优惠券标题（优先提取店铺/商品名+优惠券类型，如"华香脆骨串优惠券"、"建设银行立减金"、"华莱士串"）
@@ -388,13 +405,19 @@ async function extractCouponInfoWithAI(text: string): Promise<ExtractedCouponInf
 - 支持的日期格式：
   * 标准格式：2026-01-31、2026年1月31日、1月31日
   * 带时间的日期：23:59、23点、23时
-  * 月份.日期格式：1.30过期、2.5过期
-  * 相对日期格式：这个月30过期、3天后过期、下个月5号过期
+  * 月份.日期格式：1.30过期、2.5到期、3.15失效、4.20作废
+  * 相对日期格式：这个月30过期、3天后到期、29天后失效、7天后作废
+  * 有效期格式：有效期至2026-01-31、有效期2026-01-31
+- 支持的关键词：过期、到期、失效、作废、有效期至
 - 相对日期处理规则：
   * "这个月30过期" = 当前年份+当前月份+30日
   * "3天后过期" = 当前日期+3天
-  * "3天后到期" = 当前日期+3天（"过期"和"到期"都支持）
+  * "3天后到期" = 当前日期+3天
+  * "29天后失效" = 当前日期+29天
+  * "3天后作废" = 当前日期+3天
   * "下个月5号过期" = 当前年份+下个月+5日
+  * "有效期至2026-01-31" = 2026-01-31
+- 支持的关键词：过期、到期、失效、作废、有效期至
 - 如果文本中没有明确截止时间，endHour默认设为23
 - 折扣类型判断：
   * 如果包含"满X可用"、"满X减X"、"满X-Y"，则为full

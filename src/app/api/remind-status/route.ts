@@ -58,8 +58,36 @@ export async function GET(request: NextRequest) {
     const now = new Date()
     const statusList = allCoupons.map(coupon => {
       const endDate = new Date(coupon.endDate)
-      const daysRemaining = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+      const endHour = (coupon as any).endHour
+      const endMinute = (coupon as any).endMinute ?? 59
+
+      // 设置截止时间的小时数和分钟数
+      if (endHour !== null && endHour !== undefined) {
+        endDate.setHours(endHour, endMinute, 0, 0)
+      } else {
+        endDate.setHours(23, endMinute, 0, 0)
+      }
+
+      const diff = endDate.getTime() - now.getTime()
+      const totalHours = diff / (1000 * 60 * 60)
+      const daysRemaining = Math.ceil(totalHours / 24)
       const remindedDays = (coupon as any).remindedDays || []
+
+      // 计算精确到小时的剩余时间文本
+      let remainingTimeText = ""
+      if (totalHours < 0) {
+        remainingTimeText = "已过期"
+      } else {
+        const days = Math.floor(totalHours / 24)
+        const hours = Math.floor(totalHours % 24)
+        if (days === 0) {
+          remainingTimeText = `${hours}小时后到期`
+        } else if (hours === 0) {
+          remainingTimeText = `${days}天后到期`
+        } else {
+          remainingTimeText = `${days}天${hours}小时后到期`
+        }
+      }
 
       // 判断是否会提醒
       const willRemind = () => {
@@ -86,6 +114,7 @@ export async function GET(request: NextRequest) {
         title: coupon.title,
         endDate: coupon.endDate,
         daysRemaining,
+        remainingTimeText,
         isReminded: coupon.isReminded,
         remindedDays,
         willRemind: remindInfo.will,

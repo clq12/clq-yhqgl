@@ -43,6 +43,7 @@ interface RemindStatusItem {
   title: string
   endDate: string
   daysRemaining: number
+  remainingTimeText: string
   isReminded: boolean
   remindedDays: number[]
   willRemind: boolean
@@ -461,16 +462,17 @@ export default function Home() {
     }
   }
 
-  // 计算剩余天数和小时数（考虑endHour）
+  // 计算剩余天数和小时数（考虑endHour和endMinute）
   const getDaysRemaining = (coupon: Coupon) => {
     const endDate = new Date(coupon.endDate)
     const endHour = (coupon as any).endHour
+    const endMinute = (coupon as any).endMinute ?? 59
 
-    // 设置截止时间的小时数
+    // 设置截止时间的小时数和分钟数
     if (endHour !== null && endHour !== undefined) {
-      endDate.setHours(endHour, 0, 0, 0)
+      endDate.setHours(endHour, endMinute, 0, 0)
     } else {
-      endDate.setHours(23, 0, 0, 0) // 默认23点
+      endDate.setHours(23, endMinute, 0, 0) // 默认23:59
     }
 
     const now = new Date()
@@ -483,17 +485,51 @@ export default function Home() {
   const getRemainingHours = (coupon: Coupon) => {
     const endDate = new Date(coupon.endDate)
     const endHour = (coupon as any).endHour
+    const endMinute = (coupon as any).endMinute ?? 59
 
-    // 设置截止时间的小时数
+    // 设置截止时间的小时数和分钟数
     if (endHour !== null && endHour !== undefined) {
-      endDate.setHours(endHour, 0, 0, 0)
+      endDate.setHours(endHour, endMinute, 0, 0)
     } else {
-      endDate.setHours(23, 0, 0, 0)
+      endDate.setHours(23, endMinute, 0, 0)
     }
 
     const now = new Date()
     const diff = endDate.getTime() - now.getTime()
     return diff / (1000 * 60 * 60) // 返回小时数
+  }
+
+  // 获取精确到小时的剩余时间文本
+  const getRemainingTimeText = (coupon: Coupon) => {
+    const endDate = new Date(coupon.endDate)
+    const endHour = (coupon as any).endHour
+    const endMinute = (coupon as any).endMinute ?? 59
+
+    // 设置截止时间的小时数和分钟数
+    if (endHour !== null && endHour !== undefined) {
+      endDate.setHours(endHour, endMinute, 0, 0)
+    } else {
+      endDate.setHours(23, endMinute, 0, 0)
+    }
+
+    const now = new Date()
+    const diff = endDate.getTime() - now.getTime()
+    const totalHours = diff / (1000 * 60 * 60)
+
+    if (totalHours < 0) {
+      return "已过期"
+    }
+
+    const days = Math.floor(totalHours / 24)
+    const hours = Math.floor(totalHours % 24)
+
+    if (days === 0) {
+      return `${hours}小时后到期`
+    } else if (hours === 0) {
+      return `${days}天后到期`
+    } else {
+      return `${days}天${hours}小时后到期`
+    }
   }
 
   // 判断是否即将到期（7天内）
@@ -1180,10 +1216,12 @@ export default function Home() {
               const expired = isExpired(coupon)
               const expiringSoon = isExpiringSoon(coupon) && !expired
               const endHour = (coupon as any).endHour
+              const endMinute = (coupon as any).endMinute ?? 59
               const timeText = endHour !== null && endHour !== undefined
-                ? `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${endHour}点`
-                : `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} 23点`
+                ? `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${endHour}:${endMinute.toString().padStart(2, '0')}`
+                : `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} 23:59`
               const discountText = getDiscountText(coupon)
+              const remainingTimeText = getRemainingTimeText(coupon)
 
               return (
                 <Card
@@ -1249,7 +1287,7 @@ export default function Home() {
                         </div>
                         {daysRemaining >= 0 && (
                           <span className="text-gray-900 dark:text-white font-medium">
-                            {daysRemaining === 0 ? "今天到期" : `剩余${daysRemaining}天`}
+                            {remainingTimeText}
                           </span>
                         )}
                       </div>
@@ -1337,9 +1375,10 @@ export default function Home() {
                   <div className="space-y-4">
                     {getFilteredAndSortedCoupons().filter((c) => (c as any).isUsed).map((coupon) => {
                       const endHour = (coupon as any).endHour
+                      const endMinute = (coupon as any).endMinute ?? 59
                       const timeText = endHour !== null && endHour !== undefined
-                        ? `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${endHour}点`
-                        : `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} 23点`
+                        ? `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${endHour}:${endMinute.toString().padStart(2, '0')}`
+                        : `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} 23:59`
                       const discountText = getDiscountText(coupon)
 
                       return (
@@ -1501,7 +1540,7 @@ export default function Home() {
                         <h4 className="font-semibold mb-1">{status.title}</h4>
                         <div className="text-sm text-gray-500 space-y-1">
                           <div>到期时间：{new Date(status.endDate).toLocaleDateString('zh-CN')}</div>
-                          <div>剩余天数：<span className={status.daysRemaining <= 3 ? 'text-orange-600 font-medium' : ''}>{status.daysRemaining}天</span></div>
+                          <div>剩余：<span className={status.daysRemaining <= 3 ? 'text-orange-600 font-medium' : ''}>{status.remainingTimeText}</span></div>
                           {status.remindedDays.length > 0 && (
                             <div>已提醒：<span className="text-blue-600">{status.remindedDays.join('天、')}天</span></div>
                           )}

@@ -33,6 +33,7 @@ const couponSchema = z.object({
   startDate: z.date({ message: "开始日期不能为空" }),
   endDate: z.date({ message: "截止日期不能为空" }),
   endHour: z.number().min(0).max(23).nullable().optional(), // 截止小时，0-23，null表示23点
+  endMinute: z.number().min(0).max(59).nullable().optional(), // 截止分钟，0-59，null表示59分
   notes: z.string().optional(),
 }).refine((data) => data.endDate >= data.startDate, {
   message: "截止日期必须晚于或等于开始日期",
@@ -76,6 +77,7 @@ export default function CouponForm({ coupon, onSubmit, onCancel }: CouponFormPro
           startDate: new Date(coupon.startDate),
           endDate: new Date(coupon.endDate),
           endHour: (coupon as any).endHour ?? 23, // 默认23点
+          endMinute: (coupon as any).endMinute ?? 59, // 默认59分
           notes: coupon.notes || "",
         }
       : {
@@ -87,6 +89,7 @@ export default function CouponForm({ coupon, onSubmit, onCancel }: CouponFormPro
           startDate: new Date(),
           endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 默认30天后
           endHour: 23, // 默认23点
+          endMinute: 59, // 默认59分
           notes: "",
         },
   })
@@ -112,6 +115,7 @@ export default function CouponForm({ coupon, onSubmit, onCancel }: CouponFormPro
     if (info.fullAmount !== undefined) form.setValue('fullAmount', info.fullAmount)
     if (info.endDate) form.setValue('endDate', new Date(info.endDate))
     if (info.endHour !== undefined) form.setValue('endHour', info.endHour)
+    if (info.endMinute !== undefined) form.setValue('endMinute', info.endMinute)
     if (info.notes) form.setValue('notes', info.notes)
 
     // 关闭OCR组件
@@ -356,33 +360,63 @@ export default function CouponForm({ coupon, onSubmit, onCancel }: CouponFormPro
           />
         </div>
 
-        <FormField
-          control={form.control}
-          name="endHour"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>截止小时</FormLabel>
-              <FormControl>
-                <select
-                  {...field}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    field.onChange(value === "" ? 23 : parseInt(value))
-                  }}
-                  value={field.value ?? 23}
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {Array.from({ length: 24 }, (_, i) => (
-                    <option key={i} value={i}>
-                      {i}点
-                    </option>
-                  ))}
-                </select>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="endHour"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>截止小时</FormLabel>
+                <FormControl>
+                  <select
+                    {...field}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      field.onChange(value === "" ? 23 : parseInt(value))
+                    }}
+                    value={field.value ?? 23}
+                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {Array.from({ length: 24 }, (_, i) => (
+                      <option key={i} value={i}>
+                        {i}点
+                      </option>
+                    ))}
+                  </select>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="endMinute"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>截止分钟</FormLabel>
+                <FormControl>
+                  <select
+                    {...field}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      field.onChange(value === "" ? 59 : parseInt(value))
+                    }}
+                    value={field.value ?? 59}
+                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {Array.from({ length: 60 }, (_, i) => (
+                      <option key={i} value={i}>
+                        {i}分
+                      </option>
+                    ))}
+                  </select>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <FormField
           control={form.control}

@@ -558,12 +558,32 @@ export default function Home() {
   const getRemainingHours = (coupon: Coupon) => {
     const now = new Date()
     
+    // 验证截止日期是否存在
+    if (!coupon.endDate) {
+      console.error(`优惠券 "${coupon.title}" 没有截止日期`)
+      return 0
+    }
+    
     // 获取截止时间的小时和分钟
     const endHour = (coupon as any).endHour
     const endMinute = (coupon as any).endMinute ?? 59
     
-    // 解析截止日期（使用UTC时间，避免时区影响）
-    const endDate = new Date(coupon.endDate + 'T00:00:00Z')
+    // 解析截止日期
+    let endDate: Date
+    
+    // 检查日期是否已经包含时间部分（完整的ISO格式）
+    if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
+      endDate = new Date(coupon.endDate)
+    } else {
+      // 纯日期格式，添加时间部分
+      endDate = new Date(coupon.endDate + 'T00:00:00Z')
+    }
+    
+    // 验证日期解析是否成功
+    if (isNaN(endDate.getTime())) {
+      console.error(`无效的截止日期: ${coupon.endDate}`)
+      return 0
+    }
     
     // 设置截止时间（UTC时间）
     // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
@@ -581,7 +601,15 @@ export default function Home() {
     const endTimeUTC = endDate.getTime()
     
     const diff = endTimeUTC - nowUTC
-    return diff / (1000 * 60 * 60) // 返回小时数
+    
+    // 验证计算结果是否有效
+    if (isNaN(diff) || !isFinite(diff)) {
+      console.error(`无效的时间差: diff=${diff}`)
+      return 0
+    }
+    
+    const diffHours = diff / (1000 * 60 * 60)
+    return Math.max(0, diffHours) // 返回小时数，最小为0
   }
 
   // 获取精确到小时的剩余时间文本（使用北京时间 UTC+8）
@@ -702,6 +730,7 @@ export default function Home() {
         } else if (sortBy === 'remaining') {
           const aHours = getRemainingHours(a)
           const bHours = getRemainingHours(b)
+          console.log(`排序比较: "${a.title}" (${aHours.toFixed(2)}小时) vs "${b.title}" (${bHours.toFixed(2)}小时), 顺序: ${sortByOrder}`)
           return sortByOrder === 'asc' ? aHours - bHours : bHours - aHours
         } else if (sortBy === 'name') {
           return sortByOrder === 'asc'

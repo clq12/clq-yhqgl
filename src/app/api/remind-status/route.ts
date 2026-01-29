@@ -61,8 +61,32 @@ export async function GET(request: NextRequest) {
       const endHour = (coupon as any).endHour
       const endMinute = (coupon as any).endMinute ?? 59
       
-      // 解析截止日期（使用UTC时间，避免时区影响）
-      const endDate = new Date(coupon.endDate + 'T00:00:00Z')
+      // 解析截止日期
+      let endDate: Date
+      
+      // 检查日期是否已经包含时间部分（完整的ISO格式）
+      if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
+        endDate = new Date(coupon.endDate)
+      } else {
+        // 纯日期格式，添加时间部分
+        endDate = new Date(coupon.endDate + 'T00:00:00Z')
+      }
+      
+      // 验证日期解析是否成功
+      if (isNaN(endDate.getTime())) {
+        return {
+          id: coupon.id,
+          title: coupon.title,
+          endDate: coupon.endDate,
+          daysRemaining: 0,
+          remainingTimeText: "截止日期无效",
+          isReminded: coupon.isReminded,
+          remindedDays: (coupon as any).remindedDays || [],
+          willRemind: false,
+          remindDays: [],
+          reason: "截止日期无效"
+        }
+      }
       
       // 设置截止时间（UTC时间）
       // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8

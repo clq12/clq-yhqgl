@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Plus, Bell, Calendar, Trash2, Edit, CheckCircle, AlertCircle, Info, Settings, Check, BarChart3, CheckSquare, XSquare, Clock, Trash, ChevronDown, ScanText, Download, Upload as ImportIcon } from "lucide-react"
+import { Plus, Bell, Calendar, Trash2, Edit, CheckCircle, XCircle, AlertCircle, Info, Settings, Check, BarChart3, CheckSquare, XSquare, Clock, Trash, ChevronDown, ScanText, Download, Upload as ImportIcon, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
@@ -77,6 +77,8 @@ export default function Home() {
   const [importMode, setImportMode] = useState<'merge' | 'skip' | 'overwrite'>('merge')
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false)
   const [usedCouponsExpanded, setUsedCouponsExpanded] = useState(false)  // 已使用优惠券展开状态
+  const [isPushing, setIsPushing] = useState(false)  // 推送状态
+  const [pushMessage, setPushMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
   // 检查 WebDAV 配置
   const checkWebDAVConfig = async () => {
@@ -413,6 +415,40 @@ export default function Home() {
       }
     } catch (error) {
       console.error("标记使用状态失败:", error)
+    }
+  }
+
+  // 立即推送
+  const handleImmediatePush = async () => {
+    setIsPushing(true)
+    setPushMessage(null)
+
+    try {
+      const response = await fetch("/api/check-expiring")
+      const result = await response.json()
+
+      if (result.success) {
+        setPushMessage({
+          type: 'success',
+          text: `推送成功！已发送 ${result.data?.totalSent || 0} 条提醒`
+        })
+        fetchCoupons() // 刷新优惠券列表以更新提醒状态
+      } else {
+        setPushMessage({
+          type: 'error',
+          text: result.error || '推送失败，请检查配置'
+        })
+      }
+    } catch (error) {
+      console.error("推送失败:", error)
+      setPushMessage({
+        type: 'error',
+        text: '推送失败，请检查网络和配置'
+      })
+    } finally {
+      setIsPushing(false)
+      // 3秒后自动隐藏消息
+      setTimeout(() => setPushMessage(null), 3000)
     }
   }
 
@@ -1568,6 +1604,45 @@ export default function Home() {
             )}
           </div>
         )}
+
+        {/* 立即推送按钮 */}
+        <div className="mt-8 flex flex-col items-center gap-4">
+          <Button
+            onClick={handleImmediatePush}
+            disabled={isPushing}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-6 text-lg shadow-lg"
+          >
+            {isPushing ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                推送中...
+              </>
+            ) : (
+              <>
+                <Bell className="mr-2 h-5 w-5" />
+                立即推送
+              </>
+            )}
+          </Button>
+
+          {/* 推送消息提示 */}
+          {pushMessage && (
+            <div
+              className={`flex items-center gap-2 px-4 py-3 rounded-lg shadow-md ${
+                pushMessage.type === 'success'
+                  ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800'
+                  : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800'
+              }`}
+            >
+              {pushMessage.type === 'success' ? (
+                <CheckCircle className="h-5 w-5" />
+              ) : (
+                <XCircle className="h-5 w-5" />
+              )}
+              <span className="text-sm font-medium">{pushMessage.text}</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 添加/编辑对话框 */}

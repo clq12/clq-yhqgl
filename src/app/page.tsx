@@ -466,12 +466,23 @@ export default function Home() {
   const getDaysRemaining = (coupon: Coupon) => {
     const now = new Date()
     
+    // 验证截止日期是否存在
+    if (!coupon.endDate) {
+      return 0
+    }
+    
     // 获取截止时间的小时和分钟
     const endHour = (coupon as any).endHour
     const endMinute = (coupon as any).endMinute ?? 59
     
     // 解析截止日期（使用UTC时间，避免时区影响）
     const endDate = new Date(coupon.endDate + 'T00:00:00Z')
+    
+    // 验证日期解析是否成功
+    if (isNaN(endDate.getTime())) {
+      console.error(`无效的截止日期: ${coupon.endDate}`)
+      return 0
+    }
     
     // 设置截止时间（UTC时间）
     // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
@@ -489,6 +500,12 @@ export default function Home() {
     const endTimeUTC = endDate.getTime()
     
     const diff = endTimeUTC - nowUTC
+    
+    // 验证计算结果是否有效
+    if (isNaN(diff) || !isFinite(diff)) {
+      return 0
+    }
+    
     const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
     return days
   }
@@ -531,8 +548,19 @@ export default function Home() {
     const endHour = (coupon as any).endHour
     const endMinute = (coupon as any).endMinute ?? 59
     
+    // 验证截止日期是否存在
+    if (!coupon.endDate) {
+      return "截止日期无效"
+    }
+    
     // 解析截止日期（使用UTC时间，避免时区影响）
     const endDate = new Date(coupon.endDate + 'T00:00:00Z')
+    
+    // 验证日期解析是否成功
+    if (isNaN(endDate.getTime())) {
+      console.error(`无效的截止日期: ${coupon.endDate}`)
+      return "截止日期无效"
+    }
     
     // 设置截止时间（UTC时间）
     // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
@@ -549,8 +577,20 @@ export default function Home() {
     // 截止时间（UTC）
     const endTimeUTC = endDate.getTime()
     
+    // 验证时间戳是否有效
+    if (isNaN(nowUTC) || isNaN(endTimeUTC)) {
+      console.error(`无效的时间戳: nowUTC=${nowUTC}, endTimeUTC=${endTimeUTC}`)
+      return "时间计算错误"
+    }
+    
     const diff = endTimeUTC - nowUTC
     const totalHours = diff / (1000 * 60 * 60)
+
+    // 验证计算结果是否有效
+    if (isNaN(totalHours) || !isFinite(totalHours)) {
+      console.error(`无效的总小时数: totalHours=${totalHours}, diff=${diff}`)
+      return "时间计算错误"
+    }
 
     if (totalHours < 0) {
       return "已过期"

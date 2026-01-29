@@ -14,12 +14,24 @@ import { sendPushPlus, generateGroupedExpiringMessage } from "@/lib/pushplus"
 function getDaysRemaining(coupon: any): number {
   const now = new Date()
   
+  // 验证截止日期是否存在
+  if (!coupon.endDate) {
+    console.error(`优惠券 "${coupon.title}" 没有截止日期`)
+    return 0
+  }
+  
   // 获取截止时间的小时和分钟
   const endHour = (coupon as any).endHour ?? 23
   const endMinute = (coupon as any).endMinute ?? 59
   
   // 解析截止日期（使用UTC时间，避免时区影响）
   const endDate = new Date(coupon.endDate + 'T00:00:00Z')
+  
+  // 验证日期解析是否成功
+  if (isNaN(endDate.getTime())) {
+    console.error(`无效的截止日期: ${coupon.endDate}`)
+    return 0
+  }
   
   // 设置截止时间（UTC时间，然后转换为UTC+8时间戳）
   // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
@@ -37,6 +49,13 @@ function getDaysRemaining(coupon: any): number {
   const endTimeUTC = endDate.getTime()
   
   const diffMs = endTimeUTC - nowUTC
+  
+  // 验证计算结果是否有效
+  if (isNaN(diffMs) || !isFinite(diffMs)) {
+    console.error(`无效的时间差: diffMs=${diffMs}`)
+    return 0
+  }
+  
   const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
   return Math.max(0, diffDays)
 }
@@ -47,12 +66,22 @@ function getDaysRemaining(coupon: any): number {
 function getRemainingHours(coupon: any): number {
   const now = new Date()
   
+  // 验证截止日期是否存在
+  if (!coupon.endDate) {
+    return 0
+  }
+  
   // 获取截止时间的小时和分钟
   const endHour = (coupon as any).endHour ?? 23
   const endMinute = (coupon as any).endMinute ?? 59
   
   // 解析截止日期（使用UTC时间，避免时区影响）
   const endDate = new Date(coupon.endDate + 'T00:00:00Z')
+  
+  // 验证日期解析是否成功
+  if (isNaN(endDate.getTime())) {
+    return 0
+  }
   
   // 设置截止时间（UTC时间，然后转换为UTC+8时间戳）
   // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
@@ -70,6 +99,12 @@ function getRemainingHours(coupon: any): number {
   const endTimeUTC = endDate.getTime()
   
   const diffMs = endTimeUTC - nowUTC
+  
+  // 验证计算结果是否有效
+  if (isNaN(diffMs) || !isFinite(diffMs)) {
+    return 0
+  }
+  
   const diffHours = Math.ceil(diffMs / (1000 * 60 * 60))
   return Math.max(0, diffHours)
 }

@@ -83,12 +83,23 @@ export async function sendPushPlus(message: PushPlusMessage): Promise<{ success:
 function calculateRemainingTime(coupon: any): { days: number; hours: number; text: string } {
   const now = new Date()
   
+  // 验证截止日期是否存在
+  if (!coupon.endDate) {
+    return { days: 0, hours: 0, text: "截止日期无效" }
+  }
+  
   // 获取截止时间的小时和分钟
   const endHour = (coupon as any).endHour ?? 23
   const endMinute = (coupon as any).endMinute ?? 59
   
   // 解析截止日期（使用UTC时间，避免时区影响）
   const endDate = new Date(coupon.endDate + 'T00:00:00Z')
+  
+  // 验证日期解析是否成功
+  if (isNaN(endDate.getTime())) {
+    console.error(`无效的截止日期: ${coupon.endDate}`)
+    return { days: 0, hours: 0, text: "截止日期无效" }
+  }
   
   // 设置截止时间（UTC时间）
   // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
@@ -106,6 +117,12 @@ function calculateRemainingTime(coupon: any): { days: number; hours: number; tex
   const endTimeUTC = endDate.getTime()
 
   const diffMs = endTimeUTC - nowUTC
+
+  // 验证计算结果是否有效
+  if (isNaN(diffMs) || !isFinite(diffMs)) {
+    console.error(`无效的时间差: diffMs=${diffMs}`)
+    return { days: 0, hours: 0, text: "时间计算错误" }
+  }
 
   // 计算天数和小时数
   const totalHours = Math.ceil(diffMs / (1000 * 60 * 60))

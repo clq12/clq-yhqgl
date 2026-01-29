@@ -153,14 +153,38 @@ function calculateRemainingTime(coupon: any): { days: number; hours: number; tex
  * 格式化到期时间（北京时间 UTC+8）
  */
 function formatExpiryDate(coupon: any): string {
+  if (!coupon.endDate) {
+    return "截止日期无效"
+  }
+  
   const endHour = (coupon as any).endHour
   const endMinute = (coupon as any).endMinute ?? 59
   
-  if (endHour !== null && endHour !== undefined) {
-    return `${coupon.endDate} ${endHour}:${endMinute.toString().padStart(2, '0')}`
+  // 解析截止日期
+  let dateObj: Date
+  
+  // 检查日期格式
+  if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
+    dateObj = new Date(coupon.endDate)
   } else {
-    return `${coupon.endDate} 23:59`
+    dateObj = new Date(coupon.endDate + 'T00:00:00Z')
   }
+  
+  // 验证日期解析是否成功
+  if (isNaN(dateObj.getTime())) {
+    return "截止日期无效"
+  }
+  
+  // 提取年月日（转换为北京时间 UTC+8）
+  const year = dateObj.getUTCFullYear()
+  const month = (dateObj.getUTCMonth() + 1).toString().padStart(2, '0')
+  const day = dateObj.getUTCDate().toString().padStart(2, '0')
+  
+  // 组合日期和时间
+  const dateStr = `${year}-${month}-${day}`
+  const timeStr = `${endHour ?? 23}:${(endMinute ?? 59).toString().padStart(2, '0')}`
+  
+  return `${dateStr} ${timeStr}`
 }
 
 /**

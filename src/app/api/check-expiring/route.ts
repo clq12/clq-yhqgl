@@ -159,26 +159,17 @@ export async function GET(request: NextRequest) {
 
       console.log(`优惠券 "${coupon.title}": 剩余 ${days}天 ${hours}小时`)
 
-      // 获取已提醒的天数数组
-      const remindedDays = (coupon as any).remindedDays || []
-
-      // 分组（使用 remindedDays 数组检查是否已提醒，支持多次提醒）
-      // 每张优惠券只在最紧急的未提醒天数中推送一次
-      if (days <= 1 && !remindedDays.includes(1)) {
-        // 1天内到期且未在1天时提醒过
+      // 分组：每次推送都包含所有符合条件的优惠券
+      // 每张优惠券只出现在最紧急的那个组中（避免在推送消息中重复显示）
+      if (days <= 1) {
+        // 1天内到期（最紧急）
         within1Day.push(coupon)
-        console.log(`  -> 加入1天内组（未在1天时提醒过）`)
-      } else if (days <= 3 && !remindedDays.includes(3)) {
-        // 3天内到期且未在3天时提醒过
+      } else if (days <= 3) {
+        // 3天内到期
         within3Days.push(coupon)
-        console.log(`  -> 加入3天内组（未在3天时提醒过）`)
-      } else if (days <= 7 && !remindedDays.includes(7)) {
-        // 7天内到期且未在7天时提醒过
-        within7Days.push(coupon)
-        console.log(`  -> 加入7天内组（未在7天时提醒过）`)
       } else if (days <= 7) {
-        // 在7天内但已经在对应的天数提醒过
-        console.log(`  -> 跳过（已在 ${remindedDays.join(', ')} 天时提醒过）`)
+        // 7天内到期
+        within7Days.push(coupon)
       }
       // 超过7天的不提醒
     }
@@ -186,7 +177,7 @@ export async function GET(request: NextRequest) {
     console.log(`分组结果: 1天内=${within1Day.length}张, 3天内=${within3Days.length}张, 7天内=${within7Days.length}张`)
 
     // 5. 合并发送一条推送（按紧急程度排序：1天→3天→7天）
-    // 注意：使用 remindedDays 数组记录在哪些天数已提醒，支持多次提醒（7天、3天、1天）
+    // 每次推送都包含所有符合条件的优惠券（不管是否已提醒过）
     const totalCount = within1Day.length + within3Days.length + within7Days.length
 
     if (totalCount > 0) {
@@ -211,7 +202,7 @@ export async function GET(request: NextRequest) {
       if (result.success) {
         console.log(`推送成功！`)
         
-        // 更新已推送优惠券的提醒天数
+        // 可选：更新提醒记录（仅用于统计，不影响下次推送）
         const updatedCoupons = allCoupons.map(coupon => {
           const days = getDaysRemaining(coupon)
           
@@ -228,32 +219,29 @@ export async function GET(request: NextRequest) {
           const currentRemindedDays = (coupon as any).remindedDays || []
           const newRemindedDays = [...currentRemindedDays]
           
-          // 根据剩余天数添加提醒天数
+          // 根据剩余天数添加提醒天数（用于统计）
           if (inWithin1Day && !newRemindedDays.includes(1)) {
             newRemindedDays.push(1)
-            console.log(`优惠券 "${coupon.title}" 添加1天提醒`)
           }
           if (inWithin3Days && !newRemindedDays.includes(3)) {
             newRemindedDays.push(3)
-            console.log(`优惠券 "${coupon.title}" 添加3天提醒`)
           }
           if (inWithin7Days && !newRemindedDays.includes(7)) {
             newRemindedDays.push(7)
-            console.log(`优惠券 "${coupon.title}" 添加7天提醒`)
           }
           
-          // 更新提醒状态
+          // 更新提醒状态（仅用于显示和统计，不影响推送逻辑）
           return {
             ...coupon,
             remindedDays: newRemindedDays,
-            isReminded: true, // 标记为已提醒
+            isReminded: true,
             updatedAt: new Date().toISOString(),
           }
         })
         
         // 保存更新后的优惠券
         await saveCoupons(updatedCoupons)
-        console.log(`已更新 ${updatedCoupons.filter(c => c.isReminded).length} 张优惠券的提醒状态`)
+        console.log(`已更新提醒记录（用于统计，不影响下次推送）`)
         
         return NextResponse.json({
           success: true,

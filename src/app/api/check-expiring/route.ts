@@ -202,11 +202,9 @@ export async function GET(request: NextRequest) {
       if (result.success) {
         console.log(`推送成功！`)
         
-        // 可选：更新提醒记录（仅用于统计，不影响下次推送）
+        // 更新提醒记录（用于统计）
         const updatedCoupons = allCoupons.map(coupon => {
-          const days = getDaysRemaining(coupon)
-          
-          // 检查这张优惠券是否在推送列表中
+          // 检查这张优惠券在哪个组中
           const inWithin1Day = within1Day.some(pc => pc.id === coupon.id)
           const inWithin3Days = within3Days.some(pc => pc.id === coupon.id)
           const inWithin7Days = within7Days.some(pc => pc.id === coupon.id)
@@ -219,14 +217,12 @@ export async function GET(request: NextRequest) {
           const currentRemindedDays = (coupon as any).remindedDays || []
           const newRemindedDays = [...currentRemindedDays]
           
-          // 根据剩余天数添加提醒天数（用于统计）
+          // 只在优惠券实际所在的组中添加提醒天数（避免重复添加）
           if (inWithin1Day && !newRemindedDays.includes(1)) {
             newRemindedDays.push(1)
-          }
-          if (inWithin3Days && !newRemindedDays.includes(3)) {
+          } else if (inWithin3Days && !newRemindedDays.includes(3)) {
             newRemindedDays.push(3)
-          }
-          if (inWithin7Days && !newRemindedDays.includes(7)) {
+          } else if (inWithin7Days && !newRemindedDays.includes(7)) {
             newRemindedDays.push(7)
           }
           

@@ -1321,7 +1321,8 @@ export default function Home() {
                             截止：{timeText}
                           </span>
                         </div>
-                        {daysRemaining >= 0 && (
+                        {/* 统一使用剩余时间文本判断，而不是 daysRemaining */}
+                        {remainingTimeText && remainingTimeText !== "已过期" && (
                           <span className="text-gray-900 dark:text-white font-medium">
                             {remainingTimeText}
                           </span>

@@ -176,10 +176,12 @@ export async function GET(request: NextRequest) {
     console.log(`分组结果: 1天内=${within1Day.length}张, 3天内=${within3Days.length}张, 7天内=${within7Days.length}张`)
 
     // 5. 合并发送一条推送（按紧急程度排序：1天→3天→7天）
+    // 注意：每个优惠券只出现在最紧急的那个组中（避免重复推送）
     const totalCount = within1Day.length + within3Days.length + within7Days.length
 
     if (totalCount > 0) {
       console.log(`准备发送推送，共 ${totalCount} 张优惠券`)
+      console.log(`推送分组: 1天内(${within1Day.length}) + 3天内(${within3Days.length}) + 7天内(${within7Days.length})`)
 
       const message = generateGroupedExpiringMessage({
         within1Day,

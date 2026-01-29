@@ -653,12 +653,33 @@ export default function Home() {
 
   // 应用排序和筛选
   const getFilteredAndSortedCoupons = () => {
-    let filtered = [...coupons]
+    let result = [...coupons]
 
-    // 应用搜索
+    // 先应用排序（对所有优惠券排序）
+    if (sortBy) {
+      result.sort((a, b) => {
+        if (sortBy === 'discount') {
+          // 使用折扣率而不是直接比较金额
+          const aDiscount = getDiscountRate(a)
+          const bDiscount = getDiscountRate(b)
+          return sortByOrder === 'asc' ? aDiscount - bDiscount : bDiscount - aDiscount
+        } else if (sortBy === 'remaining') {
+          const aHours = getRemainingHours(a)
+          const bHours = getRemainingHours(b)
+          return sortByOrder === 'asc' ? aHours - bHours : bHours - aHours
+        } else if (sortBy === 'name') {
+          return sortByOrder === 'asc'
+            ? a.title.localeCompare(b.title)
+            : b.title.localeCompare(a.title)
+        }
+        return 0
+      })
+    }
+
+    // 再应用搜索（不影响排序顺序）
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim()
-      filtered = filtered.filter(c => {
+      result = result.filter(c => {
         // 搜索标题、描述和备注
         const title = c.title.toLowerCase()
         const description = (c.description || '').toLowerCase()
@@ -678,39 +699,18 @@ export default function Home() {
       })
     }
 
-    // 应用筛选
+    // 再应用筛选（不影响排序顺序）
     if (filterExpiring !== 'all') {
       const days = filterExpiring === '1day' ? 1 : filterExpiring === '3day' ? 3 : 7
-      filtered = filtered.filter(c => {
+      result = result.filter(c => {
         const remaining = getDaysRemaining(c)
         return remaining >= 0 && remaining <= days
       })
     }
 
-    // 应用排序
-    if (sortBy) {
-      filtered.sort((a, b) => {
-        if (sortBy === 'discount') {
-          // 使用折扣率而不是直接比较金额
-          const aDiscount = getDiscountRate(a)
-          const bDiscount = getDiscountRate(b)
-          return sortByOrder === 'asc' ? aDiscount - bDiscount : bDiscount - aDiscount
-        } else if (sortBy === 'remaining') {
-          const aHours = getRemainingHours(a)
-          const bHours = getRemainingHours(b)
-          return sortByOrder === 'asc' ? aHours - bHours : bHours - aHours
-        } else if (sortBy === 'name') {
-          return sortByOrder === 'asc'
-            ? a.title.localeCompare(b.title)
-            : b.title.localeCompare(a.title)
-        }
-        return 0
-      })
-    }
-
-    // 将已使用的优惠券移到最下方
-    const unusedCoupons = filtered.filter(c => !(c as any).isUsed)
-    const usedCoupons = filtered.filter(c => (c as any).isUsed)
+    // 最后将已使用的优惠券移到最下方，同时保持排序顺序
+    const unusedCoupons = result.filter(c => !(c as any).isUsed)
+    const usedCoupons = result.filter(c => (c as any).isUsed)
     return [...unusedCoupons, ...usedCoupons]
   }
 

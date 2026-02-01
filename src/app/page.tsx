@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Plus, Bell, Calendar, Trash2, Edit, CheckCircle, XCircle, AlertCircle, Info, Settings, Check, BarChart3, CheckSquare, XSquare, Clock, Trash, ChevronDown, ScanText, Download, Upload as ImportIcon, Loader2 } from "lucide-react"
+import { Plus, Bell, Calendar, Trash2, Edit, CheckCircle, XCircle, AlertCircle, Info, Settings, Check, BarChart3, CheckSquare, XSquare, Clock, Trash, ChevronDown, ScanText, Download, Upload as ImportIcon, Loader2, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
@@ -65,6 +65,7 @@ export default function Home() {
   const [sortBy, setSortBy] = useState<'discount' | 'remaining' | 'name' | null>(null)
   const [sortByOrder, setSortByOrder] = useState<'asc' | 'desc'>('desc')
   const [filterExpiring, setFilterExpiring] = useState<'1day' | '3day' | '7day' | 'all'>('all')
+  const [filterStatus, setFilterStatus] = useState<'valid' | 'expiring' | 'expired' | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [isBulkMode, setIsBulkMode] = useState(false)
@@ -730,7 +731,6 @@ export default function Home() {
         } else if (sortBy === 'remaining') {
           const aHours = getRemainingHours(a)
           const bHours = getRemainingHours(b)
-          console.log(`排序比较: "${a.title}" (${aHours.toFixed(2)}小时) vs "${b.title}" (${bHours.toFixed(2)}小时), 顺序: ${sortByOrder}`)
           return sortByOrder === 'asc' ? aHours - bHours : bHours - aHours
         } else if (sortBy === 'name') {
           return sortByOrder === 'asc'
@@ -770,6 +770,20 @@ export default function Home() {
       result = result.filter(c => {
         const remaining = getDaysRemaining(c)
         return remaining >= 0 && remaining <= days
+      })
+    }
+
+    // 应用状态筛选（有效/即将到期/已过期）
+    if (filterStatus) {
+      result = result.filter(c => {
+        if (filterStatus === 'valid') {
+          return !isExpired(c) && !(c as any).isUsed
+        } else if (filterStatus === 'expiring') {
+          return isExpiringSoon(c) && !isExpired(c) && !(c as any).isUsed
+        } else if (filterStatus === 'expired') {
+          return isExpired(c) && !(c as any).isUsed
+        }
+        return true
       })
     }
 
@@ -1182,23 +1196,47 @@ export default function Home() {
 
         {/* 统计信息 */}
         <div className="grid grid-cols-3 gap-4 mb-6">
-          <Card className="p-4">
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              {coupons.filter((c) => !isExpired(c)).length}
+          <Card 
+            className={`p-4 cursor-pointer transition-colors ${filterStatus === 'valid' ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}
+            onClick={() => setFilterStatus(filterStatus === 'valid' ? null : 'valid')}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {coupons.filter((c) => !isExpired(c) && !(c as any).isUsed).length}
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">有效优惠</div>
+              </div>
+              <Filter className={`h-5 w-5 ${filterStatus === 'valid' ? 'text-blue-600' : 'text-gray-400'}`} />
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">有效优惠</div>
           </Card>
-          <Card className="p-4">
-            <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
-              {coupons.filter((c) => isExpiringSoon(c) && !isExpired(c)).length}
+          <Card 
+            className={`p-4 cursor-pointer transition-colors ${filterStatus === 'expiring' ? 'ring-2 ring-orange-500 bg-orange-50 dark:bg-orange-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}
+            onClick={() => setFilterStatus(filterStatus === 'expiring' ? null : 'expiring')}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
+                  {coupons.filter((c) => isExpiringSoon(c) && !isExpired(c) && !(c as any).isUsed).length}
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">即将到期</div>
+              </div>
+              <Filter className={`h-5 w-5 ${filterStatus === 'expiring' ? 'text-orange-600' : 'text-gray-400'}`} />
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">即将到期</div>
           </Card>
-          <Card className="p-4">
-            <div className="text-2xl font-bold text-red-600 dark:text-red-400">
-              {coupons.filter((c) => isExpired(c)).length}
+          <Card 
+            className={`p-4 cursor-pointer transition-colors ${filterStatus === 'expired' ? 'ring-2 ring-red-500 bg-red-50 dark:bg-red-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}
+            onClick={() => setFilterStatus(filterStatus === 'expired' ? null : 'expired')}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-2xl font-bold text-red-600 dark:text-red-400">
+                  {coupons.filter((c) => isExpired(c) && !(c as any).isUsed).length}
+                </div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">已过期</div>
+              </div>
+              <Filter className={`h-5 w-5 ${filterStatus === 'expired' ? 'text-red-600' : 'text-gray-400'}`} />
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">已过期</div>
           </Card>
         </div>
 

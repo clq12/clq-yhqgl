@@ -55,14 +55,14 @@ export async function POST(request: NextRequest) {
 
     // 根据过滤条件筛选（与前端统计逻辑保持一致）
     if (filter === 'used') {
-      // 已使用且未过期
-      coupons = coupons.filter((c: any) => c.isUsed && !isExpired(c))
+      // 已使用（不管是否过期）
+      coupons = coupons.filter((c: any) => c.isUsed)
     } else if (filter === 'unused') {
       // 未使用且未过期
       coupons = coupons.filter((c: any) => !c.isUsed && !isExpired(c))
     } else if (filter === 'expired') {
-      // 已过期且未使用
-      coupons = coupons.filter((c: any) => isExpired(c) && !c.isUsed)
+      // 已过期（不管是否使用）
+      coupons = coupons.filter((c: any) => isExpired(c))
     }
 
     // 生成导出数据

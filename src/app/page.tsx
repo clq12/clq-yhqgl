@@ -997,8 +997,8 @@ export default function Home() {
                       <SelectContent>
                         <SelectItem value="all">全部优惠券 ({coupons.length})</SelectItem>
                         <SelectItem value="unused">未使用 ({coupons.filter((c: any) => !(c as any).isUsed && !isExpired(c)).length})</SelectItem>
-                        <SelectItem value="used">已使用未过期 ({coupons.filter((c: any) => (c as any).isUsed && !isExpired(c)).length})</SelectItem>
-                        <SelectItem value="expired">已过期未使用 ({coupons.filter((c: any) => isExpired(c) && !(c as any).isUsed).length})</SelectItem>
+                        <SelectItem value="used">已使用 ({coupons.filter((c: any) => (c as any).isUsed).length})</SelectItem>
+                        <SelectItem value="expired">已过期 ({coupons.filter((c: any) => isExpired(c)).length})</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -1567,13 +1567,13 @@ export default function Home() {
                     className="gap-2"
                   >
                     <ChevronDown className={`h-4 w-4 transition-transform ${usedCouponsExpanded ? 'rotate-180' : ''}`} />
-                    已使用的优惠券 ({getFilteredAndSortedCoupons().filter((c) => (c as any).isUsed).length})
+                    已使用的优惠券 ({coupons.filter((c) => (c as any).isUsed).length})
                   </Button>
                 </div>
 
                 {usedCouponsExpanded && (
                   <div className="space-y-4">
-                    {getFilteredAndSortedCoupons().filter((c) => (c as any).isUsed).map((coupon) => {
+                    {coupons.filter((c) => (c as any).isUsed).map((coupon) => {
                       const endHour = (coupon as any).endHour
                       const endMinute = (coupon as any).endMinute ?? 59
                       const timeText = endHour !== null && endHour !== undefined

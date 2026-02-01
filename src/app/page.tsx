@@ -62,8 +62,8 @@ export default function Home() {
   const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false)
   const [remindStatus, setRemindStatus] = useState<RemindStatusItem[]>([])
   const [loadingRemindStatus, setLoadingRemindStatus] = useState(false)
-  const [sortBy, setSortBy] = useState<'discount' | 'remaining' | 'name' | null>(null)
-  const [sortByOrder, setSortByOrder] = useState<'asc' | 'desc'>('desc')
+  const [sortBy, setSortBy] = useState<'discount' | 'remaining' | 'name' | null>('remaining')
+  const [sortByOrder, setSortByOrder] = useState<'asc' | 'desc'>('asc')
   const [filterExpiring, setFilterExpiring] = useState<'1day' | '3day' | '7day' | 'all'>('all')
   const [filterStatus, setFilterStatus] = useState<'valid' | 'expiring' | 'expired' | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -787,10 +787,14 @@ export default function Home() {
       })
     }
 
-    // 最后将已使用的优惠券移到最下方，同时保持排序顺序
-    const unusedCoupons = result.filter(c => !(c as any).isUsed)
-    const usedCoupons = result.filter(c => (c as any).isUsed)
-    return [...unusedCoupons, ...usedCoupons]
+    // 最后将优惠券按使用状态和过期状态分组，同时保持每组内部的排序顺序
+    // 顺序：未使用未过期 → 未使用已过期 → 已使用未过期 → 已使用已过期
+    const unusedNotExpired = result.filter(c => !(c as any).isUsed && !isExpired(c))
+    const unusedExpired = result.filter(c => !(c as any).isUsed && isExpired(c))
+    const usedNotExpired = result.filter(c => (c as any).isUsed && !isExpired(c))
+    const usedExpired = result.filter(c => (c as any).isUsed && isExpired(c))
+    
+    return [...unusedNotExpired, ...unusedExpired, ...usedNotExpired, ...usedExpired]
   }
 
   useEffect(() => {

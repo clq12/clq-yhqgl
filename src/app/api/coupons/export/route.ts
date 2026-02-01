@@ -103,29 +103,30 @@ function getDaysRemaining(coupon: any): number {
   
   // 检查日期是否已经包含时间部分（完整的ISO格式）
   if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
+    // 完整ISO格式，直接使用
     endDate = new Date(coupon.endDate)
   } else {
     // 纯日期格式，添加时间部分
     endDate = new Date(coupon.endDate + 'T00:00:00Z')
+    
+    // 获取截止时间的小时和分钟（只对纯日期格式添加）
+    const endHour = (coupon as any).endHour ?? 23
+    const endMinute = (coupon as any).endMinute ?? 59
+    
+    // 设置截止时间（UTC时间）
+    // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
+    let utcHour = endHour - 8
+    if (utcHour < 0) {
+      utcHour += 24
+      endDate.setDate(endDate.getDate() - 1)
+    }
+    endDate.setUTCHours(utcHour, endMinute, 0, 0)
   }
   
   // 验证日期解析是否成功
   if (isNaN(endDate.getTime())) {
     return 0
   }
-  
-  // 获取截止时间的小时和分钟
-  const endHour = (coupon as any).endHour ?? 23
-  const endMinute = (coupon as any).endMinute ?? 59
-  
-  // 设置截止时间（UTC时间，然后转换为UTC+8时间戳）
-  // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
-  let utcHour = endHour - 8
-  if (utcHour < 0) {
-    utcHour += 24
-    endDate.setDate(endDate.getDate() - 1)
-  }
-  endDate.setUTCHours(utcHour, endMinute, 0, 0)
   
   // 当前时间（UTC）
   const nowUTC = now.getTime()

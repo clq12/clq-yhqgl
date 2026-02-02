@@ -121,38 +121,6 @@ export default function WebDAVConfig() {
     }
   }
 
-  const handleEdit = () => {
-    const localConfig = getWebDAVConfigFromLocalStorage()
-    if (localConfig) {
-      form.reset({
-        url: localConfig.url,
-        username: localConfig.username,
-        password: localConfig.password,
-        pushplusToken: localConfig.pushplusToken || "",
-        glmApiKey: localConfig.glmApiKey || "",
-      })
-    } else {
-      // 如果 localStorage 没有，尝试从服务器获取
-      fetch("/api/webdav/config")
-        .then(res => res.json())
-        .then(result => {
-          if (result.success && result.config) {
-            form.reset({
-              url: result.config.url || "",
-              username: result.config.username || "",
-              password: result.config.password || "",
-              pushplusToken: result.config.pushplusToken || "",
-              glmApiKey: result.config.glmApiKey || "",
-            })
-          }
-        })
-        .catch(err => {
-          console.error("获取配置失败:", err)
-        })
-    }
-    setIsEditing(true)
-  }
-
   const handleClearConfig = async () => {
     if (!confirm("确定要清除 WebDAV 配置吗？")) {
       return
@@ -303,7 +271,7 @@ export default function WebDAVConfig() {
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
               <Button
-                onClick={handleEdit}
+                onClick={() => setIsEditing(true)}
                 className="gap-2"
               >
                 重新编辑

@@ -11,10 +11,6 @@ export interface ExtractedCouponInfo {
   endMinute?: number
   storeName?: string
   description?: string
-  _debug?: {
-    aiRawResult: any
-    aiModel: string
-  }
 }
 
 /**
@@ -193,46 +189,16 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
     }
   }
 
-  // 检查"今天到期"、"明天失效"、"后天过期"等格式
-  const todayTomorrowPattern = /(?:今|明|后)天\s*(?:下午|上午|晚上|中午)?\s*(?:\d{1,2}\s*点(?:\s*\d{1,2}\s*分)?)?\s*(?:过期|到期|失效|作废)/
+  // 检查"今天到期"、"明天失效"等格式
+  const todayTomorrowPattern = /(?:今|明)天\s*(?:下午|上午|晚上)?\s*(?:过期|到期|失效|作废)/
   const todayTomorrowMatch = text.match(todayTomorrowPattern)
   if (todayTomorrowMatch && !matchedDate) {
-    const keyword = todayTomorrowMatch[0].substring(0, 2) // "今天"、"明天"或"后天"
+    const keyword = todayTomorrowMatch[0].substring(0, 2) // "今天"或"明天"
     const targetDate = new Date(now)
-
-    // 计算日期偏移
     if (keyword === '明天') {
       targetDate.setDate(targetDate.getDate() + 1)
-    } else if (keyword === '后天') {
-      targetDate.setDate(targetDate.getDate() + 2)
     }
-
-    // 提取时间信息
-    const restText = todayTomorrowMatch[0].substring(2) // 去掉"今/明/后天"
-    let isPM = restText.includes('下午') || restText.includes('晚')
-    let isAM = restText.includes('上午') || restText.includes('早')
-
-    // 提取小时和分钟
-    const timePattern = /(\d{1,2})\s*点(?:\s*(\d{1,2})\s*分)?/
-    const timeMatch = restText.match(timePattern)
-    if (timeMatch) {
-      const hour = parseInt(timeMatch[1])
-      const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0
-
-      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-        // 处理AM/PM格式
-        let finalHour = hour
-        if (isPM && hour < 12) {
-          finalHour = hour + 12  // 下午3点 = 15点
-        } else if (isAM && hour === 12) {
-          finalHour = 0  // 上午12点 = 0点
-        }
-
-        result.endHour = finalHour
-        result.endMinute = minute
-      }
-    }
-
+    // 如果包含"下午"，可以记录时间信息（这里暂时只记录日期）
     if (!isNaN(targetDate.getTime())) {
       matchedDate = targetDate
       result.endDate = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`
@@ -837,26 +803,12 @@ async function extractCouponInfoWithDoubao(text: string): Promise<ExtractedCoupo
       }
 
       // 如果AI没有提取到完整信息，回退到规则匹配
-      if (!result.title || !result.discountAmount || !result.discountType || !result.endDate) {
-        console.log('AI提取不完整，回退到规则匹配', {
-          hasTitle: !!result.title,
-          hasAmount: !!result.discountAmount,
-          hasType: !!result.discountType,
-          hasDate: !!result.endDate,
-          aiRawResult: parsedData
-        })
+      if (!result.title || !result.discountAmount || !result.discountType) {
+        console.log('AI提取不完整，回退到规则匹配')
         return extractCouponInfo(text)
       }
-
-      // 返回结果（包含调试信息）
-      const finalResult = {
-        ...result,
-        _debug: {
-          aiRawResult: parsedData,
-          aiModel: 'doubao'
-        }
-      }
-      return finalResult
+      
+      return result
     } else {
       console.log('AI返回格式错误，回退到规则匹配')
       return extractCouponInfo(text)
@@ -999,26 +951,12 @@ async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<
     }
 
     // 如果AI没有提取到完整信息，回退到规则匹配
-    if (!result.title || !result.discountAmount || !result.discountType || !result.endDate) {
-      console.log('GLM提取不完整，回退到规则匹配', {
-        hasTitle: !!result.title,
-        hasAmount: !!result.discountAmount,
-        hasType: !!result.discountType,
-        hasDate: !!result.endDate,
-        aiRawResult: parsedData
-      })
+    if (!result.title || !result.discountAmount || !result.discountType) {
+      console.log('GLM提取不完整，回退到规则匹配')
       return extractCouponInfo(text)
     }
 
-    // 返回结果（包含调试信息）
-    const finalResult = {
-      ...result,
-      _debug: {
-        aiRawResult: parsedData,
-        aiModel: 'glm-4.7-flash'
-      }
-    }
-    return finalResult
+    return result
 
   } catch (error) {
     console.error('GLM解析失败，回退到规则匹配:', error)

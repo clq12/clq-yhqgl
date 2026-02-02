@@ -6,14 +6,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import CouponPreviewDialog, { type PreviewCoupon } from "@/components/CouponPreviewDialog"
 
 export interface ExtractedCouponInfo {
@@ -29,10 +21,6 @@ export interface ExtractedCouponInfo {
   description?: string
   notes?: string
   originalText?: string
-  _debug?: {
-    aiRawResult: any
-    aiModel: string
-  }
 }
 
 interface TextRecognizerProps {
@@ -47,8 +35,6 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
   const [error, setError] = useState<string | null>(null)
   const [previewCoupons, setPreviewCoupons] = useState<PreviewCoupon[]>([])
   const [showPreviewDialog, setShowPreviewDialog] = useState(false)
-  const [debugInfo, setDebugInfo] = useState<ExtractedCouponInfo['_debug'][]>([])
-  const [showDebugDialog, setShowDebugDialog] = useState(false)
 
   const handleRecognize = async () => {
     if (!inputText.trim()) {
@@ -64,7 +50,6 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
       const couponTexts = splitCouponTexts(inputText)
 
       const extractedInfos: ExtractedCouponInfo[] = []
-      const newDebugInfo: ExtractedCouponInfo['_debug'][] = []
 
       for (let i = 0; i < couponTexts.length; i++) {
         const couponText = couponTexts[i]
@@ -92,11 +77,6 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
             ...data,
             originalText: couponText,
           })
-
-          // 收集调试信息
-          if (data._debug) {
-            newDebugInfo.push(data._debug)
-          }
         } catch (err) {
           console.error(`识别第${i + 1}个优惠券失败:`, err)
           // 单个优惠券识别失败时，使用规则匹配作为兜底
@@ -129,17 +109,6 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
         setError("无法识别优惠券信息，请检查输入文本格式")
         setIsProcessing(false)
         return
-      }
-
-      // 检查是否有识别失败的优惠券
-      const incompleteCoupons = extractedInfos.filter(info => !info.endDate)
-
-      // 保存调试信息
-      setDebugInfo(newDebugInfo)
-
-      // 如果有不完整的优惠券，显示调试信息
-      if (incompleteCoupons.length > 0) {
-        setShowDebugDialog(true)
       }
 
       // 转换为预览格式
@@ -258,51 +227,6 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
           onConfirm={handleConfirm}
           onCancel={handleCancelPreview}
         />
-      )}
-
-      {showDebugDialog && (
-        <Dialog open={showDebugDialog} onOpenChange={setShowDebugDialog}>
-          <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>AI识别调试信息</DialogTitle>
-              <DialogDescription>
-                查看AI实际返回的原始数据，帮助诊断识别问题
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              {debugInfo.map((debug, index) => (
-                debug && (
-                  <div key={index} className="border rounded-lg p-4 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline">{debug.aiModel}</Badge>
-                      <span className="text-sm text-muted-foreground">第 {index + 1} 个优惠券</span>
-                    </div>
-                    <pre className="bg-muted p-3 rounded text-xs overflow-auto max-h-[400px]">
-                      {JSON.stringify(debug.aiRawResult, null, 2)}
-                    </pre>
-                  </div>
-                )
-              ))}
-              <div className="flex gap-2">
-                <Button
-                  onClick={() => setShowDebugDialog(false)}
-                  className="flex-1"
-                >
-                  关闭
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowDebugDialog(false)
-                    setShowPreviewDialog(true)
-                  }}
-                >
-                  继续预览
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
       )}
     </div>
   )

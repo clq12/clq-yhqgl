@@ -271,15 +271,17 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
             </DialogHeader>
             <div className="space-y-4">
               {debugInfo.map((debug, index) => (
-                <div key={index} className="border rounded-lg p-4 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">{debug.aiModel}</Badge>
-                    <span className="text-sm text-muted-foreground">第 {index + 1} 个优惠券</span>
+                debug && (
+                  <div key={index} className="border rounded-lg p-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">{debug.aiModel}</Badge>
+                      <span className="text-sm text-muted-foreground">第 {index + 1} 个优惠券</span>
+                    </div>
+                    <pre className="bg-muted p-3 rounded text-xs overflow-auto max-h-[400px]">
+                      {JSON.stringify(debug.aiRawResult, null, 2)}
+                    </pre>
                   </div>
-                  <pre className="bg-muted p-3 rounded text-xs overflow-auto max-h-[400px]">
-                    {JSON.stringify(debug.aiRawResult, null, 2)}
-                  </pre>
-                </div>
+                )
               ))}
               <div className="flex gap-2">
                 <Button

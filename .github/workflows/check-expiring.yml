@@ -5,8 +5,8 @@ name: Check Expiring Coupons
 # 北京时间 16:30 = UTC 8:30（当天）
 on:
   schedule:
-    - cron: '30 23 * * *'  # 北京时间7:30
-    - cron: '30 8 * * *'   # 北京时间16:30
+    - cron: '0 23 * * *'  # 北京时间7:30
+    - cron: '0 8 * * *'   # 北京时间16:30
   # 允许手动触发工作流
   workflow_dispatch:
 

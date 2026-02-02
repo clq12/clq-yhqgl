@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
-import { Check, X, ArrowLeft, ArrowRight } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Check, X, ArrowLeft, ArrowRight, MessageSquare, Eye, Bot } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Dialog,
   DialogContent,
@@ -20,6 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
 import type { ExtractedCouponInfo } from "./TextRecognizer"
 
 export interface PreviewCoupon extends ExtractedCouponInfo {
@@ -89,19 +92,14 @@ export default function CouponPreviewDialog({
     }
   }
 
+  const currentCoupon = previewCoupons[currentIndex] || null
+
   // 当对话框打开时初始化数据
-  useState(() => {
+  useEffect(() => {
     if (isOpen && coupons.length > 0 && previewCoupons.length === 0) {
       initializePreviews()
     }
-  })
-
-  // 监听 isOpen 变化
-  if (isOpen && coupons.length > 0 && previewCoupons.length === 0) {
-    initializePreviews()
-  }
-
-  const currentCoupon = previewCoupons[currentIndex] || null
+  }, [isOpen, coupons, previewCoupons.length])
 
   if (!currentCoupon) {
     return null
@@ -110,202 +108,225 @@ export default function CouponPreviewDialog({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && handleCancel()}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
-              确认优惠券信息 ({currentIndex + 1}/{previewCoupons.length})
+            <DialogTitle className="flex items-center gap-2">
+              <Bot className="h-5 w-5" />
+              AI识别结果确认 ({currentIndex + 1}/{previewCoupons.length})
             </DialogTitle>
             <DialogDescription>
-              请检查并编辑识别到的优惠券信息，确认后点击"添加"按钮
+              查看AI识别的原始结果，确认或修改后添加
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            {/* 导航按钮（多张优惠券时显示） */}
-            {previewCoupons.length > 1 && (
-              <div className="flex items-center justify-between">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handlePrevious}
-                  disabled={currentIndex === 0}
-                >
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  上一张
-                </Button>
-                <div className="text-sm text-muted-foreground">
-                  第 {currentIndex + 1} 张，共 {previewCoupons.length} 张
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleNext}
-                  disabled={currentIndex === previewCoupons.length - 1}
-                >
-                  下一张
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Button>
-              </div>
-            )}
+          <Tabs defaultValue="chat" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="chat" className="flex items-center gap-2">
+                <MessageSquare className="h-4 w-4" />
+                AI对话
+              </TabsTrigger>
+              <TabsTrigger value="preview" className="flex items-center gap-2">
+                <Eye className="h-4 w-4" />
+                预览
+              </TabsTrigger>
+            </TabsList>
 
-            {/* 表单字段 */}
-            <div className="space-y-4">
-              {/* 标题 */}
-              <div className="space-y-2">
-                <Label htmlFor="title">
-                  优惠券名称 <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  id="title"
-                  value={currentCoupon.title || ''}
-                  onChange={(e) => updateCurrentCoupon('title', e.target.value)}
-                  placeholder="例如：京东满减优惠券"
+            <TabsContent value="chat" className="space-y-4">
+              {/* 原始文本 */}
+              <div>
+                <Label className="text-sm font-medium">原始识别文本</Label>
+                <Textarea
+                  value={currentCoupon.originalText || ''}
+                  readOnly
+                  className="mt-2 bg-muted"
+                  rows={3}
                 />
               </div>
 
-              {/* 店铺名称 */}
-              <div className="space-y-2">
-                <Label htmlFor="storeName">店铺名称</Label>
-                <Input
-                  id="storeName"
-                  value={currentCoupon.storeName || ''}
-                  onChange={(e) => updateCurrentCoupon('storeName', e.target.value)}
-                  placeholder="例如：京东、淘宝、建设银行"
-                />
-              </div>
-
-              {/* 优惠类型和金额 */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="discountType">
-                    优惠类型 <span className="text-red-500">*</span>
-                  </Label>
-                  <Select
-                    value={currentCoupon.discountType || 'amount'}
-                    onValueChange={(value) => updateCurrentCoupon('discountType', value)}
-                  >
-                    <SelectTrigger id="discountType">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="amount">减免金额</SelectItem>
-                      <SelectItem value="percentage">折扣</SelectItem>
-                      <SelectItem value="full">满减</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="discountAmount">
-                    优惠金额/折扣 <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="discountAmount"
-                    type="number"
-                    step="0.01"
-                    value={currentCoupon.discountAmount || ''}
-                    onChange={(e) => updateCurrentCoupon('discountAmount', parseFloat(e.target.value) || 0)}
-                    placeholder={
-                      currentCoupon.discountType === 'percentage'
-                        ? '例如：8（表示8折）'
-                        : '例如：20（表示减20元）'
-                    }
-                  />
-                </div>
-              </div>
-
-              {/* 满减金额（仅满减类型显示） */}
-              {currentCoupon.discountType === 'full' && (
-                <div className="space-y-2">
-                  <Label htmlFor="fullAmount">
-                    满减门槛 <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    id="fullAmount"
-                    type="number"
-                    step="0.01"
-                    value={currentCoupon.fullAmount || ''}
-                    onChange={(e) => updateCurrentCoupon('fullAmount', parseFloat(e.target.value) || 0)}
-                    placeholder="例如：100（表示满100元）"
-                  />
+              {/* AI原始返回 */}
+              {currentCoupon._debug && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Label className="text-sm font-medium">AI原始返回</Label>
+                    <Badge variant="outline">{currentCoupon._debug.aiModel}</Badge>
+                  </div>
+                  <pre className="bg-muted p-3 rounded text-xs overflow-auto max-h-[300px]">
+                    {JSON.stringify(currentCoupon._debug.aiRawResult, null, 2)}
+                  </pre>
                 </div>
               )}
 
-              {/* 截止日期和时间 */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2 col-span-2">
-                  <Label htmlFor="endDate">
-                    截止日期 <span className="text-red-500">*</span>
-                  </Label>
+              {/* 识别说明 */}
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 text-sm">
+                <p className="font-medium mb-1">识别说明：</p>
+                <ul className="list-disc list-inside space-y-1 text-blue-800 dark:text-blue-200">
+                  <li>AI已自动提取优惠券信息</li>
+                  <li>如果识别有误，可以切换到"预览"标签页手动修改</li>
+                  <li>确认无误后点击"添加"按钮保存</li>
+                </ul>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="preview" className="space-y-4">
+              {/* 表单字段 */}
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <Label className="text-sm font-medium">标题 *</Label>
                   <Input
-                    id="endDate"
-                    type="date"
-                    value={currentCoupon.endDate || ''}
-                    onChange={(e) => updateCurrentCoupon('endDate', e.target.value)}
+                    value={currentCoupon.title || ''}
+                    onChange={(e) => updateCurrentCoupon('title', e.target.value)}
+                    placeholder="优惠券标题"
+                    className="mt-2"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="endHour">小时</Label>
-                    <Select
-                      value={String(currentCoupon.endHour || 23)}
-                      onValueChange={(value) => updateCurrentCoupon('endHour', parseInt(value))}
-                    >
-                      <SelectTrigger id="endHour">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-60 overflow-y-auto">
-                        {Array.from({ length: 24 }, (_, i) => (
-                          <SelectItem key={i} value={String(i)}>
-                            {i}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium">优惠金额/折扣 *</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={currentCoupon.discountAmount || ''}
+                      onChange={(e) => updateCurrentCoupon('discountAmount', parseFloat(e.target.value))}
+                      placeholder="如：20 或 8.5"
+                      className="mt-2"
+                    />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="endMinute">分钟</Label>
+                  <div>
+                    <Label className="text-sm font-medium">优惠类型 *</Label>
                     <Select
-                      value={String(currentCoupon.endMinute || 59)}
-                      onValueChange={(value) => updateCurrentCoupon('endMinute', parseInt(value))}
+                      value={currentCoupon.discountType || 'amount'}
+                      onValueChange={(value) => updateCurrentCoupon('discountType', value)}
                     >
-                      <SelectTrigger id="endMinute">
+                      <SelectTrigger className="mt-2">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="max-h-60 overflow-y-auto">
-                        {Array.from({ length: 60 }, (_, i) => (
-                          <SelectItem key={i} value={String(i)}>
-                            {String(i).padStart(2, '0')}
-                          </SelectItem>
-                        ))}
+                      <SelectContent>
+                        <SelectItem value="amount">减免金额</SelectItem>
+                        <SelectItem value="percentage">折扣</SelectItem>
+                        <SelectItem value="full">满减</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
-              </div>
 
-              {/* 描述 */}
-              <div className="space-y-2">
-                <Label htmlFor="description">描述</Label>
-                <Input
-                  id="description"
-                  value={currentCoupon.description || ''}
-                  onChange={(e) => updateCurrentCoupon('description', e.target.value)}
-                  placeholder="例如：饮品通用、仅限新用户"
-                />
+                {currentCoupon.discountType === 'full' && (
+                  <div>
+                    <Label className="text-sm font-medium">满减金额</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={currentCoupon.fullAmount || ''}
+                      onChange={(e) => updateCurrentCoupon('fullAmount', parseFloat(e.target.value))}
+                      placeholder="如：100"
+                      className="mt-2"
+                    />
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium">截止日期 *</Label>
+                    <Input
+                      type="date"
+                      value={currentCoupon.endDate?.split('T')[0] || ''}
+                      onChange={(e) => updateCurrentCoupon('endDate', e.target.value)}
+                      className="mt-2"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-sm font-medium">截止小时</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="23"
+                        value={currentCoupon.endHour ?? 23}
+                        onChange={(e) => updateCurrentCoupon('endHour', parseInt(e.target.value))}
+                        className="mt-2"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">截止分钟</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        max="59"
+                        value={currentCoupon.endMinute ?? 59}
+                        onChange={(e) => updateCurrentCoupon('endMinute', parseInt(e.target.value))}
+                        className="mt-2"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm font-medium">店铺名称</Label>
+                    <Input
+                      value={currentCoupon.storeName || ''}
+                      onChange={(e) => updateCurrentCoupon('storeName', e.target.value)}
+                      placeholder="如：京东云"
+                      className="mt-2"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-sm font-medium">描述</Label>
+                    <Input
+                      value={currentCoupon.description || ''}
+                      onChange={(e) => updateCurrentCoupon('description', e.target.value)}
+                      placeholder="如：无门槛券"
+                      className="mt-2"
+                    />
+                  </div>
+                </div>
               </div>
+            </TabsContent>
+          </Tabs>
+
+          {/* 导航按钮（多张优惠券时显示） */}
+          {previewCoupons.length > 1 && (
+            <div className="flex items-center justify-between border-t pt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePrevious}
+                disabled={currentIndex === 0}
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                上一张
+              </Button>
+              <div className="text-sm text-muted-foreground">
+                第 {currentIndex + 1} 张，共 {previewCoupons.length} 张
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleNext}
+                disabled={currentIndex === previewCoupons.length - 1}
+              >
+                下一张
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
             </div>
-          </div>
+          )}
 
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCancel}>
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={handleCancel}
+            >
               取消
             </Button>
-            <Button onClick={handleConfirm}>
+            <Button
+              onClick={handleConfirm}
+              className="flex-1"
+            >
               <Check className="h-4 w-4 mr-2" />
-              添加 ({previewCoupons.length} 张)
+              添加优惠券
             </Button>
           </DialogFooter>
         </DialogContent>

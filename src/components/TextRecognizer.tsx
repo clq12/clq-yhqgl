@@ -41,6 +41,7 @@ interface TextRecognizerProps {
 export default function TextRecognizer({ onExtracted, onCancel, batchMode = false }: TextRecognizerProps) {
   const [inputText, setInputText] = useState("")
   const [aiModel, setAiModel] = useState<'glm' | 'doubao' | 'rule'>('glm')
+  const [smartBatch, setSmartBatch] = useState(false) // 智能批量模式
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [previewCoupons, setPreviewCoupons] = useState<PreviewCoupon[]>([])
@@ -56,14 +57,10 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
     setError(null)
 
     try {
-      // 尝试分割多个优惠券文本
-      const couponTexts = splitCouponTexts(inputText)
+      let extractedInfos: ExtractedCouponInfo[] = []
 
-      const extractedInfos: ExtractedCouponInfo[] = []
-
-      for (let i = 0; i < couponTexts.length; i++) {
-        const couponText = couponTexts[i]
-
+      // 智能批量抽取模式（仅支持GLM）
+      if (smartBatch && aiModel === 'glm') {
         try {
           const response = await fetch("/api/parse-coupon", {
             method: "POST",
@@ -71,55 +68,102 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              text: couponText,
-              useAI: aiModel !== 'rule',
-              aiModel: aiModel !== 'rule' ? aiModel : undefined,
-              useFallback: false, // 不使用自动回退
+              text: inputText,
+              useAI: true,
+              aiModel: 'glm',
+              smartBatch: true, // 启用智能批量抽取
+              useFallback: false,
             }),
           })
 
           if (!response.ok) {
             const errorData = await response.json()
-            throw new Error(errorData.error || "识别失败")
+            throw new Error(errorData.error || "智能批量识别失败")
           }
 
           const result = await response.json()
           if (result.success && result.data) {
-            extractedInfos.push({
-              ...result.data,
-              originalText: couponText,
-            })
+            // 智能批量返回的是数组
+            if (Array.isArray(result.data)) {
+              extractedInfos = result.data
+            } else {
+              // 如果返回单个对象，包装成数组
+              extractedInfos = [result.data]
+            }
           } else {
             throw new Error(result.error || "识别失败")
           }
-        } catch (err) {
-          console.error(`识别第${i + 1}个优惠券失败:`, err)
-          // 单个优惠券识别失败时，如果是规则匹配，则跳过
-          // 否则尝试规则匹配作为兜底
-          if (aiModel !== 'rule') {
-            try {
-              const response = await fetch("/api/parse-coupon", {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  text: couponText,
-                  useAI: false,
-                }),
-              })
+        } catch (batchErr) {
+          console.error('智能批量抽取失败，回退到按行识别:', batchErr)
+          // 回退到按行识别
+        }
+      }
 
-              if (response.ok) {
-                const result = await response.json()
-                if (result.success && result.data) {
-                  extractedInfos.push({
-                    ...result.data,
-                    originalText: couponText,
-                  })
+      // 如果智能批量失败或未启用，使用按行识别
+      if (extractedInfos.length === 0) {
+        // 尝试分割多个优惠券文本
+        const couponTexts = splitCouponTexts(inputText)
+
+        for (let i = 0; i < couponTexts.length; i++) {
+          const couponText = couponTexts[i]
+
+          try {
+            const response = await fetch("/api/parse-coupon", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                text: couponText,
+                useAI: aiModel !== 'rule',
+                aiModel: aiModel !== 'rule' ? aiModel : undefined,
+                useFallback: false, // 不使用自动回退
+              }),
+            })
+
+            if (!response.ok) {
+              const errorData = await response.json()
+              throw new Error(errorData.error || "识别失败")
+            }
+
+            const result = await response.json()
+            if (result.success && result.data) {
+              extractedInfos.push({
+                ...result.data,
+                originalText: couponText,
+              })
+            } else {
+              throw new Error(result.error || "识别失败")
+            }
+          } catch (err) {
+            console.error(`识别第${i + 1}个优惠券失败:`, err)
+            // 单个优惠券识别失败时，如果是规则匹配，则跳过
+            // 否则尝试规则匹配作为兜底
+            if (aiModel !== 'rule') {
+              try {
+                const response = await fetch("/api/parse-coupon", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    text: couponText,
+                    useAI: false,
+                  }),
+                })
+
+                if (response.ok) {
+                  const result = await response.json()
+                  if (result.success && result.data) {
+                    extractedInfos.push({
+                      ...result.data,
+                      originalText: couponText,
+                    })
+                  }
                 }
+              } catch (fallbackErr) {
+                console.error(`规则匹配也失败:`, fallbackErr)
               }
-            } catch (fallbackErr) {
-              console.error(`规则匹配也失败:`, fallbackErr)
             }
           }
         }
@@ -244,12 +288,37 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
             </Select>
           </div>
 
+          {/* 智能批量抽取开关（仅GLM可用） */}
+          {aiModel === 'glm' && (
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">智能批量抽取</label>
+              <Button
+                variant={smartBatch ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSmartBatch(!smartBatch)}
+              >
+                {smartBatch ? (
+                  <>
+                    <Check className="mr-2 h-4 w-4" />
+                    已启用
+                  </>
+                ) : (
+                  <>
+                    <FileJson className="mr-2 h-4 w-4" />
+                    点击启用
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
+
           <div className="rounded-lg bg-muted p-3 text-sm">
             <p className="font-medium mb-1">识别说明：</p>
             <ul className="list-disc list-inside space-y-1 text-muted-foreground">
               <li>GLM-4.7-Flash：智谱AI模型，识别准确度高</li>
               <li>豆包AI：字节跳动AI模型，响应速度快</li>
               <li>规则匹配：不依赖AI，基于固定规则提取</li>
+              <li>智能批量：GLM自动拆分多个优惠券，智能识别</li>
               <li>识别后显示预览，可手动调整后添加</li>
             </ul>
           </div>

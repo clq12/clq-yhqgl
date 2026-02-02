@@ -1130,6 +1130,276 @@ async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<
 }
 
 /**
+ * 使用GLM-4.7-Flash批量提取优惠券信息（智能拆分）
+ */
+async function extractCouponsWithGLMBatch(text: string, apiKey?: string): Promise<ExtractedCouponInfo[]> {
+  const API_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
+
+  // API Key 优先级：参数 > 环境变量
+  const finalApiKey = apiKey || process.env.GLM_API_KEY
+
+  if (!finalApiKey) {
+    console.error('GLM API Key 未配置，回退到按行识别')
+    // 回退到按行识别
+    return text.split('\n').map(line => extractCouponInfo(line.trim()))
+  }
+
+  const messages = [
+    {
+      role: 'system',
+      content: `你是一个优惠券信息批量抽取程序，不进行任何对话或解释。
+
+你的任务是：
+从用户提供的一段文本中，识别并拆分出"多张独立优惠券"，
+并将每一张优惠券结构化为一个 JSON 对象，最终输出一个 JSON 数组。
+
+【全局输出规则（必须严格遵守）】
+1. 只允许输出一个 JSON 数组
+2. JSON 数组中每一项都是一个优惠券对象
+3. JSON 之外不得输出任何字符（包括解释、推理、空行、Markdown）
+4. 每个对象必须包含全部字段，未识别的信息必须为 null
+5. 不允许猜测、补全或推断文本中未明确给出的信息
+6. 不允许合并不同优惠券的信息
+7. 如果无法确认是否为优惠券内容，则不要生成对象
+
+【优惠券拆分规则】
+- 按以下任一条件拆分为不同优惠券：
+  - 明显的换行分段
+  - 编号（如 1. / 2. / - / •）
+  - 不同商家或平台明显切换
+  - 出现多个"有效期 / 到期 / 截止"等时间描述
+- 每一段最多生成 1 张优惠券
+
+【时间字段特别规则（非常重要）】
+- 出现"今天 / 明天 / 后天 / 今日 / 明日 / 次日 / 今天24点前"等相对时间：
+  - 必须原样输出
+  - 严禁换算为具体日期
+  - 严禁推断当前时间
+
+【title 字段规则】
+- 只有文本中明确出现"券名 / 标题 / 活动名称"时才填写
+- 否则 title 必须为 null
+- 不允许从描述性文字中生成标题
+
+【JSON 字段定义（每个对象必须包含）】
+{
+  "title": string | null,
+  "type": "满减" | "折扣" | "直减" | "其他",
+  "threshold": number | null,
+  "amountOff": number | null,
+  "discountRate": number | null,
+  "validFrom": string | null,
+  "validTo": string | null,
+  "platform": string | null,
+  "notes": string | null
+}
+
+【类型判定规则】
+- 出现"满X减Y" → type = "满减"
+- 出现"立减 / 直减 / 减Y元" → type = "直减"
+- 出现"X折 / 折扣" → type = "折扣"
+- 无法明确归类 → type = "其他"
+
+【禁止行为】
+- 不得输出解释
+- 不得输出推理
+- 不得补全时间
+- 不得合并多券
+- 不得遗漏字段`
+    },
+    {
+      role: 'user',
+      content: text
+    }
+  ]
+
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${finalApiKey}`
+      },
+      body: JSON.stringify({
+        model: 'glm-4.7-flash',
+        messages,
+        temperature: 0,
+        max_tokens: 4096  // 增加token限制，支持批量抽取
+      })
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      console.error('GLM API Error:', JSON.stringify(data, null, 2))
+      // 回退到按行识别
+      return text.split('\n').map(line => extractCouponInfo(line.trim()))
+    }
+
+    console.log('GLM API 响应:', JSON.stringify(data, null, 2))
+
+    // GLM-4.7-Flash 可能会返回 reasoning_content 而不是 content
+    const content = data.choices[0]?.message?.content || data.choices[0]?.message?.reasoning_content
+    if (!content) {
+      console.error('GLM API 返回内容为空, 响应数据:', JSON.stringify(data, null, 2))
+      return text.split('\n').map(line => extractCouponInfo(line.trim()))
+    }
+
+    // 提取JSON数组内容
+    let jsonStr = content.trim()
+
+    console.log('原始内容前300字符:', content.substring(0, 300))
+    console.log('原始内容总长度:', content.length)
+
+    // 策略1：尝试提取最后一个以```json开头、以```结尾的代码块
+    const jsonBlockMatch = content.match(/```json\s*([\s\S]*?)\s*```/g)
+    if (jsonBlockMatch && jsonBlockMatch.length > 0) {
+      const lastMatch = jsonBlockMatch[jsonBlockMatch.length - 1]
+      jsonStr = lastMatch.replace(/```json\s*/, '').replace(/```$/, '').trim()
+      console.log('策略1：找到JSON代码块')
+    } else {
+      // 策略2：尝试提取最后一个以```开头、以```结尾的代码块
+      const codeBlockMatch = content.match(/```\s*([\s\S]*?)\s*```/g)
+      if (codeBlockMatch && codeBlockMatch.length > 0) {
+        const lastMatch = codeBlockMatch[codeBlockMatch.length - 1]
+        jsonStr = lastMatch.replace(/```\s*/, '').replace(/```$/, '').trim()
+        console.log('策略2：找到普通代码块')
+      } else {
+        // 策略3：尝试直接从内容中提取JSON数组（以[开头，以]结尾）
+        const jsonArrayMatch = content.match(/\[[\s\S]*\]/)
+        if (jsonArrayMatch) {
+          jsonStr = jsonArrayMatch[0].trim()
+          console.log('策略3：找到JSON数组')
+        } else {
+          console.log('策略4：使用完整内容')
+          jsonStr = content.trim()
+        }
+      }
+    }
+
+    console.log('提取的JSON字符串前200字符:', jsonStr.substring(0, 200))
+    console.log('提取的JSON字符串完整长度:', jsonStr.length)
+
+    // 尝试解析JSON数组
+    let parsedArray: any[]
+    try {
+      parsedArray = JSON.parse(jsonStr)
+      if (!Array.isArray(parsedArray)) {
+        console.error('解析结果不是数组，回退到按行识别')
+        return text.split('\n').map(line => extractCouponInfo(line.trim()))
+      }
+    } catch (jsonError) {
+      console.error('JSON解析失败，原始内容前500字符:', content.substring(0, 500))
+      console.error('JSON解析失败，提取的字符串:', jsonStr)
+      console.error('JSON解析错误:', jsonError instanceof Error ? jsonError.message : jsonError)
+      // 回退到按行识别
+      return text.split('\n').map(line => extractCouponInfo(line.trim()))
+    }
+
+    // 转换每个优惠券对象为内部格式
+    const results: ExtractedCouponInfo[] = []
+
+    for (const item of parsedArray) {
+      const result: ExtractedCouponInfo = {}
+
+      // 标题映射
+      if (item.title) result.title = item.title
+
+      // 类型转换
+      if (item.type) {
+        const typeMap: Record<string, 'amount' | 'percentage' | 'full'> = {
+          '满减': 'full',
+          '折扣': 'percentage',
+          '直减': 'amount',
+          '其他': 'amount'
+        }
+        result.discountType = typeMap[item.type] || 'amount'
+      }
+
+      // 金额映射
+      if (item.threshold) result.fullAmount = Number(item.threshold)
+      if (item.amountOff) result.discountAmount = Number(item.amountOff)
+      if (item.discountRate) result.discountAmount = Number(item.discountRate)
+
+      // 日期映射
+      if (item.validTo) {
+        const validTo = item.validTo
+        // 检查是否是相对日期（包含"今天/明天/后天/本周/下周/本月/下月/X天后"等）
+        const isRelativeDate = /(?:今天|明天|后天|本周|下周|本月|下月|\d+天后|星期|周[一二三四六日])/i.test(validTo)
+
+        if (isRelativeDate) {
+          console.log('GLM识别到相对日期:', validTo, '，调用规则匹配进行转换')
+          // 使用规则匹配来转换相对日期
+          const ruleResult = extractCouponInfo(text)
+          if (ruleResult.endDate) {
+            result.endDate = ruleResult.endDate
+            if (ruleResult.endHour) result.endHour = ruleResult.endHour
+            if (ruleResult.endMinute) result.endMinute = ruleResult.endMinute
+          } else {
+            result.endDate = validTo
+          }
+        } else {
+          // 检查是否是混合格式（日期+中文时间），如"2024-12-31 23点"
+          const dateTimePattern = /^(\d{4}[-/年]\d{1,2}[-/月]\d{1,2})\s*(?:日号)?\s*(\d{1,2})\s*点(?:\s*(\d{1,2})\s*分)?$/
+          const dateTimeMatch = validTo.match(dateTimePattern)
+
+          if (dateTimeMatch) {
+            const datePart = dateTimeMatch[1]
+            const hour = parseInt(dateTimeMatch[2])
+            const minute = dateTimeMatch[3] ? parseInt(dateTimeMatch[3]) : 0
+
+            const formattedDate = datePart
+              .replace(/\//g, '-')
+              .replace(/年/g, '-')
+              .replace(/月/g, '-')
+              .replace(/日/g, '')
+
+            result.endDate = formattedDate
+            if (hour >= 0 && hour <= 23) {
+              result.endHour = hour
+              if (minute >= 0 && minute <= 59) {
+                result.endMinute = minute
+              }
+            }
+          } else {
+            // 纯日期格式
+            let standardizedDate = validTo
+              .replace(/\//g, '-')
+              .replace(/年/g, '-')
+              .replace(/月/g, '-')
+              .replace(/日/g, '')
+
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(standardizedDate)) {
+              const dateMatch = standardizedDate.match(/(\d{4})[-.](\d{1,2})[-.](\d{1,2})/)
+              if (dateMatch) {
+                standardizedDate = `${dateMatch[1]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[3].padStart(2, '0')}`
+              }
+            }
+
+            result.endDate = standardizedDate
+          }
+        }
+      }
+
+      // 平台和描述
+      if (item.platform) result.storeName = item.platform
+      if (item.notes) result.description = item.notes
+
+      result.aiModel = 'glm'
+      result.rawResponse = JSON.stringify(item)
+
+      results.push(result)
+    }
+
+    return results
+
+  } catch (error) {
+    console.error('GLM批量抽取失败，回退到按行识别:', error)
+    return text.split('\n').map(line => extractCouponInfo(line.trim()))
+  }
+}
+
+/**
  * 使用AI提取优惠券信息（回退链：GLM → 豆包 → 规则匹配）
  */
 async function extractCouponInfoWithAI(text: string, aiModel?: 'doubao' | 'glm', glmApiKey?: string, useFallback = true): Promise<ExtractedCouponInfo> {
@@ -1181,7 +1451,7 @@ async function extractCouponInfoWithAI(text: string, aiModel?: 'doubao' | 'glm',
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { text, useAI, aiModel, glmApiKey: requestGlmApiKey, useFallback = true } = body
+    const { text, useAI, aiModel, glmApiKey: requestGlmApiKey, useFallback = true, smartBatch = false } = body
 
     if (!text || typeof text !== 'string') {
       return NextResponse.json(
@@ -1190,27 +1460,39 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 如果使用GLM模型，先尝试从多个来源获取API Key
-    let finalGlmApiKey = requestGlmApiKey
+    // 智能批量抽取模式（仅支持GLM）
+    if (smartBatch && aiModel === 'glm') {
+      try {
+        // 如果使用GLM模型，先尝试从多个来源获取API Key
+        let finalGlmApiKey = requestGlmApiKey
+        if (!finalGlmApiKey) {
+          const { getWebDAVConfigFromRequest } = await import('@/lib/config')
+          const webdavConfig = getWebDAVConfigFromRequest(request)
+          if (webdavConfig?.glmApiKey) {
+            finalGlmApiKey = webdavConfig.glmApiKey
+          }
+          if (!finalGlmApiKey && process.env.GLM_API_KEY) {
+            finalGlmApiKey = process.env.GLM_API_KEY
+          }
+        }
 
-    if (aiModel === 'glm' && !finalGlmApiKey) {
-      // 尝试从WebDAV配置获取
-      const { getWebDAVConfigFromRequest } = await import('@/lib/config')
-      const webdavConfig = getWebDAVConfigFromRequest(request)
-      if (webdavConfig?.glmApiKey) {
-        finalGlmApiKey = webdavConfig.glmApiKey
-      }
-      // 如果还是没有，尝试从环境变量获取
-      if (!finalGlmApiKey && process.env.GLM_API_KEY) {
-        finalGlmApiKey = process.env.GLM_API_KEY
+        const results = await extractCouponsWithGLMBatch(text, finalGlmApiKey)
+
+        return NextResponse.json({
+          success: true,
+          data: results,
+        })
+      } catch (error) {
+        console.error('智能批量抽取失败，回退到按行识别:', error)
+        // 回退到按行识别
       }
     }
 
-    // 根据参数选择提取方式
+    // 普通模式（单张优惠券识别）
     let extractedInfo: ExtractedCouponInfo
     if (useAI === true) {
       const model = aiModel || 'doubao' // 默认使用豆包AI
-      extractedInfo = await extractCouponInfoWithAI(text, model, finalGlmApiKey, useFallback)
+      extractedInfo = await extractCouponInfoWithAI(text, model, requestGlmApiKey, useFallback)
     } else {
       extractedInfo = extractCouponInfo(text)
     }

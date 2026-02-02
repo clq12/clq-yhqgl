@@ -21,6 +21,8 @@ export interface ExtractedCouponInfo {
   description?: string
   notes?: string
   originalText?: string
+  aiModel?: 'glm' | 'doubao' | 'rule' // 使用的AI模型
+  rawResponse?: string // AI模型的原始返回值
 }
 
 interface TextRecognizerProps {

@@ -11,6 +11,8 @@ export interface ExtractedCouponInfo {
   endMinute?: number
   storeName?: string
   description?: string
+  aiModel?: 'glm' | 'doubao' | 'rule' // 使用的AI模型
+  rawResponse?: string // AI模型的原始返回值
 }
 
 /**
@@ -603,7 +605,11 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
     result.title = result.storeName + '立减金'
   }
 
-  return result
+  return {
+    ...result,
+    aiModel: 'rule',
+    rawResponse: '规则匹配'
+  }
 }
 
 /**
@@ -742,18 +748,34 @@ async function extractCouponInfoWithDoubao(text: string): Promise<ExtractedCoupo
 
       // 如果AI没有提取到完整信息，回退到规则匹配
       if (!result.title || !result.discountAmount || !result.discountType) {
-        console.log('AI提取不完整，回退到规则匹配')
-        return extractCouponInfo(text)
+        console.log('豆包提取不完整，回退到规则匹配')
+        return {
+          ...extractCouponInfo(text),
+          aiModel: 'rule',
+          rawResponse: JSON.stringify(parsedData)
+        }
       }
       
-      return result
+      return {
+        ...result,
+        aiModel: 'doubao',
+        rawResponse: response.content
+      }
     } else {
-      console.log('AI返回格式错误，回退到规则匹配')
-      return extractCouponInfo(text)
+      console.log('豆包返回格式错误，回退到规则匹配')
+      return {
+        ...extractCouponInfo(text),
+        aiModel: 'rule',
+        rawResponse: response.content
+      }
     }
   } catch (error) {
-    console.error('AI解析失败，回退到规则匹配:', error)
-    return extractCouponInfo(text)
+    console.error('豆包解析失败，回退到规则匹配:', error)
+    return {
+      ...extractCouponInfo(text),
+      aiModel: 'rule',
+      rawResponse: error instanceof Error ? error.message : '未知错误'
+    }
   }
 }
 
@@ -891,14 +913,26 @@ async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<
     // 如果AI没有提取到完整信息，回退到规则匹配
     if (!result.title || !result.discountAmount || !result.discountType) {
       console.log('GLM提取不完整，回退到规则匹配')
-      return extractCouponInfo(text)
+      return {
+        ...extractCouponInfo(text),
+        aiModel: 'rule',
+        rawResponse: JSON.stringify(parsedData)
+      }
     }
 
-    return result
+    return {
+      ...result,
+      aiModel: 'glm',
+      rawResponse: content
+    }
 
   } catch (error) {
     console.error('GLM解析失败，回退到规则匹配:', error)
-    return extractCouponInfo(text)
+    return {
+      ...extractCouponInfo(text),
+      aiModel: 'rule',
+      rawResponse: error instanceof Error ? error.message : '未知错误'
+    }
   }
 }
 

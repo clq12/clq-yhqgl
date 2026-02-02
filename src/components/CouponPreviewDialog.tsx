@@ -5,6 +5,7 @@ import { Check, X, ArrowLeft, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
   DialogContent,
@@ -296,6 +297,47 @@ export default function CouponPreviewDialog({
                   placeholder="例如：饮品通用、仅限新用户"
                 />
               </div>
+
+              {/* AI 识别信息 */}
+              {(currentCoupon.aiModel || currentCoupon.rawResponse) && (
+                <div className="space-y-3 p-4 bg-muted rounded-lg">
+                  <div className="text-sm font-medium">AI 识别信息</div>
+                  
+                  {currentCoupon.aiModel && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="text-muted-foreground">识别模型：</span>
+                      <Badge variant={
+                        currentCoupon.aiModel === 'glm' ? 'default' :
+                        currentCoupon.aiModel === 'doubao' ? 'secondary' :
+                        'outline'
+                      }>
+                        {currentCoupon.aiModel === 'glm' ? 'GLM-4.7-Flash' :
+                         currentCoupon.aiModel === 'doubao' ? '豆包 AI' :
+                         '规则匹配'}
+                      </Badge>
+                    </div>
+                  )}
+
+                  {currentCoupon.rawResponse && (
+                    <div className="space-y-1">
+                      <div className="text-xs text-muted-foreground flex items-center gap-2">
+                        <span>原始返回值</span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 px-2 text-xs"
+                          onClick={() => navigator.clipboard.writeText(currentCoupon.rawResponse || '')}
+                        >
+                          复制
+                        </Button>
+                      </div>
+                      <div className="text-xs bg-background p-2 rounded max-h-32 overflow-y-auto font-mono whitespace-pre-wrap">
+                        {currentCoupon.rawResponse}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

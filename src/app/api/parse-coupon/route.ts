@@ -163,7 +163,7 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
   }
 
   // 检查"X月X号到期"、"X月X日到期"等格式（例如：1月30号到期、2月5日到期）
-  const monthDayPattern = /(\d{1,2})月\s*(\d{1,2})\s*(?:号|日)\s*(?:过期|到期|失效|作造|$)/
+  const monthDayPattern = /(\d{1,2})月\s*(\d{1,2})\s*(?:号|日)\s*(?:过期|到期|失效|作造|作废|$)/
   const monthDayMatch = text.match(monthDayPattern)
   if (monthDayMatch && !matchedDate) {
     const month = parseInt(monthDayMatch[1])
@@ -206,16 +206,51 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
     }
   }
 
-  // 检查"今天到期"、"明天失效"等格式
-  const todayTomorrowPattern = /(?:今|明)天\s*(?:下午|上午|晚上)?\s*(?:过期|到期|失效|作废)/
+  // 检查"今天到期"、"明天失效"、"后天过期"等格式
+  const todayTomorrowPattern = /(?:今|明|后)天\s*(?:下午|上午|晚上|中午)?\s*(\d{1,2}\s*点(?:\s*\d{1,2}\s*分)?)?\s*(?:过期|到期|失效|作造|作废)/
   const todayTomorrowMatch = text.match(todayTomorrowPattern)
   if (todayTomorrowMatch && !matchedDate) {
-    const keyword = todayTomorrowMatch[0].substring(0, 2) // "今天"或"明天"
+    const keyword = todayTomorrowMatch[0].substring(0, 2) // "今天"、"明天"或"后天"
     const targetDate = new Date(now)
     if (keyword === '明天') {
       targetDate.setDate(targetDate.getDate() + 1)
+    } else if (keyword === '后天') {
+      targetDate.setDate(targetDate.getDate() + 2)
     }
-    // 如果包含"下午"，可以记录时间信息（这里暂时只记录日期）
+    // 如果包含时间信息（如"中午12点"），提取时间
+    const timeText = todayTomorrowMatch[0].substring(2) // "中午12点"部分
+    if (timeText) {
+      // 检查AM/PM格式
+      let isPM = timeText.includes('下午') || timeText.includes('晚')
+      let isAM = timeText.includes('上午') || timeText.includes('早')
+      let isNoon = timeText.includes('中午')
+      
+      // 提取小时和分钟
+      const timePattern = /(\d{1,2})\s*点(?:\s*(\d{1,2})\s*分)?/
+      const timeMatch = timeText.match(timePattern)
+      if (timeMatch) {
+        const hour = parseInt(timeMatch[1])
+        const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0
+
+        if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+          // 处理AM/PM格式
+          let finalHour = hour
+          if (isPM && hour < 12) {
+            finalHour = hour + 12  // 下午3点 = 15点
+          } else if (isAM && hour === 12) {
+            finalHour = 0  // 上午12点 = 0点
+          }
+          // 中午保持原样
+          if (isNoon) {
+            finalHour = hour
+          }
+
+          result.endHour = finalHour
+          result.endMinute = minute
+        }
+      }
+    }
+    
     if (!isNaN(targetDate.getTime())) {
       matchedDate = targetDate
       result.endDate = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`
@@ -828,6 +863,12 @@ async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<
 4. 不允许猜测、补全或推断文本中未明确给出的信息
 5. 字段值类型必须严格匹配说明
 
+【时间字段特别规则（非常重要）】
+- 出现"今天 / 明天 / 后天 / 今天24点前 / 明日 / 次日"等相对时间描述时：
+  - 必须原样输出到 validFrom / validTo
+  - 严禁换算为具体日期
+  - 严禁推断当前时间
+
 【JSON 字段定义】
 {
   "title": string | null,
@@ -974,7 +1015,34 @@ async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<
     if (parsedData.discountRate) result.discountAmount = Number(parsedData.discountRate)
 
     // 日期映射
-    if (parsedData.validTo) result.endDate = parsedData.validTo
+    if (parsedData.validTo) {
+      const validTo = parsedData.validTo
+      // 检查是否是相对日期（包含"今天/明天/后天/本周/下周/本月/下月/X天后"等）
+      const isRelativeDate = /(?:今天|明天|后天|本周|下周|本月|下月|\d+天后|星期|周[一二三四五六日])/i.test(validTo)
+
+      if (isRelativeDate) {
+        console.log('GLM识别到相对日期:', validTo, '，调用规则匹配进行转换')
+        // 使用规则匹配来转换相对日期
+        const ruleResult = extractCouponInfo(text)
+        if (ruleResult.endDate) {
+          result.endDate = ruleResult.endDate
+          if (ruleResult.endHour) result.endHour = ruleResult.endHour
+          if (ruleResult.endMinute) result.endMinute = ruleResult.endMinute
+          console.log('规则匹配转换结果:', {
+            endDate: result.endDate,
+            endHour: result.endHour,
+            endMinute: result.endMinute
+          })
+        } else {
+          // 如果规则匹配也无法转换，保持原值
+          result.endDate = validTo
+          console.log('规则匹配无法转换，保持原值:', validTo)
+        }
+      } else {
+        // 直接使用绝对日期
+        result.endDate = validTo
+      }
+    }
 
     // 平台和描述
     if (parsedData.platform) result.storeName = parsedData.platform

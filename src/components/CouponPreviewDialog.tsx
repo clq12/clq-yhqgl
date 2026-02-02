@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { ExtractedCouponInfo } from "./BatchOcrRecognizer"
+import type { ExtractedCouponInfo } from "./TextRecognizer"
 
 export interface PreviewCoupon extends ExtractedCouponInfo {
   id: string

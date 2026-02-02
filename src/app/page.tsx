@@ -28,7 +28,8 @@ import {
 import CouponForm from "@/components/CouponForm"
 import WebDAVConfig from "@/components/WebDAVConfig"
 import StatDashboard from "@/components/StatDashboard"
-import TextRecognizer, { type ExtractedCouponInfo } from "@/components/TextRecognizer"
+import TextRecognizer from "@/components/TextRecognizer"
+import CouponPreviewDialog, { type PreviewCoupon } from "@/components/CouponPreviewDialog"
 import {
   Select,
   SelectContent,
@@ -112,8 +113,8 @@ export default function Home() {
   }
 
   // 处理批量OCR识别结果
-  const handleBatchOcrExtracted = async (infos: ExtractedCouponInfo[]) => {
-    if (infos.length === 0) {
+  const handleBatchOcrExtracted = async (coupons: PreviewCoupon[]) => {
+    if (coupons.length === 0) {
       alert("未能识别到任何优惠券信息")
       return
     }
@@ -125,7 +126,7 @@ export default function Home() {
       const response = await fetch("/api/coupons/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ coupons: infos }),
+        body: JSON.stringify({ coupons }),
       })
 
       const result = await response.json()
@@ -963,7 +964,7 @@ export default function Home() {
                   </DialogDescription>
                 </DialogHeader>
                 <TextRecognizer
-                  onBatchExtracted={handleBatchOcrExtracted}
+                  onExtracted={handleBatchOcrExtracted}
                   onCancel={() => setIsBatchOcrDialogOpen(false)}
                 />
               </DialogContent>

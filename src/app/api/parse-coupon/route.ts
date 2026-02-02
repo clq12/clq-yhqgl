@@ -607,9 +607,9 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
 }
 
 /**
- * 使用AI提取优惠券信息
+ * 使用豆包AI提取优惠券信息
  */
-async function extractCouponInfoWithAI(text: string): Promise<ExtractedCouponInfo> {
+async function extractCouponInfoWithDoubao(text: string): Promise<ExtractedCouponInfo> {
   const config = new Config()
   const client = new LLMClient(config)
 
@@ -757,10 +757,133 @@ async function extractCouponInfoWithAI(text: string): Promise<ExtractedCouponInf
   }
 }
 
+/**
+ * 使用GLM-4.7-Flash提取优惠券信息
+ */
+async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<ExtractedCouponInfo> {
+  const API_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
+
+  // API Key 优先级：参数 > 环境变量
+  const finalApiKey = apiKey || process.env.GLM_API_KEY
+
+  if (!finalApiKey) {
+    console.error('GLM API Key 未配置')
+    return extractCouponInfo(text)
+  }
+
+  const messages = [
+    {
+      role: 'system',
+      content: '你是一个优惠券信息抽取引擎，只负责从文本中提取结构化数据，禁止解释、禁止补全、禁止对话。'
+    },
+    {
+      role: 'user',
+      content: `【字段说明】\n- title: 优惠券名称\n- type: 满减 | 折扣 | 直减 | 其他\n- threshold: number | null\n- amountOff: number | null\n- discountRate: number | null\n- validFrom: string | null\n- validTo: string | null\n- platform: string | null\n- notes: string | null\n\n【规则】\n- 文本中没有的信息必须返回 null\n- 不允许猜测或补全\n- 必须严格输出 JSON 对象\n- 不要包含多余字段\n\n【优惠券文本】\n${text}`
+    }
+  ]
+
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${finalApiKey}`
+      },
+      body: JSON.stringify({
+        model: 'glm-4.7-flash',
+        messages,
+        temperature: 0,
+        max_tokens: 512
+      })
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      console.error('GLM API Error:', data)
+      return extractCouponInfo(text)
+    }
+
+    const content = data.choices[0]?.message?.content
+    if (!content) {
+      console.error('GLM API 返回内容为空')
+      return extractCouponInfo(text)
+    }
+
+    // 提取JSON内容
+    let jsonStr = content.trim()
+    if (jsonStr.startsWith('```json')) {
+      jsonStr = jsonStr.slice(7)
+    } else if (jsonStr.startsWith('```')) {
+      jsonStr = jsonStr.slice(3)
+    }
+    if (jsonStr.endsWith('```')) {
+      jsonStr = jsonStr.slice(0, -3)
+    }
+    jsonStr = jsonStr.trim()
+
+    const parsedData = JSON.parse(jsonStr)
+
+    // 转换为统一格式
+    const result: ExtractedCouponInfo = {}
+
+    if (parsedData.title) result.title = parsedData.title
+    if (parsedData.platform) result.storeName = parsedData.platform
+    if (parsedData.notes) result.description = parsedData.notes
+    
+    // 折扣类型映射
+    if (parsedData.type === '满减') {
+      result.discountType = 'full'
+      result.fullAmount = parsedData.threshold
+      result.discountAmount = parsedData.amountOff
+    } else if (parsedData.type === '折扣') {
+      result.discountType = 'percentage'
+      result.discountAmount = parsedData.discountRate
+    } else if (parsedData.type === '直减') {
+      result.discountType = 'amount'
+      result.discountAmount = parsedData.amountOff
+    }
+
+    // 日期转换
+    if (parsedData.validTo) {
+      // 尝试解析日期
+      const dateMatch = parsedData.validTo.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
+      if (dateMatch) {
+        result.endDate = `${dateMatch[1]}-${String(dateMatch[2]).padStart(2, '0')}-${String(dateMatch[3]).padStart(2, '0')}`
+      }
+    }
+
+    // 默认时间
+    if (!result.endDate) {
+      // 如果没有提取到日期，回退到规则匹配
+      return extractCouponInfo(text)
+    }
+    result.endHour = 23
+    result.endMinute = 59
+
+    return result
+
+  } catch (error) {
+    console.error('GLM解析失败，回退到规则匹配:', error)
+    return extractCouponInfo(text)
+  }
+}
+
+/**
+ * 使用AI提取优惠券信息（根据模型选择）
+ */
+async function extractCouponInfoWithAI(text: string, aiModel: 'doubao' | 'glm' = 'doubao', glmApiKey?: string): Promise<ExtractedCouponInfo> {
+  if (aiModel === 'glm') {
+    return extractCouponInfoWithGLM(text, glmApiKey)
+  } else {
+    return extractCouponInfoWithDoubao(text)
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { text, useAI } = body
+    const { text, useAI, aiModel, glmApiKey } = body
 
     if (!text || typeof text !== 'string') {
       return NextResponse.json(
@@ -772,7 +895,8 @@ export async function POST(request: NextRequest) {
     // 根据参数选择提取方式
     let extractedInfo: ExtractedCouponInfo
     if (useAI === true) {
-      extractedInfo = await extractCouponInfoWithAI(text)
+      const model = aiModel || 'doubao' // 默认使用豆包
+      extractedInfo = await extractCouponInfoWithAI(text, model, glmApiKey)
     } else {
       extractedInfo = extractCouponInfo(text)
     }

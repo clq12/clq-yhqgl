@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Upload, X, Loader2, ScanText, Check, AlertCircle, Image as ImageIcon, FileJson, Download, Upload as ImportIcon, Copy, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -15,6 +16,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 export interface OcrResult {
   text: string
@@ -56,6 +64,8 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
   const [error, setError] = useState<string | null>(null)
   const [pastedText, setPastedText] = useState('')
   const [useAI, setUseAI] = useState(true)
+  const [aiModel, setAiModel] = useState<'doubao' | 'glm'>('doubao')
+  const [glmApiKey, setGlmApiKey] = useState('')
   const [viewingImageIndex, setViewingImageIndex] = useState<number | null>(null)
 
   const handleFilesSelect = (files: FileList | null) => {
@@ -216,10 +226,19 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
         const img = recognizedImages[i]
 
         try {
+          const requestBody: any = { text: img.ocrResult!.text, useAI }
+          
+          if (useAI) {
+            requestBody.aiModel = aiModel
+            if (aiModel === 'glm') {
+              requestBody.glmApiKey = glmApiKey
+            }
+          }
+
           const response = await fetch('/api/parse-coupon', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: img.ocrResult!.text, useAI }),
+            body: JSON.stringify(requestBody),
           })
 
           const result = await response.json()
@@ -263,10 +282,19 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
         const couponText = couponTexts[i]
 
         try {
+          const requestBody: any = { text: couponText, useAI }
+          
+          if (useAI) {
+            requestBody.aiModel = aiModel
+            if (aiModel === 'glm') {
+              requestBody.glmApiKey = glmApiKey
+            }
+          }
+
           const response = await fetch('/api/parse-coupon', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: couponText, useAI }),
+            body: JSON.stringify(requestBody),
           })
 
           const result = await response.json()
@@ -369,21 +397,57 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
       </CardHeader>
       <CardContent className="space-y-4">
         {/* AI识别选项 */}
-        <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-          <div className="flex items-center gap-2">
-            <ScanText className="h-4 w-4 text-primary" />
-            <div className="text-sm">
-              <div className="font-medium">AI智能识别</div>
-              <div className="text-xs text-muted-foreground">使用大语言模型解析，识别失败自动回退规则匹配</div>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+            <div className="flex items-center gap-2">
+              <ScanText className="h-4 w-4 text-primary" />
+              <div className="text-sm">
+                <div className="font-medium">AI智能识别</div>
+                <div className="text-xs text-muted-foreground">使用大语言模型解析，识别失败自动回退规则匹配</div>
+              </div>
             </div>
+            <Button
+              variant={useAI ? "default" : "outline"}
+              size="sm"
+              onClick={() => setUseAI(!useAI)}
+            >
+              {useAI ? "已启用" : "启用"}
+            </Button>
           </div>
-          <Button
-            variant={useAI ? "default" : "outline"}
-            size="sm"
-            onClick={() => setUseAI(!useAI)}
-          >
-            {useAI ? "已启用" : "启用"}
-          </Button>
+
+          {/* AI模型选择 */}
+          {useAI && (
+            <div className="p-3 bg-muted rounded-lg space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-sm font-medium">选择AI模型</div>
+                <Select value={aiModel} onValueChange={(value) => setAiModel(value as 'doubao' | 'glm')}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="doubao">豆包（推荐）</SelectItem>
+                    <SelectItem value="glm">GLM-4.7-Flash</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* GLM API Key 输入 */}
+              {aiModel === 'glm' && (
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground">
+                    请输入您的智谱AI API Key（可在 <a href="https://open.bigmodel.cn/usercenter/apikeys" target="_blank" rel="noopener noreferrer" className="text-primary underline">智谱AI控制台</a> 获取）
+                  </div>
+                  <Input
+                    type="password"
+                    placeholder="输入 GLM API Key"
+                    value={glmApiKey}
+                    onChange={(e) => setGlmApiKey(e.target.value)}
+                    className="text-sm"
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 错误提示 */}

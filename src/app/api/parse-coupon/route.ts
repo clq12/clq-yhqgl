@@ -6,11 +6,13 @@ export interface ExtractedCouponInfo {
   discountAmount?: number
   discountType?: 'amount' | 'percentage' | 'full'
   fullAmount?: number
+  startDate?: string
   endDate?: string
   endHour?: number
   endMinute?: number
   storeName?: string
   description?: string
+  notes?: string
   aiModel?: 'glm' | 'doubao' | 'rule' // 使用的AI模型
   rawResponse?: string // AI模型的原始返回值
 }
@@ -1346,7 +1348,16 @@ async function extractCouponsWithGLMBatch(text: string, apiKey?: string): Promis
       // 直接映射字段（新格式已经是数据库格式）
       if (item.title) result.title = item.title
       if (item.description) result.description = item.description
-      if (item.discountType) result.discountType = item.discountType as 'amount' | 'full' | 'discount'
+      
+      // 类型映射：discount → percentage（统一使用percentage表示折扣）
+      if (item.discountType) {
+        if (item.discountType === 'discount') {
+          result.discountType = 'percentage'
+        } else if (item.discountType === 'amount' || item.discountType === 'full') {
+          result.discountType = item.discountType
+        }
+      }
+      
       if (item.discountAmount) result.discountAmount = Number(item.discountAmount)
       if (item.fullAmount) result.fullAmount = Number(item.fullAmount)
       if (item.startDate) result.startDate = item.startDate

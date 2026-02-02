@@ -1039,8 +1039,55 @@ async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<
           console.log('规则匹配无法转换，保持原值:', validTo)
         }
       } else {
-        // 直接使用绝对日期
-        result.endDate = validTo
+        // 检查是否是混合格式（日期+中文时间），如"2024-12-31 23点"、"2024-12-31 23点30分"
+        const dateTimePattern = /^(\d{4}[-/年]\d{1,2}[-/月]\d{1,2})\s*(?:日号)?\s*(\d{1,2})\s*点(?:\s*(\d{1,2})\s*分)?$/
+        const dateTimeMatch = validTo.match(dateTimePattern)
+
+        if (dateTimeMatch) {
+          // 提取日期和时间
+          const datePart = dateTimeMatch[1]
+          const hour = parseInt(dateTimeMatch[2])
+          const minute = dateTimeMatch[3] ? parseInt(dateTimeMatch[3]) : 0
+
+          // 转换日期格式（统一为YYYY-MM-DD）
+          const formattedDate = datePart
+            .replace(/\//g, '-')
+            .replace(/年/g, '-')
+            .replace(/月/g, '-')
+            .replace(/日/g, '')
+
+          result.endDate = formattedDate
+          if (hour >= 0 && hour <= 23) {
+            result.endHour = hour
+            if (minute >= 0 && minute <= 59) {
+              result.endMinute = minute
+            }
+          }
+          console.log('解析混合格式日期时间:', {
+            original: validTo,
+            date: formattedDate,
+            time: `${hour}:${minute}`
+          })
+        } else {
+          // 纯日期格式，直接使用
+          // 尝试标准化日期格式
+          let standardizedDate = validTo
+            .replace(/\//g, '-')
+            .replace(/年/g, '-')
+            .replace(/月/g, '-')
+            .replace(/日/g, '')
+
+          // 如果格式不是YYYY-MM-DD，尝试补充
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(standardizedDate)) {
+            // 可能是"12-31"或"2024.12.31"等格式
+            const dateMatch = standardizedDate.match(/(\d{4})[-.](\d{1,2})[-.](\d{1,2})/)
+            if (dateMatch) {
+              standardizedDate = `${dateMatch[1]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[3].padStart(2, '0')}`
+            }
+          }
+
+          result.endDate = standardizedDate
+        }
       }
     }
 

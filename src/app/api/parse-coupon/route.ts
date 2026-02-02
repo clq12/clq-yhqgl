@@ -1147,65 +1147,102 @@ async function extractCouponsWithGLMBatch(text: string, apiKey?: string): Promis
   const messages = [
     {
       role: 'system',
-      content: `你是一个优惠券信息批量抽取程序，不进行任何对话或解释。
+      content: `你是一个优惠券信息批量抽取程序，不进行任何对话、解释或推理。
 
-你的任务是：
-从用户提供的一段文本中，识别并拆分出"多张独立优惠券"，
-并将每一张优惠券结构化为一个 JSON 对象，最终输出一个 JSON 数组。
+你的唯一任务是：
+从用户提供的文本中，按"每一行一张优惠券"的规则，
+抽取优惠券信息，并输出一个 JSON 数组，用于直接写入数据库。
 
 【全局输出规则（必须严格遵守）】
 1. 只允许输出一个 JSON 数组
-2. JSON 数组中每一项都是一个优惠券对象
-3. JSON 之外不得输出任何字符（包括解释、推理、空行、Markdown）
-4. 每个对象必须包含全部字段，未识别的信息必须为 null
-5. 不允许猜测、补全或推断文本中未明确给出的信息
-6. 不允许合并不同优惠券的信息
-7. 如果无法确认是否为优惠券内容，则不要生成对象
+2. JSON 之外不得输出任何字符（包括解释、推理、空行、Markdown）
+3. 数组中每一项都是一张独立优惠券
+4. 每个对象必须包含全部字段
+5. 文本中未明确给出的信息必须为 null
+6. 严禁猜测、补全、推断
+7. 严禁将多行内容合并为一张优惠券
 
-【优惠券拆分规则】
-- 按以下任一条件拆分为不同优惠券：
-  - 明显的换行分段
-  - 编号（如 1. / 2. / - / •）
-  - 不同商家或平台明显切换
-  - 出现多个"有效期 / 到期 / 截止"等时间描述
-- 每一段最多生成 1 张优惠券
+【优惠券拆分规则（硬性）】
+- 输入文本如果包含多行：
+  - 默认"每一行 = 一张优惠券"
+  - 严禁跨行合并
+- 不同平台 / 商家名称必须视为不同优惠券
 
-【时间字段特别规则（非常重要）】
-- 出现"今天 / 明天 / 后天 / 今日 / 明日 / 次日 / 今天24点前"等相对时间：
-  - 必须原样输出
-  - 严禁换算为具体日期
-  - 严禁推断当前时间
+【时间字段规则（非常重要）】
+- 出现"今天 / 明天 / 后天 / 今日 / 明日 / 次日 / 后天12点 / 今天23点"等相对时间描述时：
+  - 原样输出为字符串
+  - 不得换算为具体日期
+- 未明确出现开始时间 → startDate = null
 
-【title 字段规则】
-- 只有文本中明确出现"券名 / 标题 / 活动名称"时才填写
-- 否则 title 必须为 null
-- 不允许从描述性文字中生成标题
-
-【JSON 字段定义（每个对象必须包含）】
+【JSON 字段定义（每个对象必须完整包含）】
 {
   "title": string | null,
-  "type": "满减" | "折扣" | "直减" | "其他",
-  "threshold": number | null,
-  "amountOff": number | null,
-  "discountRate": number | null,
-  "validFrom": string | null,
-  "validTo": string | null,
-  "platform": string | null,
-  "notes": string | null
+  "description": string | null,
+  "discountType": "amount" | "full" | "discount" | null,
+  "discountAmount": number | null,
+  "fullAmount": number | null,
+  "startDate": string | null,
+  "endDate": string | null,
+  "endHour": number | null,
+  "notes": string | null,
+  "storeName": string | null,
+  "isUsed": false
 }
 
-【类型判定规则】
-- 出现"满X减Y" → type = "满减"
-- 出现"立减 / 直减 / 减Y元" → type = "直减"
-- 出现"X折 / 折扣" → type = "折扣"
-- 无法明确归类 → type = "其他"
+【title 字段规则（宽松但可控）】
+- 如果一行文本中：
+  - 在平台名或商家名之后
+  - 且不包含任何时间相关词（如 有效期 / 到期 / 截止 / 今天 / 明天 / 后天 / 日期 / 点）
+- 则可以将"平台名 + 优惠核心描述"作为 title
+- 如果文本中包含任何时间相关描述：
+  - title 必须为 null
+- 严禁：
+  - 自动生成不存在的名称
+  - 将时间、日期、小时拼接进 title
+  - 仅凭金额或折扣生成 title
 
-【禁止行为】
-- 不得输出解释
-- 不得输出推理
-- 不得补全时间
-- 不得合并多券
-- 不得遗漏字段`
+【字段填充规则】
+
+- description：
+  - 填写原始文本内容（整行）
+  - 不允许删减或改写
+
+- discountType：
+  - "满X减Y" → "full"
+  - "无门槛 / 立减 / 直减 / 减Y元" → "amount"
+  - "X折 / 折扣" → "discount"
+  - 无法判断 → null
+
+- discountAmount：
+  - 满减 / 直减中的"减免金额"
+  - 折扣券 → null
+
+- fullAmount：
+  - 满减中的"满X金额"
+  - 非满减 → null
+
+- startDate：
+  - 仅当文本中明确给出开始时间时填写
+  - 否则 null
+
+- endDate：
+  - 到期时间或有效期描述，允许相对时间
+  - 原样输出，不做换算
+
+- endHour：
+  - 仅当文本中明确出现"X点 / X:00 / 23点 / 23:59"等时填写小时数
+  - 未明确 → null
+
+- storeName：
+  - 平台或商家名称（如 淘宝 / 京东 / 拼多多 / PDD / 美团 / 瑞幸 / 银行）
+  - 无明确名称 → null
+
+- notes：
+  - 备注性、补充性说明
+  - 无 → null
+
+- isUsed：
+  - 永远输出 false`
     },
     {
       role: 'user',
@@ -1299,49 +1336,52 @@ async function extractCouponsWithGLMBatch(text: string, apiKey?: string): Promis
     // 转换每个优惠券对象为内部格式
     const results: ExtractedCouponInfo[] = []
 
-    for (const item of parsedArray) {
+    // 先按行分割文本，用于后续规则匹配
+    const textLines = text.split('\n').map(line => line.trim()).filter(line => line)
+
+    for (let i = 0; i < parsedArray.length; i++) {
+      const item = parsedArray[i]
       const result: ExtractedCouponInfo = {}
 
-      // 标题映射
+      // 直接映射字段（新格式已经是数据库格式）
       if (item.title) result.title = item.title
+      if (item.description) result.description = item.description
+      if (item.discountType) result.discountType = item.discountType as 'amount' | 'full' | 'discount'
+      if (item.discountAmount) result.discountAmount = Number(item.discountAmount)
+      if (item.fullAmount) result.fullAmount = Number(item.fullAmount)
+      if (item.startDate) result.startDate = item.startDate
+      if (item.endHour) result.endHour = Number(item.endHour)
+      if (item.notes) result.notes = item.notes
+      if (item.storeName) result.storeName = item.storeName
 
-      // 类型转换
-      if (item.type) {
-        const typeMap: Record<string, 'amount' | 'percentage' | 'full'> = {
-          '满减': 'full',
-          '折扣': 'percentage',
-          '直减': 'amount',
-          '其他': 'amount'
-        }
-        result.discountType = typeMap[item.type] || 'amount'
-      }
-
-      // 金额映射
-      if (item.threshold) result.fullAmount = Number(item.threshold)
-      if (item.amountOff) result.discountAmount = Number(item.amountOff)
-      if (item.discountRate) result.discountAmount = Number(item.discountRate)
-
-      // 日期映射
-      if (item.validTo) {
-        const validTo = item.validTo
+      // 处理endDate（可能包含相对日期）
+      if (item.endDate) {
+        const endDate = item.endDate
         // 检查是否是相对日期（包含"今天/明天/后天/本周/下周/本月/下月/X天后"等）
-        const isRelativeDate = /(?:今天|明天|后天|本周|下周|本月|下月|\d+天后|星期|周[一二三四六日])/i.test(validTo)
+        const isRelativeDate = /(?:今天|明天|后天|本周|下周|本月|下月|\d+天后|星期|周[一二三四六日])/i.test(endDate)
 
         if (isRelativeDate) {
-          console.log('GLM识别到相对日期:', validTo, '，调用规则匹配进行转换')
-          // 使用规则匹配来转换相对日期
-          const ruleResult = extractCouponInfo(text)
+          console.log('GLM识别到相对日期:', endDate, '，调用规则匹配进行转换')
+          // 使用对应的行文本进行规则匹配
+          let matchedLine = textLines[i] || text
+          if (item.storeName) {
+            // 尝试找到包含平台名称的行
+            matchedLine = textLines.find(line => line.includes(item.storeName!)) || textLines[i] || text
+          }
+
+          console.log('使用行文本进行规则匹配:', matchedLine)
+          const ruleResult = extractCouponInfo(matchedLine)
           if (ruleResult.endDate) {
             result.endDate = ruleResult.endDate
             if (ruleResult.endHour) result.endHour = ruleResult.endHour
             if (ruleResult.endMinute) result.endMinute = ruleResult.endMinute
           } else {
-            result.endDate = validTo
+            result.endDate = endDate
           }
         } else {
           // 检查是否是混合格式（日期+中文时间），如"2024-12-31 23点"
           const dateTimePattern = /^(\d{4}[-/年]\d{1,2}[-/月]\d{1,2})\s*(?:日号)?\s*(\d{1,2})\s*点(?:\s*(\d{1,2})\s*分)?$/
-          const dateTimeMatch = validTo.match(dateTimePattern)
+          const dateTimeMatch = endDate.match(dateTimePattern)
 
           if (dateTimeMatch) {
             const datePart = dateTimeMatch[1]
@@ -1363,7 +1403,7 @@ async function extractCouponsWithGLMBatch(text: string, apiKey?: string): Promis
             }
           } else {
             // 纯日期格式
-            let standardizedDate = validTo
+            let standardizedDate = endDate
               .replace(/\//g, '-')
               .replace(/年/g, '-')
               .replace(/月/g, '-')
@@ -1380,10 +1420,6 @@ async function extractCouponsWithGLMBatch(text: string, apiKey?: string): Promis
           }
         }
       }
-
-      // 平台和描述
-      if (item.platform) result.storeName = item.platform
-      if (item.notes) result.description = item.notes
 
       result.aiModel = 'glm'
       result.rawResponse = JSON.stringify(item)

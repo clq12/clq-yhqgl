@@ -222,8 +222,8 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
 
       {showPreviewDialog && (
         <CouponPreviewDialog
+          isOpen={showPreviewDialog}
           coupons={previewCoupons}
-          open={showPreviewDialog}
           onConfirm={handleConfirm}
           onCancel={handleCancelPreview}
         />

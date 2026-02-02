@@ -903,14 +903,52 @@ async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<
 }
 
 /**
- * 使用AI提取优惠券信息（根据模型选择）
+ * 使用AI提取优惠券信息（回退链：GLM → 豆包 → 规则匹配）
  */
-async function extractCouponInfoWithAI(text: string, aiModel: 'doubao' | 'glm' = 'doubao', glmApiKey?: string): Promise<ExtractedCouponInfo> {
-  if (aiModel === 'glm') {
-    return extractCouponInfoWithGLM(text, glmApiKey)
-  } else {
-    return extractCouponInfoWithDoubao(text)
+async function extractCouponInfoWithAI(text: string, aiModel?: 'doubao' | 'glm', glmApiKey?: string, useFallback = true): Promise<ExtractedCouponInfo> {
+  let result: ExtractedCouponInfo
+
+  try {
+    // 1. 优先使用指定的AI模型
+    if (aiModel === 'glm') {
+      result = await extractCouponInfoWithGLM(text, glmApiKey)
+    } else if (aiModel === 'doubao') {
+      result = await extractCouponInfoWithDoubao(text)
+    } else {
+      // 未指定模型，尝试GLM
+      result = await extractCouponInfoWithGLM(text, glmApiKey)
+    }
+
+    // 验证提取结果是否完整
+    const isComplete = result.title && result.discountAmount && result.discountType && result.endDate
+
+    if (isComplete || !useFallback) {
+      return result
+    }
+
+    console.log('AI提取不完整，尝试回退到下一个模型')
+  } catch (error) {
+    console.error('AI模型调用失败:', error)
   }
+
+  // 2. 回退到豆包
+  if (aiModel !== 'doubao' && useFallback) {
+    try {
+      result = await extractCouponInfoWithDoubao(text)
+      const isComplete = result.title && result.discountAmount && result.discountType && result.endDate
+      
+      if (isComplete) {
+        console.log('豆包提取成功')
+        return result
+      }
+    } catch (error) {
+      console.error('豆包模型调用失败:', error)
+    }
+  }
+
+  // 3. 最终回退到规则匹配
+  console.log('回退到规则匹配')
+  return extractCouponInfo(text)
 }
 
 export async function POST(request: NextRequest) {
@@ -944,8 +982,8 @@ export async function POST(request: NextRequest) {
     // 根据参数选择提取方式
     let extractedInfo: ExtractedCouponInfo
     if (useAI === true) {
-      const model = aiModel || 'doubao' // 默认使用豆包
-      extractedInfo = await extractCouponInfoWithAI(text, model, finalGlmApiKey)
+      const model = aiModel || 'glm' // 默认使用GLM
+      extractedInfo = await extractCouponInfoWithAI(text, model, finalGlmApiKey, true)
     } else {
       extractedInfo = extractCouponInfo(text)
     }

@@ -28,7 +28,7 @@ import {
 import CouponForm from "@/components/CouponForm"
 import WebDAVConfig from "@/components/WebDAVConfig"
 import StatDashboard from "@/components/StatDashboard"
-import BatchOcrRecognizer, { type ExtractedCouponInfo } from "@/components/BatchOcrRecognizer"
+import TextRecognizer, { type ExtractedCouponInfo } from "@/components/TextRecognizer"
 import {
   Select,
   SelectContent,
@@ -957,12 +957,12 @@ export default function Home() {
               </DialogTrigger>
               <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>批量识别优惠券</DialogTitle>
+                  <DialogTitle>智能文本识别</DialogTitle>
                   <DialogDescription>
-                    一次选择多张优惠券图片，自动识别并批量添加
+                    粘贴优惠券的文本信息，自动识别并批量添加
                   </DialogDescription>
                 </DialogHeader>
-                <BatchOcrRecognizer
+                <TextRecognizer
                   onBatchExtracted={handleBatchOcrExtracted}
                   onCancel={() => setIsBatchOcrDialogOpen(false)}
                 />

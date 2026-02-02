@@ -26,7 +26,6 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
 
   // 1. 提取店铺名称（常见平台和银行）
   const storePatterns = [
-    /京东云|阿里云|腾讯云|华为云|百度云|字节跳动云|火山云|天翼云|联通云|移动云/i,
     /淘宝|天猫|京东|拼多多|美团|饿了么|盒马|山姆|Costco|永辉|大润发|家乐福|沃尔玛|优衣库|ZARA|H&M|Nike|Adidas/i,
     /建设银行|工商银行|农业银行|中国银行|招商银行|交通银行|中信银行|光大银行|民生银行|平安银行|浦发银行/i,
     /云闪付|银联卡|银联/i,
@@ -40,11 +39,10 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
   }
 
   // 2. 提取优惠金额
-  // 匹配：减X元、优惠X元、X元券、满减X元、折扣X折、¥X、￥X、X无门槛
+  // 匹配：减X元、优惠X元、X元券、满减X元、折扣X折、¥X、￥X
   const discountPatterns = [
     /¥\s*(\d+(?:\.\d+)?)/,  // ¥26
     /￥\s*(\d+(?:\.\d+)?)/,  // ￥26
-    /(\d+(?:\.\d+)?)\s*无门槛/,  // 20无门槛
     /减(\d+(?:\.\d+)?)元/,
     /优惠(\d+(?:\.\d+)?)元/,
     /(\d+(?:\.\d+)?)元券/,
@@ -199,66 +197,6 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
       targetDate.setDate(targetDate.getDate() + 1)
     }
     // 如果包含"下午"，可以记录时间信息（这里暂时只记录日期）
-    if (!isNaN(targetDate.getTime())) {
-      matchedDate = targetDate
-      result.endDate = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`
-    }
-  }
-
-  // 检查"下周一中午12点过期"、"下周三失效"等格式（"周"字可选）
-  const nextDayPattern = /下(?:周)?\s*(?:一|二|三|四|五|六|日|天|周末)\s*(?:下午|上午|晚上|中午)?\s*(?:\d{1,2}\s*点(?:\s*\d{1,2}\s*分)?)?\s*(?:过期|到期|失效|作废|$)/
-  const nextDayMatch = text.match(nextDayPattern)
-  if (nextDayMatch && !matchedDate) {
-    let restText = nextDayMatch[0].substring(1) // 去掉"下"字
-    // 如果有"周"字，也去掉
-    if (restText.startsWith('周')) {
-      restText = restText.substring(1)
-    }
-    
-    // 提取星期几（一=1, 二=2, ... 六=6, 日/天=0, 周末=6或0）
-    let targetDay = 0
-    if (restText.includes('一')) targetDay = 1
-    else if (restText.includes('二')) targetDay = 2
-    else if (restText.includes('三')) targetDay = 3
-    else if (restText.includes('四')) targetDay = 4
-    else if (restText.includes('五')) targetDay = 5
-    else if (restText.includes('六')) targetDay = 6
-    else if (restText.includes('日') || restText.includes('天')) targetDay = 0
-    else if (restText.includes('周末')) targetDay = 6 // 周末默认周六
-    
-    // 计算目标日期（明确是下周）
-    const currentDayOfWeek = now.getDay() // 0-6
-    const targetDate = new Date(now)
-    
-    const daysUntilTarget = targetDay - currentDayOfWeek
-    targetDate.setDate(targetDate.getDate() + daysUntilTarget + 7)
-
-    // 提取时间信息（如果有）
-    // 检查AM/PM格式
-    let isPM = restText.includes('下午') || restText.includes('晚')
-    let isAM = restText.includes('上午') || restText.includes('早')
-
-    // 提取小时和分钟
-    const timePattern = /(\d{1,2})\s*点(?:\s*(\d{1,2})\s*分)?/
-    const timeMatch = restText.match(timePattern)
-    if (timeMatch) {
-      const hour = parseInt(timeMatch[1])
-      const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0
-
-      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-        // 处理AM/PM格式
-        let finalHour = hour
-        if (isPM && hour < 12) {
-          finalHour = hour + 12  // 下午3点 = 15点
-        } else if (isAM && hour === 12) {
-          finalHour = 0  // 上午12点 = 0点
-        }
-
-        result.endHour = finalHour
-        result.endMinute = minute
-      }
-    }
-
     if (!isNaN(targetDate.getTime())) {
       matchedDate = targetDate
       result.endDate = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`
@@ -829,8 +767,8 @@ async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<
   const finalApiKey = apiKey || process.env.GLM_API_KEY
 
   if (!finalApiKey) {
-    console.warn('GLM API Key 未配置，跳过GLM模型')
-    throw new Error('GLM API Key 未配置')
+    console.error('GLM API Key 未配置')
+    return extractCouponInfo(text)
   }
 
   const messages = [

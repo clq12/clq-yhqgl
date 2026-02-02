@@ -51,48 +51,6 @@ export default function WebDAVConfig() {
     checkConfig()
   }, [])
 
-  // 监听 isEditing 变化，自动填充表单
-  useEffect(() => {
-    if (isEditing) {
-      const loadConfigToForm = async () => {
-        try {
-          // 优先从 localStorage 读取配置
-          let config = getWebDAVConfigFromLocalStorage()
-
-          // 如果 localStorage 没有，从服务器 Cookie 读取
-          if (!config) {
-            const response = await fetch("/api/webdav/config")
-            const result = await response.json()
-            if (result.success && result.config) {
-              config = {
-                url: result.config.url,
-                username: result.config.username,
-                password: result.config.password,
-                pushplusToken: result.config.pushplusToken,
-                glmApiKey: result.config.glmApiKey,
-              }
-            }
-          }
-
-          // 填充表单
-          if (config) {
-            form.reset({
-              url: config.url || "",
-              username: config.username || "",
-              password: config.password || "",
-              pushplusToken: config.pushplusToken || "",
-              glmApiKey: config.glmApiKey || "",
-            })
-          }
-        } catch (error) {
-          console.error("加载配置到表单失败:", error)
-        }
-      }
-
-      loadConfigToForm()
-    }
-  }, [isEditing, form])
-
   const checkConfig = async () => {
     try {
       // 优先从 localStorage 读取配置

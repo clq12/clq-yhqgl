@@ -803,11 +803,16 @@ async function extractCouponInfoWithDoubao(text: string): Promise<ExtractedCoupo
       }
 
       // 如果AI没有提取到完整信息，回退到规则匹配
-      if (!result.title || !result.discountAmount || !result.discountType) {
-        console.log('AI提取不完整，回退到规则匹配')
+      if (!result.title || !result.discountAmount || !result.discountType || !result.endDate) {
+        console.log('AI提取不完整，回退到规则匹配', {
+          hasTitle: !!result.title,
+          hasAmount: !!result.discountAmount,
+          hasType: !!result.discountType,
+          hasDate: !!result.endDate
+        })
         return extractCouponInfo(text)
       }
-      
+
       return result
     } else {
       console.log('AI返回格式错误，回退到规则匹配')
@@ -951,8 +956,13 @@ async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<
     }
 
     // 如果AI没有提取到完整信息，回退到规则匹配
-    if (!result.title || !result.discountAmount || !result.discountType) {
-      console.log('GLM提取不完整，回退到规则匹配')
+    if (!result.title || !result.discountAmount || !result.discountType || !result.endDate) {
+      console.log('GLM提取不完整，回退到规则匹配', {
+        hasTitle: !!result.title,
+        hasAmount: !!result.discountAmount,
+        hasType: !!result.discountType,
+        hasDate: !!result.endDate
+      })
       return extractCouponInfo(text)
     }
 

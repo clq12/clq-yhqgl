@@ -816,58 +816,26 @@ async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<
   const messages = [
     {
       role: 'system',
-      content: `你是一个专业的优惠券信息提取助手。请从给定的文本中提取优惠券的关键信息，并以JSON格式返回。
+      content: `你是优惠券信息提取助手。从文本提取信息，直接返回JSON，不要推理过程。
 
-【字段说明】
-1. title: 优惠券标题（优先提取店铺/商品名+优惠券类型，如"华香脆骨串优惠券"、"建设银行立减金"、"华莱士串"）
-2. discountAmount: 折扣金额或折扣数值（如减5元则为5，8折则为8）
-3. discountType: 折扣类型（amount=减免金额, percentage=折扣, full=满减）
-4. fullAmount: 满减金额（仅当discountType为full时需要）
-5. endDate: 截止日期，格式为YYYY-MM-DD（如2026-01-31）
-6. endHour: 截止小时，0-23之间的整数，默认为23
-7. endMinute: 截止分钟，0-59之间的整数，默认为59
-8. storeName: 店铺或平台名称（从开头提取，如"华香脆骨串"、"淘宝"、"建设银行"、"蜜雪冰城"、"华莱士"）
-9. description: 描述信息（如"饮品"、"脆骨串"、"串"等）
+字段：
+- title: 优惠券标题
+- discountAmount: 折扣金额
+- discountType: amount/percentage/full
+- fullAmount: 满减金额
+- endDate: YYYY-MM-DD（如果是相对日期如"后天"，设为null）
+- endHour: 0-23（默认23）
+- endMinute: 0-59（默认59）
+- storeName: 店铺名称
+- description: 描述信息
 
-【提取规则】
-- 日期格式必须为YYYY-MM-DD
-- 时间格式：默认23:59，支持"23:59"、"23点"、"23点30分"、"下午3点15分=15:15"、"上午12点=0点"
-- 支持的日期格式：
-  * 标准格式：2026-01-31、2026年1月31日、1月31日
-  * 月份.日期格式：1.30过期、2.5到期、3.15失效、4.20作废
-  * 相对日期格式：这个月30过期、3天后到期、29天后失效、7天后作废
-  * 有效期格式：有效期至2026-01-31、有效期2026-01-31
-  * 今天明天格式：今天到期、明天失效
-  * 本周下周格式：本周日作废、下周一下午3点失效
-  * 月底格式：本月底过期、下月底作废
-  * 季度格式：下个季度初失效
-  * 之前使用格式：2026-03-15之前使用（不包含当日，减1天）
-- 支持的关键词：过期、到期、失效、作废、有效期至、之前使用
-- 如果文本中没有明确截止时间，endHour默认设为23，endMinute默认设为59
-- 折扣类型判断：
-  * 如果包含"满X可用"、"满X减X"、"满X-Y"，则为full
-  * 如果包含"X折"但不包含"满"，则为percentage
-  * 如果包含"减X元"、"减免X元"，则为amount
-  * 如果只提到"优惠券"但没有折扣信息，设为null
-- 只返回JSON格式，不要包含任何其他文字
-- 如果无法提取某个字段，则不包含该字段或设为null
-
-【返回JSON格式示例】
-{
-  "title": "华香脆骨串优惠券",
-  "discountAmount": 5,
-  "discountType": "full",
-  "fullAmount": 2000,
-  "endDate": "2026-01-31",
-  "endHour": 23,
-  "endMinute": 59,
-  "storeName": "华香脆骨串",
-  "description": "脆骨串"
-}`
+示例：
+输入：淘宝优惠券 满100减20元 有效期至2024-12-31
+输出：{"title":"淘宝优惠券","storeName":"淘宝","discountAmount":20,"discountType":"full","fullAmount":100,"endDate":"2024-12-31","endHour":23,"endMinute":59}`
     },
     {
       role: 'user',
-      content: `请提取以下优惠券信息：\n\n${text}`
+      content: text
     }
   ]
 
@@ -906,32 +874,62 @@ async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<
     // GLM-4.7-Flash 可能返回大量推理过程，需要提取最后的JSON代码块
     let jsonStr = content.trim()
 
-    // 尝试提取最后一个 ```json``` 代码块
-    const jsonMatches = jsonStr.match(/```json\s*([\s\S]*?)\s*```/g)
-    if (jsonMatches && jsonMatches.length > 0) {
+    console.log('原始内容前300字符:', content.substring(0, 300))
+    console.log('原始内容总长度:', content.length)
+
+    // 策略1：尝试提取最后一个以```json开头、以```结尾的代码块
+    const jsonBlockMatch = content.match(/```json\s*([\s\S]*?)\s*```/g)
+    if (jsonBlockMatch && jsonBlockMatch.length > 0) {
       // 使用最后一个匹配的代码块
-      const lastMatch = jsonMatches[jsonMatches.length - 1]
+      const lastMatch = jsonBlockMatch[jsonBlockMatch.length - 1]
       jsonStr = lastMatch.replace(/```json\s*/, '').replace(/```$/, '').trim()
+      console.log('策略1：找到JSON代码块')
     } else {
-      // 如果没有找到json代码块，尝试提取普通的代码块
-      const codeMatches = jsonStr.match(/```\s*([\s\S]*?)\s*```/g)
-      if (codeMatches && codeMatches.length > 0) {
-        const lastMatch = codeMatches[codeMatches.length - 1]
+      // 策略2：尝试提取最后一个以```开头、以```结尾的代码块
+      const codeBlockMatch = content.match(/```\s*([\s\S]*?)\s*```/g)
+      if (codeBlockMatch && codeBlockMatch.length > 0) {
+        // 使用最后一个匹配的代码块
+        const lastMatch = codeBlockMatch[codeBlockMatch.length - 1]
         jsonStr = lastMatch.replace(/```\s*/, '').replace(/```$/, '').trim()
-      } else if (jsonStr.startsWith('```json')) {
-        jsonStr = jsonStr.slice(7)
-      } else if (jsonStr.startsWith('```')) {
-        jsonStr = jsonStr.slice(3)
+        console.log('策略2：找到普通代码块')
+      } else {
+        // 策略3：尝试直接从内容中提取JSON对象（以{开头，以}结尾）
+        const jsonObjectMatch = content.match(/\{[\s\S]*\}/g)
+        if (jsonObjectMatch && jsonObjectMatch.length > 0) {
+          // 使用最后一个匹配的JSON对象
+          const lastMatch = jsonObjectMatch[jsonObjectMatch.length - 1]
+          jsonStr = lastMatch.trim()
+          console.log('策略3：找到JSON对象')
+        } else {
+          console.log('策略4：使用完整内容')
+          jsonStr = content.trim()
+        }
       }
-      if (jsonStr.endsWith('```')) {
-        jsonStr = jsonStr.slice(0, -3)
-      }
-      jsonStr = jsonStr.trim()
     }
 
-    console.log('提取的JSON字符串:', jsonStr.substring(0, 200))
+    console.log('提取的JSON字符串前200字符:', jsonStr.substring(0, 200))
+    console.log('提取的JSON字符串完整长度:', jsonStr.length)
 
-    const parsedData = JSON.parse(jsonStr)
+    // 尝试解析JSON，如果失败则记录详细错误
+    let parsedData
+    try {
+      parsedData = JSON.parse(jsonStr)
+    } catch (jsonError) {
+      console.error('JSON解析失败，原始内容前500字符:', content.substring(0, 500))
+      console.error('JSON解析失败，提取的字符串:', jsonStr)
+      console.error('JSON解析错误:', jsonError instanceof Error ? jsonError.message : jsonError)
+
+      // 尝试修复常见的JSON错误
+      // 例如：删除末尾的逗号
+      const fixedJson = jsonStr.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']')
+      try {
+        parsedData = JSON.parse(fixedJson)
+        console.log('JSON修复后解析成功')
+      } catch (fixedError) {
+        console.error('JSON修复后仍然失败')
+        throw jsonError
+      }
+    }
 
     // 验证和转换数据
     const result: ExtractedCouponInfo = {}

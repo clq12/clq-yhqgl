@@ -57,7 +57,10 @@ export async function GET(request: NextRequest) {
     // 5. 分析提醒状态（使用北京时间 UTC+8）
     const now = new Date()
     
-    const statusList = allCoupons.map(coupon => {
+    // 过滤掉已使用的优惠券
+    const unusedCoupons = allCoupons.filter(coupon => !coupon.isUsed)
+    
+    const statusList = unusedCoupons.map(coupon => {
       const endHour = (coupon as any).endHour
       const endMinute = (coupon as any).endMinute ?? 59
       

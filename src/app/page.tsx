@@ -953,7 +953,7 @@ export default function Home() {
                   disabled={!isWebDAVConfigured}
                 >
                   <ScanText className="h-4 w-4" />
-                  批量OCR
+                  智能识别
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">

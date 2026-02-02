@@ -37,6 +37,7 @@ export interface ExtractedCouponInfo {
   fullAmount?: number
   endDate?: string
   endHour?: number
+  endMinute?: number
   storeName?: string
   description?: string
   notes?: string

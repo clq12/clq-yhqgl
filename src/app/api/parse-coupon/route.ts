@@ -1008,7 +1008,7 @@ async function extractCouponInfoWithAI(text: string, aiModel?: 'doubao' | 'glm',
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { text, useAI, aiModel, glmApiKey: requestGlmApiKey } = body
+    const { text, useAI, aiModel, glmApiKey: requestGlmApiKey, useFallback = true } = body
 
     if (!text || typeof text !== 'string') {
       return NextResponse.json(
@@ -1037,7 +1037,7 @@ export async function POST(request: NextRequest) {
     let extractedInfo: ExtractedCouponInfo
     if (useAI === true) {
       const model = aiModel || 'glm' // 默认使用GLM
-      extractedInfo = await extractCouponInfoWithAI(text, model, finalGlmApiKey, true)
+      extractedInfo = await extractCouponInfoWithAI(text, model, finalGlmApiKey, useFallback)
     } else {
       extractedInfo = extractCouponInfo(text)
     }

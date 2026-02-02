@@ -6,6 +6,13 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Textarea } from "@/components/ui/textarea"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import CouponPreviewDialog, { type PreviewCoupon } from "@/components/CouponPreviewDialog"
 
 export interface ExtractedCouponInfo {
@@ -33,6 +40,7 @@ interface TextRecognizerProps {
 
 export default function TextRecognizer({ onExtracted, onCancel, batchMode = false }: TextRecognizerProps) {
   const [inputText, setInputText] = useState("")
+  const [aiModel, setAiModel] = useState<'glm' | 'doubao' | 'rule'>('glm')
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [previewCoupons, setPreviewCoupons] = useState<PreviewCoupon[]>([])
@@ -64,8 +72,9 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
             },
             body: JSON.stringify({
               text: couponText,
-              useAI: true,
-              aiModel: 'glm', // 默认使用GLM，后端会自动回退
+              useAI: aiModel !== 'rule',
+              aiModel: aiModel === 'rule' ? undefined : aiModel,
+              useFallback: false, // 不使用自动回退
             }),
           })
 
@@ -81,28 +90,31 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
           })
         } catch (err) {
           console.error(`识别第${i + 1}个优惠券失败:`, err)
-          // 单个优惠券识别失败时，使用规则匹配作为兜底
-          try {
-            const response = await fetch("/api/parse-coupon", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                text: couponText,
-                useAI: false,
-              }),
-            })
-
-            if (response.ok) {
-              const data = await response.json()
-              extractedInfos.push({
-                ...data,
-                originalText: couponText,
+          // 单个优惠券识别失败时，如果是规则匹配，则跳过
+          // 否则尝试规则匹配作为兜底
+          if (aiModel !== 'rule') {
+            try {
+              const response = await fetch("/api/parse-coupon", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  text: couponText,
+                  useAI: false,
+                }),
               })
+
+              if (response.ok) {
+                const data = await response.json()
+                extractedInfos.push({
+                  ...data,
+                  originalText: couponText,
+                })
+              }
+            } catch (fallbackErr) {
+              console.error(`规则匹配也失败:`, fallbackErr)
             }
-          } catch (fallbackErr) {
-            console.error(`规则匹配也失败:`, fallbackErr)
           }
         }
       }
@@ -210,13 +222,27 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
             )}
           </div>
 
+          <div className="space-y-2">
+            <label className="text-sm font-medium">识别方式</label>
+            <Select value={aiModel} onValueChange={(value: 'glm' | 'doubao' | 'rule') => setAiModel(value)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="glm">GLM-4.7-Flash（推荐）</SelectItem>
+                <SelectItem value="doubao">豆包AI</SelectItem>
+                <SelectItem value="rule">规则匹配</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="rounded-lg bg-muted p-3 text-sm">
             <p className="font-medium mb-1">识别说明：</p>
             <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-              <li>AI识别会自动尝试GLM、豆包和规则匹配三种方式</li>
-              <li>支持满减、折扣、立减等多种优惠类型</li>
-              <li>支持"7天后"、"本周三"、"1月15日"等多种日期格式</li>
-              <li>识别后会显示预览，您可以手动调整后确认添加</li>
+              <li>GLM-4.7-Flash：智谱AI模型，识别准确度高</li>
+              <li>豆包AI：字节跳动AI模型，响应速度快</li>
+              <li>规则匹配：不依赖AI，基于固定规则提取</li>
+              <li>识别后显示预览，可手动调整后添加</li>
             </ul>
           </div>
         </CardContent>

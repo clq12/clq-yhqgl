@@ -73,7 +73,7 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
             body: JSON.stringify({
               text: couponText,
               useAI: aiModel !== 'rule',
-              aiModel: aiModel === 'rule' ? undefined : aiModel,
+              aiModel: aiModel !== 'rule' ? aiModel : undefined,
               useFallback: false, // 不使用自动回退
             }),
           })

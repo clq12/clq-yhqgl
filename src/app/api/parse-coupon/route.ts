@@ -969,8 +969,8 @@ async function extractCouponInfoWithAI(text: string, aiModel?: 'doubao' | 'glm',
     } else if (aiModel === 'doubao') {
       result = await extractCouponInfoWithDoubao(text)
     } else {
-      // 未指定模型，尝试GLM
-      result = await extractCouponInfoWithGLM(text, glmApiKey)
+      // 未指定模型，默认使用豆包AI
+      result = await extractCouponInfoWithDoubao(text)
     }
 
     // 验证提取结果是否完整
@@ -1036,7 +1036,7 @@ export async function POST(request: NextRequest) {
     // 根据参数选择提取方式
     let extractedInfo: ExtractedCouponInfo
     if (useAI === true) {
-      const model = aiModel || 'glm' // 默认使用GLM
+      const model = aiModel || 'doubao' // 默认使用豆包AI
       extractedInfo = await extractCouponInfoWithAI(text, model, finalGlmApiKey, useFallback)
     } else {
       extractedInfo = extractCouponInfo(text)

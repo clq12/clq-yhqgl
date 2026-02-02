@@ -816,22 +816,42 @@ async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<
   const messages = [
     {
       role: 'system',
-      content: `你是优惠券信息提取助手。从文本提取信息，直接返回JSON，不要推理过程。
+      content: `你是一个优惠券信息抽取程序，不进行任何对话，也不进行解释或推理。
 
-字段：
-- title: 优惠券标题
-- discountAmount: 折扣金额
-- discountType: amount/percentage/full
-- fullAmount: 满减金额
-- endDate: YYYY-MM-DD（如果是相对日期如"后天"，设为null）
-- endHour: 0-23（默认23）
-- endMinute: 0-59（默认59）
-- storeName: 店铺名称
-- description: 描述信息
+你的唯一任务是：
+从用户提供的文本中，提取优惠券信息，并输出一个 JSON 对象。
 
-示例：
-输入：淘宝优惠券 满100减20元 有效期至2024-12-31
-输出：{"title":"淘宝优惠券","storeName":"淘宝","discountAmount":20,"discountType":"full","fullAmount":100,"endDate":"2024-12-31","endHour":23,"endMinute":59}`
+【输出格式要求（必须严格遵守）】
+1. 只允许输出一个 JSON 对象
+2. JSON 之外不得输出任何字符（包括解释、推理、注释、空行）
+3. 所有字段必须存在，未识别的信息必须为 null
+4. 不允许猜测、补全或推断文本中未明确给出的信息
+5. 字段值类型必须严格匹配说明
+
+【JSON 字段定义】
+{
+  "title": string | null,
+  "type": "满减" | "折扣" | "直减" | "其他",
+  "threshold": number | null,
+  "amountOff": number | null,
+  "discountRate": number | null,
+  "validFrom": string | null,
+  "validTo": string | null,
+  "platform": string | null,
+  "notes": string | null
+}
+
+【类型判定规则】
+- 出现"满X减Y" → type = "满减"
+- 出现"直减 / 减Y元 / 立减Y元" → type = "直减"
+- 出现"X折 / 折扣" → type = "折扣"
+- 无法明确归类 → type = "其他"
+
+【重要约束】
+- 不得输出 Markdown
+- 不得输出示例
+- 不得输出说明文字
+- 不得输出推理过程`
     },
     {
       role: 'user',
@@ -931,31 +951,51 @@ async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<
       }
     }
 
-    // 验证和转换数据
+    // 验证和转换数据（字段映射）
     const result: ExtractedCouponInfo = {}
 
+    // 标题映射
     if (parsedData.title) result.title = parsedData.title
-    if (parsedData.storeName) result.storeName = parsedData.storeName
-    if (parsedData.description) result.description = parsedData.description
-    if (parsedData.discountAmount) result.discountAmount = Number(parsedData.discountAmount)
-    if (parsedData.fullAmount) result.fullAmount = Number(parsedData.fullAmount)
-    if (parsedData.endDate) result.endDate = parsedData.endDate
-    if (parsedData.endHour) result.endHour = Number(parsedData.endHour)
-    if (parsedData.endMinute) result.endMinute = Number(parsedData.endMinute)
 
-    // 验证折扣类型
-    if (parsedData.discountType && ['amount', 'percentage', 'full'].includes(parsedData.discountType)) {
-      result.discountType = parsedData.discountType
+    // 类型转换
+    if (parsedData.type) {
+      const typeMap: Record<string, 'amount' | 'percentage' | 'full'> = {
+        '满减': 'full',
+        '折扣': 'percentage',
+        '直减': 'amount',
+        '其他': 'amount'
+      }
+      result.discountType = typeMap[parsedData.type] || 'amount'
     }
 
+    // 金额映射
+    if (parsedData.threshold) result.fullAmount = Number(parsedData.threshold)
+    if (parsedData.amountOff) result.discountAmount = Number(parsedData.amountOff)
+    if (parsedData.discountRate) result.discountAmount = Number(parsedData.discountRate)
+
+    // 日期映射
+    if (parsedData.validTo) result.endDate = parsedData.validTo
+
+    // 平台和描述
+    if (parsedData.platform) result.storeName = parsedData.platform
+    if (parsedData.notes) result.description = parsedData.notes
+
     // 如果AI没有提取到完整信息，回退到规则匹配
-    if (!result.title || !result.discountAmount || !result.discountType) {
+    // 只要discountAmount和discountType有值就认为是有效识别
+    if (!result.discountAmount || !result.discountType) {
       console.log('GLM提取不完整，回退到规则匹配')
       return {
         ...extractCouponInfo(text),
         aiModel: 'rule',
         rawResponse: JSON.stringify(parsedData)
       }
+    }
+
+    // 如果没有title，尝试从原始文本中提取
+    if (!result.title && text.trim()) {
+      // 提取第一行或前20个字符作为title
+      const firstLine = text.split('\n')[0].trim()
+      result.title = firstLine.length > 20 ? firstLine.substring(0, 20) : firstLine
     }
 
     return {

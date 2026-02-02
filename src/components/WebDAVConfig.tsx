@@ -24,6 +24,7 @@ const webdavConfigSchema = z.object({
   username: z.string().min(1, "用户名不能为空"),
   password: z.string().min(1, "密码不能为空"),
   pushplusToken: z.string().optional(),
+  glmApiKey: z.string().optional(),
 })
 
 type WebDAVConfigForm = z.infer<typeof webdavConfigSchema>
@@ -34,6 +35,7 @@ export default function WebDAVConfig() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [configUrl, setConfigUrl] = useState("")
   const [hasPushPlusToken, setHasPushPlusToken] = useState(false)
+  const [hasGlmApiKey, setHasGlmApiKey] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
 
   const form = useForm<WebDAVConfigForm>({
@@ -57,6 +59,7 @@ export default function WebDAVConfig() {
         setIsConfigured(true)
         setConfigUrl(localConfig.url)
         setHasPushPlusToken(!!localConfig.pushplusToken && localConfig.pushplusToken.length > 0)
+        setHasGlmApiKey(!!localConfig.glmApiKey && localConfig.glmApiKey.length > 0)
         return
       }
 
@@ -67,6 +70,7 @@ export default function WebDAVConfig() {
         setIsConfigured(true)
         setConfigUrl(result.config.url)
         setHasPushPlusToken(result.config.hasPushPlusToken || false)
+        setHasGlmApiKey(result.config.hasGlmApiKey || false)
       }
     } catch (error) {
       console.error("检查配置失败:", error)
@@ -93,6 +97,7 @@ export default function WebDAVConfig() {
           username: data.username,
           password: data.password,
           pushplusToken: data.pushplusToken || undefined,
+          glmApiKey: data.glmApiKey || undefined,
         }
         setWebDAVConfigToLocalStorage(config)
 
@@ -101,6 +106,7 @@ export default function WebDAVConfig() {
         setIsEditing(false)
         setConfigUrl(data.url)
         setHasPushPlusToken(!!data.pushplusToken && data.pushplusToken.length > 0)
+        setHasGlmApiKey(!!data.glmApiKey && data.glmApiKey.length > 0)
         setTimeout(() => {
           window.location.reload()
         }, 1000)
@@ -134,6 +140,7 @@ export default function WebDAVConfig() {
         setIsConfigured(false)
         setConfigUrl("")
         setHasPushPlusToken(false)
+        setHasGlmApiKey(false)
         form.reset()
         setMessage({ type: "success", text: "配置已清除" })
       } else {
@@ -243,6 +250,18 @@ export default function WebDAVConfig() {
                 <div className="flex items-center gap-2 mt-3 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-md inline-flex">
                   <Info className="h-4 w-4" />
                   PushPlus 未配置（可选）
+                </div>
+              )}
+              {hasGlmApiKey && (
+                <div className="flex items-center gap-2 mt-3 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-md inline-flex">
+                  <CheckCircle className="h-4 w-4" />
+                  GLM-4.7-Flash AI 已配置
+                </div>
+              )}
+              {!hasGlmApiKey && (
+                <div className="flex items-center gap-2 mt-3 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-md inline-flex">
+                  <Info className="h-4 w-4" />
+                  GLM-4.7-Flash 未配置（可选，豆包已免费提供）
                 </div>
               )}
             </div>
@@ -392,6 +411,37 @@ export default function WebDAVConfig() {
                       >
                         PushPlus 官网
                       </a>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="glmApiKey"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabelField>GLM-4.7-Flash API Key（可选）</FormLabelField>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        placeholder="输入 GLM-4.7-Flash API Key"
+                        {...field}
+                      />
+                    </FormControl>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      获取 API Key：<a
+                        href="https://open.bigmodel.cn/usercenter/apikeys"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline"
+                      >
+                        智谱AI控制台
+                      </a>
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      用于AI识别优惠券，不配置则使用豆包模型（免费）
                     </div>
                     <FormMessage />
                   </FormItem>

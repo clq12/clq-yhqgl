@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Check, X, ArrowLeft, ArrowRight, AlertCircle } from "lucide-react"
+import { Check, X, ArrowLeft, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,16 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
 import type { ExtractedCouponInfo } from "./BatchOcrRecognizer"
 
 export interface PreviewCoupon extends ExtractedCouponInfo {
@@ -51,7 +41,6 @@ export default function CouponPreviewDialog({
 }: CouponPreviewDialogProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [previewCoupons, setPreviewCoupons] = useState<PreviewCoupon[]>([])
-  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
 
   // 初始化预览数据
   const initializePreviews = () => {
@@ -83,15 +72,6 @@ export default function CouponPreviewDialog({
   }
 
   const handleCancel = () => {
-    if (previewCoupons.length > 0) {
-      setShowCancelConfirm(true)
-    } else {
-      onCancel()
-    }
-  }
-
-  const handleConfirmCancel = () => {
-    setShowCancelConfirm(false)
     setPreviewCoupons([])
     setCurrentIndex(0)
     onCancel()
@@ -330,27 +310,6 @@ export default function CouponPreviewDialog({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* 取消确认对话框 */}
-      <AlertDialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              <AlertCircle className="h-5 w-5 text-destructive inline mr-2" />
-              确认取消？
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              取消后将丢失所有已编辑的优惠券信息，确定要取消吗？
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>继续编辑</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmCancel}>
-              确认取消
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   )
 }

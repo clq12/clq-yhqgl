@@ -883,7 +883,7 @@ async function extractCouponInfoWithAI(text: string, aiModel: 'doubao' | 'glm' =
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { text, useAI, aiModel, glmApiKey } = body
+    const { text, useAI, aiModel, glmApiKey: requestGlmApiKey } = body
 
     if (!text || typeof text !== 'string') {
       return NextResponse.json(
@@ -892,11 +892,27 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // 如果使用GLM模型，先尝试从多个来源获取API Key
+    let finalGlmApiKey = requestGlmApiKey
+
+    if (aiModel === 'glm' && !finalGlmApiKey) {
+      // 尝试从WebDAV配置获取
+      const { getWebDAVConfigFromRequest } = await import('@/lib/config')
+      const webdavConfig = getWebDAVConfigFromRequest(request)
+      if (webdavConfig?.glmApiKey) {
+        finalGlmApiKey = webdavConfig.glmApiKey
+      }
+      // 如果还是没有，尝试从环境变量获取
+      if (!finalGlmApiKey && process.env.GLM_API_KEY) {
+        finalGlmApiKey = process.env.GLM_API_KEY
+      }
+    }
+
     // 根据参数选择提取方式
     let extractedInfo: ExtractedCouponInfo
     if (useAI === true) {
       const model = aiModel || 'doubao' // 默认使用豆包
-      extractedInfo = await extractCouponInfoWithAI(text, model, glmApiKey)
+      extractedInfo = await extractCouponInfoWithAI(text, model, finalGlmApiKey)
     } else {
       extractedInfo = extractCouponInfo(text)
     }

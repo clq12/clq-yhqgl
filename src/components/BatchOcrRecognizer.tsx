@@ -67,7 +67,6 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
   const [pastedText, setPastedText] = useState('')
   const [useAI, setUseAI] = useState(true)
   const [aiModel, setAiModel] = useState<'doubao' | 'glm'>('doubao')
-  const [glmApiKey, setGlmApiKey] = useState('')
   const [viewingImageIndex, setViewingImageIndex] = useState<number | null>(null)
 
   // 预览对话框状态
@@ -237,9 +236,6 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
           
           if (useAI) {
             requestBody.aiModel = aiModel
-            if (aiModel === 'glm') {
-              requestBody.glmApiKey = glmApiKey
-            }
           }
 
           const response = await fetch('/api/parse-coupon', {
@@ -295,9 +291,6 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
           
           if (useAI) {
             requestBody.aiModel = aiModel
-            if (aiModel === 'glm') {
-              requestBody.glmApiKey = glmApiKey
-            }
           }
 
           const response = await fetch('/api/parse-coupon', {
@@ -468,19 +461,10 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
                 </Select>
               </div>
 
-              {/* GLM API Key 输入 */}
+              {/* GLM 提示信息 */}
               {aiModel === 'glm' && (
-                <div className="space-y-2">
-                  <div className="text-xs text-muted-foreground">
-                    请输入您的智谱AI API Key（可在 <a href="https://open.bigmodel.cn/usercenter/apikeys" target="_blank" rel="noopener noreferrer" className="text-primary underline">智谱AI控制台</a> 获取）
-                  </div>
-                  <Input
-                    type="password"
-                    placeholder="输入 GLM API Key"
-                    value={glmApiKey}
-                    onChange={(e) => setGlmApiKey(e.target.value)}
-                    className="text-sm"
-                  />
+                <div className="text-xs text-muted-foreground">
+                  GLM API Key 需要在 WebDAV 配置中设置（如果已配置则无需重复输入）
                 </div>
               )}
             </div>

@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import CouponPreviewDialog, { type PreviewCoupon } from "@/components/CouponPreviewDialog"
 
 export interface OcrResult {
   text: string
@@ -67,6 +68,11 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
   const [aiModel, setAiModel] = useState<'doubao' | 'glm'>('doubao')
   const [glmApiKey, setGlmApiKey] = useState('')
   const [viewingImageIndex, setViewingImageIndex] = useState<number | null>(null)
+
+  // 预览对话框状态
+  const [showPreview, setShowPreview] = useState(false)
+  const [previewCoupons, setPreviewCoupons] = useState<ExtractedCouponInfo[]>([])
+
 
   const handleFilesSelect = (files: FileList | null) => {
     setError(null)
@@ -254,7 +260,9 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
       }
 
       if (extractedInfos.length > 0) {
-        onBatchExtracted(extractedInfos)
+        // 显示预览对话框，而不是直接添加
+        setPreviewCoupons(extractedInfos)
+        setShowPreview(true)
       } else {
         setError('未能提取到任何优惠券信息')
       }
@@ -311,7 +319,9 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
       }
 
       if (extractedInfos.length > 0) {
-        onBatchExtracted(extractedInfos)
+        // 显示预览对话框，而不是直接添加
+        setPreviewCoupons(extractedInfos)
+        setShowPreview(true)
       } else {
         setError('未能提取到任何优惠券信息')
       }
@@ -358,6 +368,32 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
+  }
+
+  // 处理预览确认
+  const handlePreviewConfirm = (coupons: PreviewCoupon[]) => {
+    // 转换为 ExtractedCouponInfo 格式
+    const extractedInfos: ExtractedCouponInfo[] = coupons.map(coupon => {
+      const { id, ...rest } = coupon
+      return rest
+    })
+    
+    onBatchExtracted(extractedInfos)
+    setShowPreview(false)
+    setPreviewCoupons([])
+    
+    // 清空输入
+    if (mode === 'text') {
+      setPastedText('')
+    } else {
+      setImages([])
+    }
+  }
+
+  // 处理预览取消
+  const handlePreviewCancel = () => {
+    setShowPreview(false)
+    setPreviewCoupons([])
   }
 
   return (
@@ -666,6 +702,14 @@ export default function BatchOcrRecognizer({ onBatchExtracted, onCancel }: Batch
           )}
         </DialogContent>
       </Dialog>
+
+      {/* 优惠券预览对话框 */}
+      <CouponPreviewDialog
+        isOpen={showPreview}
+        coupons={previewCoupons}
+        onConfirm={handlePreviewConfirm}
+        onCancel={handlePreviewCancel}
+      />
     </Card>
   )
 }

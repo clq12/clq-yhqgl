@@ -151,7 +151,7 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
   }
 
   // 检查"下个月5号过期"、"下月1号"等格式
-  const nextMonthPattern = /下?(?:个)?月\s*(\d{1,2})\s*(?:号|日)?\s*(?:过期|到期|失效|作废|$)/
+  const nextMonthPattern = /下(?:个)?月\s*(\d{1,2})\s*(?:号|日)?\s*(?:过期|到期|失效|作废|$)/
   const nextMonthMatch = text.match(nextMonthPattern)
   if (nextMonthMatch && !matchedDate) {
     const day = parseInt(nextMonthMatch[1])
@@ -159,6 +159,23 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
     if (!isNaN(nextMonthDate.getTime())) {
       matchedDate = nextMonthDate
       result.endDate = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    }
+  }
+
+  // 检查"X月X号到期"、"X月X日到期"等格式（例如：1月30号到期、2月5日到期）
+  const monthDayPattern = /(\d{1,2})月\s*(\d{1,2})\s*(?:号|日)\s*(?:过期|到期|失效|作造|$)/
+  const monthDayMatch = text.match(monthDayPattern)
+  if (monthDayMatch && !matchedDate) {
+    const month = parseInt(monthDayMatch[1])
+    const day = parseInt(monthDayMatch[2])
+
+    // 使用当前年份（不自动调整为下年，因为用户可能输入历史数据）
+    const year = currentYear
+
+    const date = new Date(year, month - 1, day)
+    if (!isNaN(date.getTime())) {
+      matchedDate = date
+      result.endDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
     }
   }
 
@@ -415,6 +432,8 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
     for (const pattern of datePatterns) {
       const match = text.match(pattern)
       if (match) {
+        console.log('Date pattern matched:', pattern)
+        console.log('Match result:', match)
         let year, month, day
 
         if (match.length >= 7) {
@@ -438,11 +457,13 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
         const date = new Date(year, month - 1, day)
         if (!isNaN(date.getTime())) {
           // 如果短日期且已过期，可能是明年的日期
-          if (match.length === 3 && date < new Date()) {
+          // 但对于明确带有"过期/到期/失效/作废"关键字的格式，不自动调整
+          const hasExpiryKeyword = /(?:过期|到期|失效|作废)/.test(text.substring(match.index || 0))
+          if (match.length === 3 && date < new Date() && !hasExpiryKeyword) {
             date.setFullYear(currentYear + 1)
           }
           matchedDate = date
-          
+
           // 检查是否包含"之前使用"关键词（不包含当日，日期减1天）
           if (text.includes('之前使用')) {
             date.setDate(date.getDate() - 1)
@@ -564,7 +585,7 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
       if (line.includes('优惠券') || line.includes('券') || line.includes('优惠')) {
         // 排除说明、数量等信息行（但不排除"有效期至"等正常行）
         if (!line.match(/说明|余|张|送TA|红包|无效券|立即使用|充值|建设银行|工商银行|农业银行|中国银行|招商银行|交通银行|储蓄卡/)) {
-          // 提取第一个空格前的词作为标题，再去掉"优惠券"后缀
+          // 提取第一个空格前的词作为标题
           const firstSpaceIndex = line.indexOf(' ')
           let title = ''
           if (firstSpaceIndex > 0) {
@@ -572,8 +593,7 @@ function extractCouponInfo(text: string): ExtractedCouponInfo {
           } else {
             title = line.trim()
           }
-          // 去掉"优惠券"、"券"、"优惠"后缀
-          title = title.replace(/优惠券|券$/, '').trim()
+          // 保留完整标题，包含"优惠券"、"券"等后缀
           if (title) {
             result.title = title
             break

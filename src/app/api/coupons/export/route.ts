@@ -61,8 +61,8 @@ export async function POST(request: NextRequest) {
       // 未使用且未过期
       coupons = coupons.filter((c: any) => !c.isUsed && !isExpired(c))
     } else if (filter === 'expired') {
-      // 已过期（不管是否使用）
-      coupons = coupons.filter((c: any) => isExpired(c))
+      // 已过期且未使用（已使用的已过期不统计在"已过期"中）
+      coupons = coupons.filter((c: any) => isExpired(c) && !c.isUsed)
     }
 
     // 生成导出数据

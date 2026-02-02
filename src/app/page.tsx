@@ -1000,7 +1000,7 @@ export default function Home() {
                         <SelectItem value="all">全部优惠券 ({coupons.length})</SelectItem>
                         <SelectItem value="unused">未使用 ({coupons.filter((c: any) => !(c as any).isUsed && !isExpired(c)).length})</SelectItem>
                         <SelectItem value="used">已使用 ({coupons.filter((c: any) => (c as any).isUsed).length})</SelectItem>
-                        <SelectItem value="expired">已过期 ({coupons.filter((c: any) => isExpired(c)).length})</SelectItem>
+                        <SelectItem value="expired">已过期未使用 ({coupons.filter((c: any) => isExpired(c) && !(c as any).isUsed).length})</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

@@ -83,11 +83,15 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
             throw new Error(errorData.error || "识别失败")
           }
 
-          const data = await response.json()
-          extractedInfos.push({
-            ...data,
-            originalText: couponText,
-          })
+          const result = await response.json()
+          if (result.success && result.data) {
+            extractedInfos.push({
+              ...result.data,
+              originalText: couponText,
+            })
+          } else {
+            throw new Error(result.error || "识别失败")
+          }
         } catch (err) {
           console.error(`识别第${i + 1}个优惠券失败:`, err)
           // 单个优惠券识别失败时，如果是规则匹配，则跳过
@@ -106,11 +110,13 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
               })
 
               if (response.ok) {
-                const data = await response.json()
-                extractedInfos.push({
-                  ...data,
-                  originalText: couponText,
-                })
+                const result = await response.json()
+                if (result.success && result.data) {
+                  extractedInfos.push({
+                    ...result.data,
+                    originalText: couponText,
+                  })
+                }
               }
             } catch (fallbackErr) {
               console.error(`规则匹配也失败:`, fallbackErr)
@@ -139,6 +145,8 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
         description: info.description || '',
         notes: info.notes || '',
         originalText: info.originalText,
+        aiModel: info.aiModel,
+        rawResponse: info.rawResponse,
       }))
 
       setPreviewCoupons(previewData)

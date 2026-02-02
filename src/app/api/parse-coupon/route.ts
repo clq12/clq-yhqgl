@@ -774,11 +774,58 @@ async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<
   const messages = [
     {
       role: 'system',
-      content: '你是一个优惠券信息抽取引擎，只负责从文本中提取结构化数据，禁止解释、禁止补全、禁止对话。'
+      content: `你是一个专业的优惠券信息提取助手。请从给定的文本中提取优惠券的关键信息，并以JSON格式返回。
+
+【字段说明】
+1. title: 优惠券标题（优先提取店铺/商品名+优惠券类型，如"华香脆骨串优惠券"、"建设银行立减金"、"华莱士串"）
+2. discountAmount: 折扣金额或折扣数值（如减5元则为5，8折则为8）
+3. discountType: 折扣类型（amount=减免金额, percentage=折扣, full=满减）
+4. fullAmount: 满减金额（仅当discountType为full时需要）
+5. endDate: 截止日期，格式为YYYY-MM-DD（如2026-01-31）
+6. endHour: 截止小时，0-23之间的整数，默认为23
+7. endMinute: 截止分钟，0-59之间的整数，默认为59
+8. storeName: 店铺或平台名称（从开头提取，如"华香脆骨串"、"淘宝"、"建设银行"、"蜜雪冰城"、"华莱士"）
+9. description: 描述信息（如"饮品"、"脆骨串"、"串"等）
+
+【提取规则】
+- 日期格式必须为YYYY-MM-DD
+- 时间格式：默认23:59，支持"23:59"、"23点"、"23点30分"、"下午3点15分=15:15"、"上午12点=0点"
+- 支持的日期格式：
+  * 标准格式：2026-01-31、2026年1月31日、1月31日
+  * 月份.日期格式：1.30过期、2.5到期、3.15失效、4.20作废
+  * 相对日期格式：这个月30过期、3天后到期、29天后失效、7天后作废
+  * 有效期格式：有效期至2026-01-31、有效期2026-01-31
+  * 今天明天格式：今天到期、明天失效
+  * 本周下周格式：本周日作废、下周一下午3点失效
+  * 月底格式：本月底过期、下月底作废
+  * 季度格式：下个季度初失效
+  * 之前使用格式：2026-03-15之前使用（不包含当日，减1天）
+- 支持的关键词：过期、到期、失效、作废、有效期至、之前使用
+- 如果文本中没有明确截止时间，endHour默认设为23，endMinute默认设为59
+- 折扣类型判断：
+  * 如果包含"满X可用"、"满X减X"、"满X-Y"，则为full
+  * 如果包含"X折"但不包含"满"，则为percentage
+  * 如果包含"减X元"、"减免X元"，则为amount
+  * 如果只提到"优惠券"但没有折扣信息，设为null
+- 只返回JSON格式，不要包含任何其他文字
+- 如果无法提取某个字段，则不包含该字段或设为null
+
+【返回JSON格式示例】
+{
+  "title": "华香脆骨串优惠券",
+  "discountAmount": 5,
+  "discountType": "full",
+  "fullAmount": 2000,
+  "endDate": "2026-01-31",
+  "endHour": 23,
+  "endMinute": 59,
+  "storeName": "华香脆骨串",
+  "description": "脆骨串"
+}`
     },
     {
       role: 'user',
-      content: `【字段说明】\n- title: 优惠券名称\n- type: 满减 | 折扣 | 直减 | 其他\n- threshold: number | null\n- amountOff: number | null\n- discountRate: number | null\n- validFrom: string | null\n- validTo: string | null\n- platform: string | null\n- notes: string | null\n\n【规则】\n- 文本中没有的信息必须返回 null\n- 不允许猜测或补全\n- 必须严格输出 JSON 对象\n- 不要包含多余字段\n\n【优惠券文本】\n${text}`
+      content: `请提取以下优惠券信息：\n\n${text}`
     }
   ]
 
@@ -824,42 +871,28 @@ async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<
 
     const parsedData = JSON.parse(jsonStr)
 
-    // 转换为统一格式
+    // 验证和转换数据
     const result: ExtractedCouponInfo = {}
 
     if (parsedData.title) result.title = parsedData.title
-    if (parsedData.platform) result.storeName = parsedData.platform
-    if (parsedData.notes) result.description = parsedData.notes
-    
-    // 折扣类型映射
-    if (parsedData.type === '满减') {
-      result.discountType = 'full'
-      result.fullAmount = parsedData.threshold
-      result.discountAmount = parsedData.amountOff
-    } else if (parsedData.type === '折扣') {
-      result.discountType = 'percentage'
-      result.discountAmount = parsedData.discountRate
-    } else if (parsedData.type === '直减') {
-      result.discountType = 'amount'
-      result.discountAmount = parsedData.amountOff
+    if (parsedData.storeName) result.storeName = parsedData.storeName
+    if (parsedData.description) result.description = parsedData.description
+    if (parsedData.discountAmount) result.discountAmount = Number(parsedData.discountAmount)
+    if (parsedData.fullAmount) result.fullAmount = Number(parsedData.fullAmount)
+    if (parsedData.endDate) result.endDate = parsedData.endDate
+    if (parsedData.endHour) result.endHour = Number(parsedData.endHour)
+    if (parsedData.endMinute) result.endMinute = Number(parsedData.endMinute)
+
+    // 验证折扣类型
+    if (parsedData.discountType && ['amount', 'percentage', 'full'].includes(parsedData.discountType)) {
+      result.discountType = parsedData.discountType
     }
 
-    // 日期转换
-    if (parsedData.validTo) {
-      // 尝试解析日期
-      const dateMatch = parsedData.validTo.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
-      if (dateMatch) {
-        result.endDate = `${dateMatch[1]}-${String(dateMatch[2]).padStart(2, '0')}-${String(dateMatch[3]).padStart(2, '0')}`
-      }
-    }
-
-    // 默认时间
-    if (!result.endDate) {
-      // 如果没有提取到日期，回退到规则匹配
+    // 如果AI没有提取到完整信息，回退到规则匹配
+    if (!result.title || !result.discountAmount || !result.discountType) {
+      console.log('GLM提取不完整，回退到规则匹配')
       return extractCouponInfo(text)
     }
-    result.endHour = 23
-    result.endMinute = 59
 
     return result
 

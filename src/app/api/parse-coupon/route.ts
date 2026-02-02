@@ -882,34 +882,54 @@ async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<
         model: 'glm-4.7-flash',
         messages,
         temperature: 0,
-        max_tokens: 512
+        max_tokens: 1024
       })
     })
 
     const data = await response.json()
 
     if (!response.ok) {
-      console.error('GLM API Error:', data)
+      console.error('GLM API Error:', JSON.stringify(data, null, 2))
       return extractCouponInfo(text)
     }
 
-    const content = data.choices[0]?.message?.content
+    console.log('GLM API 响应:', JSON.stringify(data, null, 2))
+
+    // GLM-4.7-Flash 可能会返回 reasoning_content 而不是 content
+    const content = data.choices[0]?.message?.content || data.choices[0]?.message?.reasoning_content
     if (!content) {
-      console.error('GLM API 返回内容为空')
+      console.error('GLM API 返回内容为空, 响应数据:', JSON.stringify(data, null, 2))
       return extractCouponInfo(text)
     }
 
     // 提取JSON内容
+    // GLM-4.7-Flash 可能返回大量推理过程，需要提取最后的JSON代码块
     let jsonStr = content.trim()
-    if (jsonStr.startsWith('```json')) {
-      jsonStr = jsonStr.slice(7)
-    } else if (jsonStr.startsWith('```')) {
-      jsonStr = jsonStr.slice(3)
+
+    // 尝试提取最后一个 ```json``` 代码块
+    const jsonMatches = jsonStr.match(/```json\s*([\s\S]*?)\s*```/g)
+    if (jsonMatches && jsonMatches.length > 0) {
+      // 使用最后一个匹配的代码块
+      const lastMatch = jsonMatches[jsonMatches.length - 1]
+      jsonStr = lastMatch.replace(/```json\s*/, '').replace(/```$/, '').trim()
+    } else {
+      // 如果没有找到json代码块，尝试提取普通的代码块
+      const codeMatches = jsonStr.match(/```\s*([\s\S]*?)\s*```/g)
+      if (codeMatches && codeMatches.length > 0) {
+        const lastMatch = codeMatches[codeMatches.length - 1]
+        jsonStr = lastMatch.replace(/```\s*/, '').replace(/```$/, '').trim()
+      } else if (jsonStr.startsWith('```json')) {
+        jsonStr = jsonStr.slice(7)
+      } else if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.slice(3)
+      }
+      if (jsonStr.endsWith('```')) {
+        jsonStr = jsonStr.slice(0, -3)
+      }
+      jsonStr = jsonStr.trim()
     }
-    if (jsonStr.endsWith('```')) {
-      jsonStr = jsonStr.slice(0, -3)
-    }
-    jsonStr = jsonStr.trim()
+
+    console.log('提取的JSON字符串:', jsonStr.substring(0, 200))
 
     const parsedData = JSON.parse(jsonStr)
 

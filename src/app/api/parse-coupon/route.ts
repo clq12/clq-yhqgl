@@ -676,99 +676,87 @@ async function extractCouponInfoWithDoubao(text: string): Promise<ExtractedCoupo
   const config = new Config()
   const client = new LLMClient(config)
 
-  const systemPrompt = `你是一个专业的优惠券信息提取助手。请从给定的文本中提取优惠券的关键信息，并以JSON格式返回。
+  const systemPrompt = `你是一个优惠券信息抽取程序。
+你不进行对话，不解释，不推理，只输出结构化 JSON。
 
-支持的输入格式示例：
-1. "华香脆骨串优惠券 有效期至2026-01-31 23:59"
-2. "淘宝优惠券满100减20元有效期至2024-12-31 23点30分"
-3. "建设银行立减金，满2000减5元，有效期至2024-12-31 23时59分，饮品通用"
-4. "蜜雪冰城饮品优惠券 8折 有效期至2026-01-30"
-5. "华莱士串 1.30过期" （1月30日过期）
-6. "华莱士串 这个月30过期" （本月30日过期）
-7. "华莱士串 3天后过期" （3天后过期）
-8. "华莱士串 29天后到期" （29天后到期）
-9. "华莱士串 下个月5号过期" （下个月5号过期）
-10. "蜜雪冰城 本月15号失效" （本月15号失效）
-11. "茶百道 7天后作废" （7天后作废）
-12. "古茗 今天到期" （今天到期）
-13. "蜜雪冰城 明天失效" （明天失效）
-14. "茶百道 本周日作废" （本周日作废）
-15. "蜜雪冰城 下周一下午3点15分失效" （下周一下午失效，15点15分）
-16. "茶百道 本月底过期" （本月最后一天）
-17. "蜜雪冰城 下月底作废" （下月最后一天）
-18. "茶百道 下个季度初失效" （下个季度第一天）
-19. "蜜雪冰城优惠券 2026-03-15之前使用" （2026-03-14，不包含当日）
+任务：
+从输入文本中提取优惠券信息。
+如果有多行文本，每一行视为一张独立优惠券，严禁合并。
 
-提取规则：
-1. title: 优惠券标题（优先提取店铺/商品名+优惠券类型，如"华香脆骨串优惠券"、"建设银行立减金"、"华莱士串"）
-2. discountAmount: 折扣金额或折扣数值（如减5元则为5，8折则为8）
-3. discountType: 折扣类型（amount=减免金额, percentage=折扣, full=满减）
-4. fullAmount: 满减金额（仅当discountType为full时需要）
-5. endDate: 截止日期，格式为YYYY-MM-DD（如2026-01-31）
-6. endHour: 截止小时，0-23之间的整数，默认为23
-7. endMinute: 截止分钟，0-59之间的整数，默认为59
-8. storeName: 店铺或平台名称（从开头提取，如"华香脆骨串"、"淘宝"、"建设银行"、"蜜雪冰城"、"华莱士"）
-9. description: 描述信息（如"饮品"、"脆骨串"、"串"等）
+【输出总规则】
+- 只允许输出 JSON
+- 输出必须是一个数组
+- JSON 之外不得输出任何字符
+- 文本中没有明确出现的信息必须为 null
+- 严禁猜测、补全或自动生成内容
 
-注意事项：
-- 日期格式必须为YYYY-MM-DD
-- 时间格式：
-  * 默认时间：23:59（23点59分）
-  * 完整格式：23:59、23点59分、23时59分
-  * 简短格式：23点、23时
-  * AM/PM格式：下午3点15分=15:15、上午10点30分=10:30、下午3点=15:00
-  * 如果只提到"下午3点"，分钟默认为0
-  * 如果只提到"23点"，分钟默认为0
-- 支持的日期格式：
-  * 标准格式：2026-01-31、2026年1月31日、1月31日
-  * 带时间的日期：23:59、23点、23时
-  * 月份.日期格式：1.30过期、2.5到期、3.15失效、4.20作废
-  * 相对日期格式：这个月30过期、3天后到期、29天后失效、7天后作废
-  * 有效期格式：有效期至2026-01-31、有效期2026-01-31
-  * 今天明天格式：今天到期、明天失效（支持"下午/上午/晚上"）
-  * 本周下周格式：本周日作废、下周一下午3点失效
-  * 月底格式：本月底过期、下月底作废
-  * 季度格式：下个季度初失效
-  * 之前使用格式：2026-03-15之前使用（不包含当日，日期减1天）
-- 支持的关键词：过期、到期、失效、作废、有效期至、之前使用
-- 相对日期处理规则：
-  * "这个月30过期" = 当前年份+当前月份+30日
-  * "3天后过期" = 当前日期+3天
-  * "3天后到期" = 当前日期+3天
-  * "29天后失效" = 当前日期+29天
-  * "3天后作废" = 当前日期+3天
-  * "下个月5号过期" = 当前年份+下个月+5日
-  * "今天到期" = 当前日期
-  * "明天失效" = 当前日期+1天
-  * "本周日作废" = 本周日（如果已过，则为下周日）
-  * "下周一下午3点失效" = 下周一+15点
-  * "本月底过期" = 本月最后一天
-  * "下月底作废" = 下月最后一天
-  * "下个季度初失效" = 下个季度第一天（如Q1开始=1月1日）
-  * "2026-03-15之前使用" = 2026-03-14（不包含当日，减1天）
-  * "有效期至2026-01-31" = 2026-01-31
-- 支持的关键词：过期、到期、失效、作废、有效期至
-- 如果文本中没有明确截止时间，endHour默认设为23，endMinute默认设为59
-- 折扣类型判断：
-  * 如果包含"满X可用"、"满X减X"、"满X-Y"，则为full
-  * 如果包含"X折"但不包含"满"，则为percentage
-  * 如果包含"减X元"、"减免X元"，则为amount
-  * 如果只提到"优惠券"但没有折扣信息，设为null
-- 只返回JSON格式，不要包含任何其他文字
-- 如果无法提取某个字段，则不包含该字段或设为null
+【拆分规则】
+- 每一行 = 一张优惠券
+- 不同平台 / 商家必须拆分为不同对象
 
-返回JSON格式示例：
+【字段结构（每个对象必须完整包含）】
 {
-  "title": "华香脆骨串优惠券",
-  "discountAmount": 5,
-  "discountType": "full",
-  "fullAmount": 2000,
-  "endDate": "2026-01-31",
-  "endHour": 23,
-  "endMinute": 59,
-  "storeName": "华香脆骨串",
-  "description": "脆骨串"
-}`
+  "title": string | null,
+  "description": string | null,
+  "discountType": "amount" | "full" | "discount" | null,
+  "discountAmount": number | null,
+  "fullAmount": number | null,
+  "startDate": string | null,
+  "endDate": string | null,
+  "endHour": number | null,
+  "notes": string | null,
+  "storeName": string | null,
+  "isUsed": false
+}
+
+【title 规则（豆包重要）】
+- 仅当文本中不包含任何时间相关词时，才允许填写 title
+- 时间相关词包括：
+  有效期、到期、截止、今天、明天、后天、日期、点、号
+- title 只能来自原文，不允许改写或组合
+- 出现时间相关词 → title 必须为 null
+
+【字段填充规则】
+
+- description：
+  - 原样填写整行文本
+
+- discountType：
+  - "满X减Y" → "full"
+  - "无门槛 / 立减 / 直减 / 减Y元" → "amount"
+  - "X折 / 折扣" → "discount"
+  - 无法判断 → null
+
+- discountAmount：
+  - 满减 / 直减中的"减免金额"
+  - 折扣券 → null
+
+- fullAmount：
+  - 满减中的"满X金额"
+  - 非满减 → null
+
+- startDate：
+  - 文本中明确出现才填写
+  - 否则 null
+
+- endDate：
+  - 到期或有效期描述
+  - 相对时间（如 明天 / 后天12点）原样输出
+
+- endHour：
+  - 仅当文本中明确出现小时信息时填写
+  - 否则 null
+
+- storeName：
+  - 平台或商家名称（淘宝、京东、拼多多、PDD、美团、瑞幸等）
+  - 未明确 → null
+
+- notes：
+  - 补充说明
+  - 无 → null
+
+- isUsed：
+  - 固定为 false`
 
   const messages = [
     { role: 'system' as const, content: systemPrompt },
@@ -833,6 +821,169 @@ async function extractCouponInfoWithDoubao(text: string): Promise<ExtractedCoupo
       aiModel: 'rule',
       rawResponse: error instanceof Error ? error.message : '未知错误'
     }
+  }
+}
+
+/**
+ * 使用豆包AI批量提取优惠券信息（智能拆分）
+ */
+async function extractCouponsWithDoubaoBatch(text: string): Promise<ExtractedCouponInfo[]> {
+  const config = new Config()
+  const client = new LLMClient(config)
+
+  const systemPrompt = `你是一个优惠券信息抽取程序。
+你不进行对话，不解释，不推理，只输出结构化 JSON。
+
+任务：
+从输入文本中提取优惠券信息。
+如果有多行文本，每一行视为一张独立优惠券，严禁合并。
+
+【输出总规则】
+- 只允许输出 JSON
+- 输出必须是一个数组
+- JSON 之外不得输出任何字符
+- 文本中没有明确出现的信息必须为 null
+- 严禁猜测、补全或自动生成内容
+
+【拆分规则】
+- 每一行 = 一张优惠券
+- 不同平台 / 商家必须拆分为不同对象
+
+【字段结构（每个对象必须完整包含）】
+{
+  "title": string | null,
+  "description": string | null,
+  "discountType": "amount" | "full" | "discount" | null,
+  "discountAmount": number | null,
+  "fullAmount": number | null,
+  "startDate": string | null,
+  "endDate": string | null,
+  "endHour": number | null,
+  "notes": string | null,
+  "storeName": string | null,
+  "isUsed": false
+}
+
+【title 规则（豆包重要）】
+- 仅当文本中不包含任何时间相关词时，才允许填写 title
+- 时间相关词包括：
+  有效期、到期、截止、今天、明天、后天、日期、点、号
+- title 只能来自原文，不允许改写或组合
+- 出现时间相关词 → title 必须为 null
+
+【字段填充规则】
+
+- description：
+  - 原样填写整行文本
+
+- discountType：
+  - "满X减Y" → "full"
+  - "无门槛 / 立减 / 直减 / 减Y元" → "amount"
+  - "X折 / 折扣" → "discount"
+  - 无法判断 → null
+
+- discountAmount：
+  - 满减 / 直减中的"减免金额"
+  - 折扣券 → null
+
+- fullAmount：
+  - 满减中的"满X金额"
+  - 非满减 → null
+
+- startDate：
+  - 文本中明确出现才填写
+  - 否则 null
+
+- endDate：
+  - 到期或有效期描述
+  - 相对时间（如 明天 / 后天12点）原样输出
+
+- endHour：
+  - 仅当文本中明确出现小时信息时填写
+  - 否则 null
+
+- storeName：
+  - 平台或商家名称（淘宝、京东、拼多多、PDD、美团、瑞幸等）
+  - 未明确 → null
+
+- notes：
+  - 补充说明
+  - 无 → null
+
+- isUsed：
+  - 固定为 false`
+
+  const messages = [
+    { role: 'system' as const, content: systemPrompt },
+    { role: 'user' as const, content: text },
+  ]
+
+  try {
+    const response = await client.invoke(messages, {
+      model: 'doubao-seed-1-8-251228',
+      temperature: 0, // 零温度确保输出稳定
+    })
+
+    // 提取JSON数组
+    let jsonStr = response.content.trim()
+
+    // 策略1：提取最后一个JSON数组
+    const jsonArrayMatch = response.content.match(/\[[\s\S]*\]/)
+    if (jsonArrayMatch) {
+      jsonStr = jsonArrayMatch[0]
+    }
+
+    const parsedData = JSON.parse(jsonStr)
+
+    // 验证是否为数组
+    if (!Array.isArray(parsedData)) {
+      console.log('豆包返回的不是数组，回退到按行识别')
+      return text.split('\n').map(line => extractCouponInfo(line.trim()))
+    }
+
+    // 转换为系统内部格式
+    const results: ExtractedCouponInfo[] = []
+    for (const item of parsedData) {
+      const result: ExtractedCouponInfo = {
+        aiModel: 'doubao',
+        rawResponse: JSON.stringify(item),
+      }
+
+      // 直接映射字段
+      if (item.title) result.title = item.title
+      if (item.description) result.description = item.description
+      if (item.notes) result.notes = item.notes
+      if (item.storeName) result.storeName = item.storeName
+      if (item.startDate) result.startDate = item.startDate
+      if (item.endDate) result.endDate = item.endDate
+
+      // 映射折扣类型
+      if (item.discountType) {
+        if (item.discountType === 'discount') {
+          result.discountType = 'percentage'
+        } else if (['amount', 'full'].includes(item.discountType)) {
+          result.discountType = item.discountType as 'amount' | 'full'
+        }
+      }
+
+      if (item.discountAmount !== undefined && item.discountAmount !== null) {
+        result.discountAmount = Number(item.discountAmount)
+      }
+      if (item.fullAmount !== undefined && item.fullAmount !== null) {
+        result.fullAmount = Number(item.fullAmount)
+      }
+      if (item.endHour !== undefined && item.endHour !== null) {
+        result.endHour = Number(item.endHour)
+      }
+
+      results.push(result)
+    }
+
+    return results
+
+  } catch (error) {
+    console.error('豆包批量抽取失败，回退到按行识别:', error)
+    return text.split('\n').map(line => extractCouponInfo(line.trim()))
   }
 }
 
@@ -1507,23 +1658,31 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 智能批量抽取模式（仅支持GLM）
-    if (smartBatch && aiModel === 'glm') {
+    // 智能批量抽取模式
+    if (smartBatch) {
       try {
-        // 如果使用GLM模型，先尝试从多个来源获取API Key
-        let finalGlmApiKey = requestGlmApiKey
-        if (!finalGlmApiKey) {
-          const { getWebDAVConfigFromRequest } = await import('@/lib/config')
-          const webdavConfig = getWebDAVConfigFromRequest(request)
-          if (webdavConfig?.glmApiKey) {
-            finalGlmApiKey = webdavConfig.glmApiKey
-          }
-          if (!finalGlmApiKey && process.env.GLM_API_KEY) {
-            finalGlmApiKey = process.env.GLM_API_KEY
-          }
-        }
+        let results: ExtractedCouponInfo[]
 
-        const results = await extractCouponsWithGLMBatch(text, finalGlmApiKey)
+        if (aiModel === 'glm') {
+          // GLM批量抽取
+          // 尝试从多个来源获取API Key
+          let finalGlmApiKey = requestGlmApiKey
+          if (!finalGlmApiKey) {
+            const { getWebDAVConfigFromRequest } = await import('@/lib/config')
+            const webdavConfig = getWebDAVConfigFromRequest(request)
+            if (webdavConfig?.glmApiKey) {
+              finalGlmApiKey = webdavConfig.glmApiKey
+            }
+            if (!finalGlmApiKey && process.env.GLM_API_KEY) {
+              finalGlmApiKey = process.env.GLM_API_KEY
+            }
+          }
+
+          results = await extractCouponsWithGLMBatch(text, finalGlmApiKey)
+        } else {
+          // 豆包批量抽取（默认）
+          results = await extractCouponsWithDoubaoBatch(text)
+        }
 
         return NextResponse.json({
           success: true,

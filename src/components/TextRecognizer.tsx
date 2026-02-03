@@ -40,7 +40,7 @@ interface TextRecognizerProps {
 
 export default function TextRecognizer({ onExtracted, onCancel, batchMode = false }: TextRecognizerProps) {
   const [inputText, setInputText] = useState("")
-  const [aiModel, setAiModel] = useState<'glm' | 'doubao' | 'rule'>('glm')
+  const [aiModel, setAiModel] = useState<'glm' | 'doubao' | 'rule'>('doubao') // 默认使用豆包
   const [smartBatch, setSmartBatch] = useState(false) // 智能批量模式
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -59,8 +59,8 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
     try {
       let extractedInfos: ExtractedCouponInfo[] = []
 
-      // 智能批量抽取模式（仅支持GLM）
-      if (smartBatch && aiModel === 'glm') {
+      // 智能批量抽取模式
+      if (smartBatch) {
         try {
           const response = await fetch("/api/parse-coupon", {
             method: "POST",
@@ -70,7 +70,7 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
             body: JSON.stringify({
               text: inputText,
               useAI: true,
-              aiModel: 'glm',
+              aiModel: aiModel, // 支持豆包和GLM
               smartBatch: true, // 启用智能批量抽取
               useFallback: false,
             }),

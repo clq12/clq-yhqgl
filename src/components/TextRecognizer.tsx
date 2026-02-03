@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { Loader2, ScanText, Check, AlertCircle, FileJson } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -217,113 +216,109 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ScanText className="h-5 w-5" />
-            文本智能识别
-          </CardTitle>
-          <CardDescription>
-            输入优惠券文本，AI会自动提取标题、折扣、到期时间等信息
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">识别文本</label>
-            <Textarea
-              placeholder="请输入优惠券文本，支持多行输入&#10;例如：&#10;满100减20，7天后23点到期&#10;8.5折券，本月31日失效&#10;立减10元，下周三过期"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              className="min-h-[120px]"
-            />
-          </div>
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <ScanText className="h-5 w-5" />
+          <h2 className="text-lg font-semibold">文本智能识别</h2>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          输入优惠券文本，AI会自动提取标题、折扣、到期时间等信息
+        </p>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">识别文本</label>
+          <Textarea
+            placeholder="请输入优惠券文本，支持多行输入&#10;例如：&#10;满100减20，7天后23点到期&#10;8.5折券，本月31日失效&#10;立减10元，下周三过期"
+            value={inputText}
+            onChange={(e) => setInputText(e.target.value)}
+            className="min-h-[120px]"
+          />
+        </div>
 
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-          <div className="flex gap-2">
+        <div className="flex gap-2">
+          <Button
+            onClick={handleRecognize}
+            disabled={isProcessing || !inputText.trim()}
+            className="flex-1"
+          >
+            {isProcessing ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                识别中...
+              </>
+            ) : (
+              <>
+                <ScanText className="mr-2 h-4 w-4" />
+                开始识别
+              </>
+            )}
+          </Button>
+          {onCancel && (
             <Button
-              onClick={handleRecognize}
-              disabled={isProcessing || !inputText.trim()}
-              className="flex-1"
+              variant="outline"
+              onClick={onCancel}
+              disabled={isProcessing}
             >
-              {isProcessing ? (
+              取消
+            </Button>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium">识别方式</label>
+          <Select value={aiModel} onValueChange={(value: 'glm' | 'doubao' | 'rule') => setAiModel(value)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="glm">GLM-4.7-Flash（推荐）</SelectItem>
+              <SelectItem value="doubao">豆包AI</SelectItem>
+              <SelectItem value="rule">规则匹配</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* 智能批量抽取开关（仅GLM可用） */}
+        {aiModel === 'glm' && (
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium">智能批量抽取</label>
+            <Button
+              variant={smartBatch ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSmartBatch(!smartBatch)}
+            >
+              {smartBatch ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  识别中...
+                  <Check className="mr-2 h-4 w-4" />
+                  已启用
                 </>
               ) : (
                 <>
-                  <ScanText className="mr-2 h-4 w-4" />
-                  开始识别
+                  <FileJson className="mr-2 h-4 w-4" />
+                  点击启用
                 </>
               )}
             </Button>
-            {onCancel && (
-              <Button
-                variant="outline"
-                onClick={onCancel}
-                disabled={isProcessing}
-              >
-                取消
-              </Button>
-            )}
           </div>
+        )}
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">识别方式</label>
-            <Select value={aiModel} onValueChange={(value: 'glm' | 'doubao' | 'rule') => setAiModel(value)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="glm">GLM-4.7-Flash（推荐）</SelectItem>
-                <SelectItem value="doubao">豆包AI</SelectItem>
-                <SelectItem value="rule">规则匹配</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* 智能批量抽取开关（仅GLM可用） */}
-          {aiModel === 'glm' && (
-            <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">智能批量抽取</label>
-              <Button
-                variant={smartBatch ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSmartBatch(!smartBatch)}
-              >
-                {smartBatch ? (
-                  <>
-                    <Check className="mr-2 h-4 w-4" />
-                    已启用
-                  </>
-                ) : (
-                  <>
-                    <FileJson className="mr-2 h-4 w-4" />
-                    点击启用
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
-
-          <div className="rounded-lg bg-muted p-3 text-sm">
-            <p className="font-medium mb-1">识别说明：</p>
-            <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-              <li>GLM-4.7-Flash：智谱AI模型，识别准确度高</li>
-              <li>豆包AI：字节跳动AI模型，响应速度快</li>
-              <li>规则匹配：不依赖AI，基于固定规则提取</li>
-              <li>智能批量：GLM自动拆分多个优惠券，智能识别</li>
-              <li>识别后显示预览，可手动调整后添加</li>
-            </ul>
-          </div>
-        </CardContent>
-      </Card>
+        <div className="rounded-lg bg-muted p-3 text-sm">
+          <p className="font-medium mb-1">识别说明：</p>
+          <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+            <li>GLM-4.7-Flash：智谱AI模型，识别准确度高</li>
+            <li>豆包AI：字节跳动AI模型，响应速度快</li>
+            <li>规则匹配：不依赖AI，基于固定规则提取</li>
+            <li>智能批量：GLM自动拆分多个优惠券，智能识别</li>
+            <li>识别后显示预览，可手动调整后添加</li>
+          </ul>
+        </div>
+      </div>
 
       {showPreviewDialog && (
         <CouponPreviewDialog

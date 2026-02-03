@@ -957,12 +957,6 @@ export default function Home() {
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>智能文本识别</DialogTitle>
-                  <DialogDescription>
-                    粘贴优惠券的文本信息，自动识别并批量添加
-                  </DialogDescription>
-                </DialogHeader>
                 <TextRecognizer
                   onExtracted={handleBatchOcrExtracted}
                   onCancel={() => setIsBatchOcrDialogOpen(false)}

@@ -337,13 +337,28 @@ export default function CouponPreviewDialog({
                           variant="ghost"
                           size="sm"
                           className="h-5 px-2 text-xs"
-                          onClick={() => navigator.clipboard.writeText(currentCoupon.rawResponse || '')}
+                          onClick={() => {
+                            // 尝试格式化JSON后复制
+                            try {
+                              const parsed = JSON.parse(currentCoupon.rawResponse || '')
+                              navigator.clipboard.writeText(JSON.stringify(parsed, null, 2))
+                            } catch {
+                              navigator.clipboard.writeText(currentCoupon.rawResponse || '')
+                            }
+                          }}
                         >
                           复制
                         </Button>
                       </div>
-                      <div className="text-xs bg-background p-2 rounded max-h-32 overflow-y-auto font-mono whitespace-pre-wrap">
-                        {currentCoupon.rawResponse}
+                      <div className="text-xs bg-background p-2 rounded max-h-32 overflow-y-auto font-mono whitespace-pre-wrap break-all">
+                        {(() => {
+                          try {
+                            const parsed = JSON.parse(currentCoupon.rawResponse || '')
+                            return JSON.stringify(parsed, null, 2)
+                          } catch {
+                            return currentCoupon.rawResponse
+                          }
+                        })()}
                       </div>
                     </div>
                   )}

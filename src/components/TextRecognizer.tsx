@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Loader2, ScanText, Check, AlertCircle, FileJson } from "lucide-react"
+import { Loader2, ScanText, Check, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Textarea } from "@/components/ui/textarea"
@@ -40,7 +40,6 @@ interface TextRecognizerProps {
 export default function TextRecognizer({ onExtracted, onCancel, batchMode = false }: TextRecognizerProps) {
   const [inputText, setInputText] = useState("")
   const [aiModel, setAiModel] = useState<'glm' | 'doubao' | 'rule'>('doubao') // 默认使用豆包
-  const [smartBatch, setSmartBatch] = useState(false) // 智能批量模式
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [previewCoupons, setPreviewCoupons] = useState<PreviewCoupon[]>([])
@@ -58,8 +57,12 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
     try {
       let extractedInfos: ExtractedCouponInfo[] = []
 
-      // 智能批量抽取模式
-      if (smartBatch) {
+      // 判断是否为多行文本
+      const lines = inputText.split('\n').map(line => line.trim()).filter(line => line)
+      const isMultiLine = lines.length > 1
+
+      // 智能批量抽取模式（多行文本且使用AI）
+      if (isMultiLine && aiModel !== 'rule') {
         try {
           const response = await fetch("/api/parse-coupon", {
             method: "POST",
@@ -70,7 +73,7 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
               text: inputText,
               useAI: true,
               aiModel: aiModel, // 支持豆包和GLM
-              smartBatch: true, // 启用智能批量抽取
+              smartBatch: true, // 自动启用智能批量抽取
               useFallback: false,
             }),
           })
@@ -284,37 +287,13 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
           </Select>
         </div>
 
-        {/* 智能批量抽取开关（仅GLM可用） */}
-        {aiModel === 'glm' && (
-          <div className="flex items-center justify-between">
-            <label className="text-sm font-medium">智能批量抽取</label>
-            <Button
-              variant={smartBatch ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSmartBatch(!smartBatch)}
-            >
-              {smartBatch ? (
-                <>
-                  <Check className="mr-2 h-4 w-4" />
-                  已启用
-                </>
-              ) : (
-                <>
-                  <FileJson className="mr-2 h-4 w-4" />
-                  点击启用
-                </>
-              )}
-            </Button>
-          </div>
-        )}
-
         <div className="rounded-lg bg-muted p-3 text-sm">
           <p className="font-medium mb-1">识别说明：</p>
           <ul className="list-disc list-inside space-y-1 text-muted-foreground">
             <li>GLM-4.7-Flash：智谱AI模型，识别准确度高</li>
             <li>豆包AI：字节跳动AI模型，响应速度快</li>
             <li>规则匹配：不依赖AI，基于固定规则提取</li>
-            <li>智能批量：GLM自动拆分多个优惠券，智能识别</li>
+            <li>智能批量：多行文本自动批量识别，无需手动拆分</li>
             <li>识别后显示预览，可手动调整后添加</li>
           </ul>
         </div>

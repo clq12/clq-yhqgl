@@ -39,7 +39,7 @@ interface TextRecognizerProps {
 
 export default function TextRecognizer({ onExtracted, onCancel, batchMode = false }: TextRecognizerProps) {
   const [inputText, setInputText] = useState("")
-  const [aiModel, setAiModel] = useState<'glm' | 'doubao' | 'rule'>('doubao') // 默认使用豆包
+  const [aiModel, setAiModel] = useState<'glm' | 'doubao' | 'rule'>('glm') // 默认使用GLM
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [previewCoupons, setPreviewCoupons] = useState<PreviewCoupon[]>([])

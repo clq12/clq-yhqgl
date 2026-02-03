@@ -1041,48 +1041,129 @@ async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<
   const messages = [
     {
       role: 'system',
-      content: `你是一个优惠券信息抽取程序，不进行任何对话，也不进行解释或推理。
+      content: `你是一个【优惠券信息结构化解析程序】，
+只负责从原始文本中抽取字段并输出 JSON，
+禁止解释、禁止总结、禁止对话、禁止补全。
 
-你的唯一任务是：
-从用户提供的文本中，提取优惠券信息，并输出一个 JSON 对象。
+====================
+【输入说明】
+- 输入文本中可能包含 1 张或多张优惠券
+- 多张优惠券通常以换行分隔
+- 每一行最多只对应 1 张优惠券
+- 不允许将多行内容合并成同一张券
 
-【输出格式要求（必须严格遵守）】
-1. 只允许输出一个 JSON 对象
-2. JSON 之外不得输出任何字符（包括解释、推理、注释、空行）
-3. 所有字段必须存在，未识别的信息必须为 null
-4. 不允许猜测、补全或推断文本中未明确给出的信息
-5. 字段值类型必须严格匹配说明
+====================
+【输出格式】
+- 仅输出 JSON
+- 顶层必须是数组
+- 每个数组元素对应 1 张优惠券
+- 即使只识别出 1 张，也必须使用数组
 
-【时间字段特别规则（非常重要）】
-- 出现"今天 / 明天 / 后天 / 今天24点前 / 明日 / 次日"等相对时间描述时：
-  - 必须原样输出到 validFrom / validTo
-  - 严禁换算为具体日期
-  - 严禁推断当前时间
+====================
+【字段定义】
 
-【JSON 字段定义】
-{
-  "title": string | null,
-  "type": "满减" | "折扣" | "直减" | "其他",
-  "threshold": number | null,
-  "amountOff": number | null,
-  "discountRate": number | null,
-  "validFrom": string | null,
-  "validTo": string | null,
-  "platform": string | null,
-  "notes": string | null
-}
+- title: string | null
+- type: "满减" | "折扣" | "直减" | "其他"
+- threshold: number | null
+- amountOff: number | null
+- discountRate: number | null      // 0.8 表示 8 折
+- validFrom: string | null         // 原始文本中的时间描述
+- validTo: string | null           // 原始文本中的时间描述
+- platform: string | null
+- notes: string | null
 
-【类型判定规则】
-- 出现"满X减Y" → type = "满减"
-- 出现"直减 / 减Y元 / 立减Y元" → type = "直减"
-- 出现"X折 / 折扣" → type = "折扣"
-- 无法明确归类 → type = "其他"
+====================
+【核心解析规则（非常重要）】
 
-【重要约束】
-- 不得输出 Markdown
-- 不得输出示例
-- 不得输出说明文字
-- 不得输出推理过程`
+【1️⃣ 多券拆分规则】
+- 必须先按"换行"拆分文本
+- 每一行单独解析
+- 严禁将不同平台 / 不同行的优惠合并
+
+【2️⃣ title 生成规则（重点）】
+
+title 规则（严格执行）：
+
+- title 必须直接来源于原始文本
+- 禁止总结、禁止理解、禁止改写
+- title 取"首次出现优惠数字（金额 / 折扣）之前的文本"
+
+【优惠数字包括】：
+- 金额数字（如：20、100、5元）
+- 折扣数字（如：5折、8折、0.8）
+
+【title 清洗规则】：
+- 若 title 末尾是"优惠结构引导词"，必须删除该词
+- 常见引导词包括（但不限于）：
+  - 满
+  - 减
+  - 立减
+  - 直减
+  - 打
+  - 享
+- 删除后再进行 trim（去空格）
+
+【title 兜底规则】：
+- 若清洗后 title 为空字符串 → 返回 null
+- 若 title 中包含"券 / 优惠 / 活动"等通用词，允许保留
+- 不允许基于理解生成名称
+
+【示例】：
+- "淘宝优惠券 满100减20" → "淘宝优惠券"
+- "京东20元无门槛" → "京东"
+- "满100减20" → null
+
+【3️⃣ 优惠类型 type 判定规则】
+
+- 出现"满X减Y" → type = 满减
+- 出现"X折 / 打X折 / 折扣" → type = 折扣
+- 出现"立减 / 直减 / 无门槛减" → type = 直减
+- 无法判断 → 其他
+
+【4️⃣ 数值字段规则】
+
+- threshold：仅在"满减"中填写 X
+- amountOff：
+  - 满减 → 填 Y
+  - 直减 → 填减免金额
+- discountRate：
+  - 折扣 → 转换为小数（5折 → 0.5）
+- 文本未明确出现的字段 → 必须返回 null
+- 严禁猜测或计算未给出的数值
+
+【5️⃣ 时间规则（北京时间）】
+
+- 所有时间默认基于北京时间（UTC+8）
+- 以下相对时间允许解析：
+  - 今天 / 明天 / 后天
+- 若出现"23点 / 12点"等 → 原样写入 validTo
+- 不要求转换为 ISO 时间，只保留原始文本描述
+- 未出现时间 → 返回 null
+
+【6️⃣ platform 规则】
+
+- 若文本中明确出现平台名（淘宝 / 京东 / 拼多多 / 美团 等）→ 填写
+- 若仅体现在 title 中，可与 title 相同
+- 未明确出现 → null
+
+【7️⃣ notes 规则】
+
+- 剩余无法归类但有意义的文本
+- 不允许重复 title 或优惠信息
+- 可为空
+
+====================
+【严格约束】
+
+- 不允许合并多张优惠券
+- 不允许推理用户意图
+- 不允许生成示例
+- 不允许输出 Markdown
+- 不允许输出解释性文字
+- 只输出 JSON
+
+====================
+【开始解析下面文本】`
     },
     {
       role: 'user',
@@ -1144,16 +1225,25 @@ async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<
         jsonStr = lastMatch.replace(/```\s*/, '').replace(/```$/, '').trim()
         console.log('策略2：找到普通代码块')
       } else {
-        // 策略3：尝试直接从内容中提取JSON对象（以{开头，以}结尾）
-        const jsonObjectMatch = content.match(/\{[\s\S]*\}/g)
-        if (jsonObjectMatch && jsonObjectMatch.length > 0) {
-          // 使用最后一个匹配的JSON对象
-          const lastMatch = jsonObjectMatch[jsonObjectMatch.length - 1]
+        // 策略3：尝试直接从内容中提取JSON数组（新格式返回数组）
+        const jsonArrayMatch = content.match(/\[[\s\S]*\]/g)
+        if (jsonArrayMatch && jsonArrayMatch.length > 0) {
+          // 使用最后一个匹配的JSON数组
+          const lastMatch = jsonArrayMatch[jsonArrayMatch.length - 1]
           jsonStr = lastMatch.trim()
-          console.log('策略3：找到JSON对象')
+          console.log('策略3：找到JSON数组')
         } else {
-          console.log('策略4：使用完整内容')
-          jsonStr = content.trim()
+          // 策略4：尝试提取JSON对象（兼容旧格式）
+          const jsonObjectMatch = content.match(/\{[\s\S]*\}/g)
+          if (jsonObjectMatch && jsonObjectMatch.length > 0) {
+            // 使用最后一个匹配的JSON对象
+            const lastMatch = jsonObjectMatch[jsonObjectMatch.length - 1]
+            jsonStr = lastMatch.trim()
+            console.log('策略4：找到JSON对象')
+          } else {
+            console.log('策略5：使用完整内容')
+            jsonStr = content.trim()
+          }
         }
       }
     }
@@ -1165,6 +1255,16 @@ async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<
     let parsedData
     try {
       parsedData = JSON.parse(jsonStr)
+      // 如果是数组，取第一个元素（新格式）
+      if (Array.isArray(parsedData)) {
+        if (parsedData.length > 0) {
+          parsedData = parsedData[0]
+          console.log('从数组中提取第一个元素')
+        } else {
+          console.error('返回的数组为空')
+          throw new Error('返回的数组为空')
+        }
+      }
     } catch (jsonError) {
       console.error('JSON解析失败，原始内容前500字符:', content.substring(0, 500))
       console.error('JSON解析失败，提取的字符串:', jsonStr)
@@ -1175,6 +1275,14 @@ async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<
       const fixedJson = jsonStr.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']')
       try {
         parsedData = JSON.parse(fixedJson)
+        // 如果是数组，取第一个元素
+        if (Array.isArray(parsedData)) {
+          if (parsedData.length > 0) {
+            parsedData = parsedData[0]
+          } else {
+            throw new Error('返回的数组为空')
+          }
+        }
         console.log('JSON修复后解析成功')
       } catch (fixedError) {
         console.error('JSON修复后仍然失败')
@@ -1202,7 +1310,16 @@ async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<
     // 金额映射
     if (parsedData.threshold) result.fullAmount = Number(parsedData.threshold)
     if (parsedData.amountOff) result.discountAmount = Number(parsedData.amountOff)
-    if (parsedData.discountRate) result.discountAmount = Number(parsedData.discountRate)
+    if (parsedData.discountRate) {
+      // 折扣率转换为折扣金额（用于计算折扣率）
+      // 0.8 表示 8 折，保持原值
+      result.discountAmount = Number(parsedData.discountRate)
+    }
+
+    // 日期映射
+    if (parsedData.validFrom) result.startDate = parsedData.validFrom
+    if (parsedData.validTo) {
+      const validTo = parsedData.validTo
 
     // 日期映射
     if (parsedData.validTo) {
@@ -1337,102 +1454,129 @@ async function extractCouponsWithGLMBatch(text: string, apiKey?: string): Promis
   const messages = [
     {
       role: 'system',
-      content: `你是一个优惠券信息批量抽取程序，不进行任何对话、解释或推理。
+      content: `你是一个【优惠券信息结构化解析程序】，
+只负责从原始文本中抽取字段并输出 JSON，
+禁止解释、禁止总结、禁止对话、禁止补全。
 
-你的唯一任务是：
-从用户提供的文本中，按"每一行一张优惠券"的规则，
-抽取优惠券信息，并输出一个 JSON 数组，用于直接写入数据库。
+====================
+【输入说明】
+- 输入文本中可能包含 1 张或多张优惠券
+- 多张优惠券通常以换行分隔
+- 每一行最多只对应 1 张优惠券
+- 不允许将多行内容合并成同一张券
 
-【全局输出规则（必须严格遵守）】
-1. 只允许输出一个 JSON 数组
-2. JSON 之外不得输出任何字符（包括解释、推理、空行、Markdown）
-3. 数组中每一项都是一张独立优惠券
-4. 每个对象必须包含全部字段
-5. 文本中未明确给出的信息必须为 null
-6. 严禁猜测、补全、推断
-7. 严禁将多行内容合并为一张优惠券
+====================
+【输出格式】
+- 仅输出 JSON
+- 顶层必须是数组
+- 每个数组元素对应 1 张优惠券
+- 即使只识别出 1 张，也必须使用数组
 
-【优惠券拆分规则（硬性）】
-- 输入文本如果包含多行：
-  - 默认"每一行 = 一张优惠券"
-  - 严禁跨行合并
-- 不同平台 / 商家名称必须视为不同优惠券
+====================
+【字段定义】
 
-【时间字段规则（非常重要）】
-- 出现"今天 / 明天 / 后天 / 今日 / 明日 / 次日 / 后天12点 / 今天23点"等相对时间描述时：
-  - 原样输出为字符串
-  - 不得换算为具体日期
-- 未明确出现开始时间 → startDate = null
+- title: string | null
+- type: "满减" | "折扣" | "直减" | "其他"
+- threshold: number | null
+- amountOff: number | null
+- discountRate: number | null      // 0.8 表示 8 折
+- validFrom: string | null         // 原始文本中的时间描述
+- validTo: string | null           // 原始文本中的时间描述
+- platform: string | null
+- notes: string | null
 
-【JSON 字段定义（每个对象必须完整包含）】
-{
-  "title": string | null,
-  "description": string | null,
-  "discountType": "amount" | "full" | "discount" | null,
-  "discountAmount": number | null,
-  "fullAmount": number | null,
-  "startDate": string | null,
-  "endDate": string | null,
-  "endHour": number | null,
-  "notes": string | null,
-  "storeName": string | null,
-  "isUsed": false
-}
+====================
+【核心解析规则（非常重要）】
 
-【title 字段规则（宽松但可控）】
-- 如果一行文本中：
-  - 在平台名或商家名之后
-  - 且不包含任何时间相关词（如 有效期 / 到期 / 截止 / 今天 / 明天 / 后天 / 日期 / 点）
-- 则可以将"平台名 + 优惠核心描述"作为 title
-- 如果文本中包含任何时间相关描述：
-  - title 必须为 null
-- 严禁：
-  - 自动生成不存在的名称
-  - 将时间、日期、小时拼接进 title
-  - 仅凭金额或折扣生成 title
+【1️⃣ 多券拆分规则】
+- 必须先按"换行"拆分文本
+- 每一行单独解析
+- 严禁将不同平台 / 不同行的优惠合并
 
-【字段填充规则】
+【2️⃣ title 生成规则（重点）】
 
-- description：
-  - 填写原始文本内容（整行）
-  - 不允许删减或改写
+title 规则（严格执行）：
 
-- discountType：
-  - "满X减Y" → "full"
-  - "无门槛 / 立减 / 直减 / 减Y元" → "amount"
-  - "X折 / 折扣" → "discount"
-  - 无法判断 → null
+- title 必须直接来源于原始文本
+- 禁止总结、禁止理解、禁止改写
+- title 取"首次出现优惠数字（金额 / 折扣）之前的文本"
 
-- discountAmount：
-  - 满减 / 直减中的"减免金额"
-  - 折扣券 → null
+【优惠数字包括】：
+- 金额数字（如：20、100、5元）
+- 折扣数字（如：5折、8折、0.8）
 
-- fullAmount：
-  - 满减中的"满X金额"
-  - 非满减 → null
+【title 清洗规则】：
+- 若 title 末尾是"优惠结构引导词"，必须删除该词
+- 常见引导词包括（但不限于）：
+  - 满
+  - 减
+  - 立减
+  - 直减
+  - 打
+  - 享
+- 删除后再进行 trim（去空格）
 
-- startDate：
-  - 仅当文本中明确给出开始时间时填写
-  - 否则 null
+【title 兜底规则】：
+- 若清洗后 title 为空字符串 → 返回 null
+- 若 title 中包含"券 / 优惠 / 活动"等通用词，允许保留
+- 不允许基于理解生成名称
 
-- endDate：
-  - 到期时间或有效期描述，允许相对时间
-  - 原样输出，不做换算
+【示例】：
+- "淘宝优惠券 满100减20" → "淘宝优惠券"
+- "京东20元无门槛" → "京东"
+- "满100减20" → null
 
-- endHour：
-  - 仅当文本中明确出现"X点 / X:00 / 23点 / 23:59"等时填写小时数
-  - 未明确 → null
+【3️⃣ 优惠类型 type 判定规则】
 
-- storeName：
-  - 平台或商家名称（如 淘宝 / 京东 / 拼多多 / PDD / 美团 / 瑞幸 / 银行）
-  - 无明确名称 → null
+- 出现"满X减Y" → type = 满减
+- 出现"X折 / 打X折 / 折扣" → type = 折扣
+- 出现"立减 / 直减 / 无门槛减" → type = 直减
+- 无法判断 → 其他
 
-- notes：
-  - 备注性、补充性说明
-  - 无 → null
+【4️⃣ 数值字段规则】
 
-- isUsed：
-  - 永远输出 false`
+- threshold：仅在"满减"中填写 X
+- amountOff：
+  - 满减 → 填 Y
+  - 直减 → 填减免金额
+- discountRate：
+  - 折扣 → 转换为小数（5折 → 0.5）
+- 文本未明确出现的字段 → 必须返回 null
+- 严禁猜测或计算未给出的数值
+
+【5️⃣ 时间规则（北京时间）】
+
+- 所有时间默认基于北京时间（UTC+8）
+- 以下相对时间允许解析：
+  - 今天 / 明天 / 后天
+- 若出现"23点 / 12点"等 → 原样写入 validTo
+- 不要求转换为 ISO 时间，只保留原始文本描述
+- 未出现时间 → 返回 null
+
+【6️⃣ platform 规则】
+
+- 若文本中明确出现平台名（淘宝 / 京东 / 拼多多 / 美团 等）→ 填写
+- 若仅体现在 title 中，可与 title 相同
+- 未明确出现 → null
+
+【7️⃣ notes 规则】
+
+- 剩余无法归类但有意义的文本
+- 不允许重复 title 或优惠信息
+- 可为空
+
+====================
+【严格约束】
+
+- 不允许合并多张优惠券
+- 不允许推理用户意图
+- 不允许生成示例
+- 不允许输出 Markdown
+- 不允许输出解释性文字
+- 只输出 JSON
+
+====================
+【开始解析下面文本】`
     },
     {
       role: 'user',
@@ -1533,29 +1677,33 @@ async function extractCouponsWithGLMBatch(text: string, apiKey?: string): Promis
       const item = parsedArray[i]
       const result: ExtractedCouponInfo = {}
 
-      // 直接映射字段（新格式已经是数据库格式）
+      // 直接映射字段
       if (item.title) result.title = item.title
-      if (item.description) result.description = item.description
-      
-      // 类型映射：discount → percentage（统一使用percentage表示折扣）
-      if (item.discountType) {
-        if (item.discountType === 'discount') {
-          result.discountType = 'percentage'
-        } else if (item.discountType === 'amount' || item.discountType === 'full') {
-          result.discountType = item.discountType
-        }
-      }
-      
-      if (item.discountAmount) result.discountAmount = Number(item.discountAmount)
-      if (item.fullAmount) result.fullAmount = Number(item.fullAmount)
-      if (item.startDate) result.startDate = item.startDate
-      if (item.endHour) result.endHour = Number(item.endHour)
-      if (item.notes) result.notes = item.notes
-      if (item.storeName) result.storeName = item.storeName
 
-      // 处理endDate（可能包含相对日期）
-      if (item.endDate) {
-        const endDate = item.endDate
+      // 类型映射：满减→full，折扣→percentage，直减→amount
+      if (item.type) {
+        const typeMap: Record<string, 'amount' | 'percentage' | 'full'> = {
+          '满减': 'full',
+          '折扣': 'percentage',
+          '直减': 'amount',
+          '其他': 'amount'
+        }
+        result.discountType = typeMap[item.type] || 'amount'
+      }
+
+      // 金额映射
+      if (item.threshold) result.fullAmount = Number(item.threshold)
+      if (item.amountOff) result.discountAmount = Number(item.amountOff)
+      if (item.discountRate) {
+        // 折扣率转换为折扣金额（用于计算折扣率）
+        // 0.8 表示 8 折，保持原值
+        result.discountAmount = Number(item.discountRate)
+      }
+
+      // 日期映射
+      if (item.validFrom) result.startDate = item.validFrom
+      if (item.validTo) {
+        const endDate = item.validTo
         // 检查是否是相对日期（包含"今天/明天/后天/本周/下周/本月/下月/X天后"等）
         const isRelativeDate = /(?:今天|明天|后天|本周|下周|本月|下月|\d+天后|星期|周[一二三四六日])/i.test(endDate)
 
@@ -1620,13 +1768,48 @@ async function extractCouponsWithGLMBatch(text: string, apiKey?: string): Promis
         }
       }
 
+      // 平台和描述
+      if (item.platform) result.storeName = item.platform
+      if (item.notes) result.description = item.notes
+
+      // 如果AI没有提取到完整信息，使用规则匹配作为补充
+      // 只要discountAmount和discountType有值就认为是有效识别
+      if (!result.discountAmount || !result.discountType) {
+        console.log('GLM提取不完整，使用规则匹配补充')
+        // 使用对应的行文本进行规则匹配
+        let matchedLine = textLines[i] || text
+        if (item.platform) {
+          // 尝试找到包含平台名称的行
+          matchedLine = textLines.find(line => line.includes(item.platform!)) || textLines[i] || text
+        }
+
+        const ruleResult = extractCouponInfo(matchedLine)
+        if (!result.discountAmount && ruleResult.discountAmount) {
+          result.discountAmount = ruleResult.discountAmount
+        }
+        if (!result.discountType && ruleResult.discountType) {
+          result.discountType = ruleResult.discountType
+        }
+        if (!result.endDate && ruleResult.endDate) {
+          result.endDate = ruleResult.endDate
+          if (ruleResult.endHour) result.endHour = ruleResult.endHour
+          if (ruleResult.endMinute) result.endMinute = ruleResult.endMinute
+        }
+        if (!result.fullAmount && ruleResult.fullAmount) {
+          result.fullAmount = ruleResult.fullAmount
+        }
+        if (!result.storeName && ruleResult.storeName) {
+          result.storeName = ruleResult.storeName
+        }
+      }
+
       result.aiModel = 'glm'
       result.rawResponse = JSON.stringify(item)
 
       results.push(result)
     }
 
-    console.log('【豆包批量识别】转换后的结果:')
+    console.log('【GLM批量识别】转换后的结果:')
     console.log(JSON.stringify(results, null, 2))
 
     return results

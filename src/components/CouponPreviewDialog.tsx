@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Check, X, ArrowLeft, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -91,16 +91,11 @@ export default function CouponPreviewDialog({
   }
 
   // 当对话框打开时初始化数据
-  useState(() => {
+  useEffect(() => {
     if (isOpen && coupons.length > 0 && previewCoupons.length === 0) {
       initializePreviews()
     }
-  })
-
-  // 监听 isOpen 变化
-  if (isOpen && coupons.length > 0 && previewCoupons.length === 0) {
-    initializePreviews()
-  }
+  }, [isOpen, coupons.length])
 
   const currentCoupon = previewCoupons[currentIndex] || null
 

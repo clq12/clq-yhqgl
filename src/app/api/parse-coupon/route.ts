@@ -773,7 +773,7 @@ async function extractCouponInfoWithDoubao(text: string): Promise<ExtractedCoupo
     const jsonMatch = response.content.match(/\{[\s\S]*\}/)
     if (jsonMatch) {
       const parsedData = JSON.parse(jsonMatch[0])
-      
+
       // 验证和转换数据
       const result: ExtractedCouponInfo = {}
 
@@ -786,21 +786,36 @@ async function extractCouponInfoWithDoubao(text: string): Promise<ExtractedCoupo
       if (parsedData.endHour) result.endHour = Number(parsedData.endHour)
       if (parsedData.endMinute) result.endMinute = Number(parsedData.endMinute)
 
-      // 验证折扣类型
-      if (parsedData.discountType && ['amount', 'percentage', 'full'].includes(parsedData.discountType)) {
-        result.discountType = parsedData.discountType
+      // 验证折扣类型（支持"discount"映射为"percentage"）
+      if (parsedData.discountType) {
+        if (parsedData.discountType === 'discount') {
+          result.discountType = 'percentage'
+        } else if (['amount', 'full', 'percentage'].includes(parsedData.discountType)) {
+          result.discountType = parsedData.discountType as 'amount' | 'full' | 'percentage'
+        }
       }
 
-      // 如果AI没有提取到完整信息，回退到规则匹配
-      if (!result.title || !result.discountAmount || !result.discountType) {
-        console.log('豆包提取不完整，回退到规则匹配')
+      // 验证提取结果是否完整
+      // 对于满减券，必须有discountType和fullAmount
+      // 对于减免券，必须有discountType和discountAmount
+      // 对于折扣券，只要有discountType即可
+      const isFull = result.discountType === 'full'
+      const isAmount = result.discountType === 'amount'
+      const isPercentage = result.discountType === 'percentage'
+
+      const isComplete = result.discountType &&
+        ((isFull && result.fullAmount) ||  // 满减券：必须有满减金额
+         (isAmount && result.discountAmount) ||  // 减免券：必须有减免金额
+         isPercentage)  // 折扣券：只要有类型即可
+
+      if (!isComplete) {
         return {
           ...extractCouponInfo(text),
           aiModel: 'rule',
           rawResponse: JSON.stringify(parsedData)
         }
       }
-      
+
       return {
         ...result,
         aiModel: 'doubao',
@@ -1607,17 +1622,19 @@ async function extractCouponInfoWithAI(text: string, aiModel?: 'doubao' | 'glm',
     // 1. 优先使用指定的AI模型
     if (aiModel === 'glm') {
       result = await extractCouponInfoWithGLM(text, glmApiKey)
+      // GLM可能有相对日期，需要验证
+      const isComplete = result.discountType && result.endDate
+      if (isComplete || !useFallback) {
+        return result
+      }
     } else if (aiModel === 'doubao') {
       result = await extractCouponInfoWithDoubao(text)
+      // 豆包内部已经有完善的验证逻辑，直接返回结果
+      return result
     } else {
       // 未指定模型，默认使用豆包AI
       result = await extractCouponInfoWithDoubao(text)
-    }
-
-    // 验证提取结果是否完整
-    const isComplete = result.title && result.discountAmount && result.discountType && result.endDate
-
-    if (isComplete || !useFallback) {
+      // 豆包内部已经有完善的验证逻辑，直接返回结果
       return result
     }
 
@@ -1630,12 +1647,9 @@ async function extractCouponInfoWithAI(text: string, aiModel?: 'doubao' | 'glm',
   if (aiModel !== 'doubao' && useFallback) {
     try {
       result = await extractCouponInfoWithDoubao(text)
-      const isComplete = result.title && result.discountAmount && result.discountType && result.endDate
-      
-      if (isComplete) {
-        console.log('豆包提取成功')
-        return result
-      }
+      // 豆包内部已经有完善的验证逻辑，直接返回结果
+      console.log('豆包提取成功')
+      return result
     } catch (error) {
       console.error('豆包模型调用失败:', error)
     }

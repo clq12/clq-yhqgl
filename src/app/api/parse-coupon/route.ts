@@ -939,6 +939,9 @@ async function extractCouponsWithDoubaoBatch(text: string): Promise<ExtractedCou
       temperature: 0, // 零温度确保输出稳定
     })
 
+    console.log('【豆包批量识别】豆包返回的原始数据:')
+    console.log(response.content)
+
     // 提取JSON数组
     let jsonStr = response.content.trim()
 
@@ -946,15 +949,27 @@ async function extractCouponsWithDoubaoBatch(text: string): Promise<ExtractedCou
     const jsonArrayMatch = response.content.match(/\[[\s\S]*\]/)
     if (jsonArrayMatch) {
       jsonStr = jsonArrayMatch[0]
+      console.log('【豆包批量识别】提取的JSON数组:')
+      console.log(jsonStr)
+    } else {
+      console.log('【豆包批量识别】未找到JSON数组，使用原始内容')
+      console.log(jsonStr)
     }
 
     const parsedData = JSON.parse(jsonStr)
 
+    console.log('【豆包批量识别】解析后的数据:')
+    console.log(JSON.stringify(parsedData, null, 2))
+
     // 验证是否为数组
     if (!Array.isArray(parsedData)) {
-      console.log('豆包返回的不是数组，回退到按行识别')
+      console.log('【豆包批量识别】豆包返回的不是数组，回退到按行识别')
+      console.log('【豆包批量识别】数据类型:', typeof parsedData)
+      console.log('【豆包批量识别】数据:', JSON.stringify(parsedData))
       return text.split('\n').map(line => extractCouponInfo(line.trim()))
     }
+
+    console.log(`【豆包批量识别】解析成功，共 ${parsedData.length} 张优惠券`)
 
     // 转换为系统内部格式
     const results: ExtractedCouponInfo[] = []
@@ -994,10 +1009,17 @@ async function extractCouponsWithDoubaoBatch(text: string): Promise<ExtractedCou
       results.push(result)
     }
 
+    console.log('【豆包批量识别】转换后的结果:')
+    console.log(JSON.stringify(results, null, 2))
+
     return results
 
   } catch (error) {
-    console.error('豆包批量抽取失败，回退到按行识别:', error)
+    console.error('【豆包批量识别】豆包批量抽取失败，回退到按行识别:', error)
+    console.error('【豆包批量识别】错误详情:', error instanceof Error ? error.message : '未知错误')
+    if (error instanceof Error && error.stack) {
+      console.error('【豆包批量识别】堆栈:', error.stack)
+    }
     return text.split('\n').map(line => extractCouponInfo(line.trim()))
   }
 }
@@ -1603,6 +1625,9 @@ async function extractCouponsWithGLMBatch(text: string, apiKey?: string): Promis
 
       results.push(result)
     }
+
+    console.log('【豆包批量识别】转换后的结果:')
+    console.log(JSON.stringify(results, null, 2))
 
     return results
 

@@ -45,10 +45,20 @@ export default function CouponPreviewDialog({
 
   // 初始化预览数据
   const initializePreviews = () => {
-    const previews = coupons.map((coupon, index) => ({
-      ...coupon,
-      id: `preview-${Date.now()}-${index}`,
-    }))
+    console.log('=== 初始化预览数据 ===')
+    console.log('coupons数量:', coupons.length)
+    console.log('coupons:', JSON.stringify(coupons, null, 2))
+
+    const previews = coupons.map((coupon, index) => {
+      const preview = {
+        ...coupon,
+        id: `preview-${Date.now()}-${index}`,
+      }
+      console.log(`[${index}] aiModel: ${preview.aiModel}, storeName: ${preview.storeName}`)
+      return preview
+    })
+
+    console.log('previews数量:', previews.length)
     setPreviewCoupons(previews)
     setCurrentIndex(0)
   }
@@ -92,10 +102,16 @@ export default function CouponPreviewDialog({
 
   // 当对话框打开时初始化数据
   useEffect(() => {
-    if (isOpen && coupons.length > 0 && previewCoupons.length === 0) {
+    if (isOpen && coupons.length > 0) {
+      console.log('=== useEffect 触发 ===')
+      console.log('isOpen:', isOpen)
+      console.log('coupons.length:', coupons.length)
+      console.log('previewCoupons.length:', previewCoupons.length)
+
+      // 每次打开对话框都重新初始化，确保显示最新的数据
       initializePreviews()
     }
-  }, [isOpen, coupons.length])
+  }, [isOpen]) // 只依赖 isOpen，每次打开都会重新初始化
 
   const currentCoupon = previewCoupons[currentIndex] || null
 

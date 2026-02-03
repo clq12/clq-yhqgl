@@ -61,8 +61,15 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
       const lines = inputText.split('\n').map(line => line.trim()).filter(line => line)
       const isMultiLine = lines.length > 1
 
+      console.log('=== 识别调试信息 ===')
+      console.log('输入文本:', inputText)
+      console.log('行数:', lines.length)
+      console.log('isMultiLine:', isMultiLine)
+      console.log('aiModel:', aiModel)
+
       // 智能批量抽取模式（多行文本且使用AI）
       if (isMultiLine && aiModel !== 'rule') {
+        console.log('进入智能批量抽取模式')
         try {
           const response = await fetch("/api/parse-coupon", {
             method: "POST",
@@ -84,13 +91,16 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
           }
 
           const result = await response.json()
+          console.log('批量识别结果:', result)
           if (result.success && result.data) {
             // 智能批量返回的是数组
             if (Array.isArray(result.data)) {
               extractedInfos = result.data
+              console.log('批量识别成功，数量:', extractedInfos.length)
             } else {
               // 如果返回单个对象，包装成数组
               extractedInfos = [result.data]
+              console.log('批量识别返回单个对象')
             }
           } else {
             throw new Error(result.error || "识别失败")
@@ -99,6 +109,9 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
           console.error('智能批量抽取失败，回退到按行识别:', batchErr)
           // 回退到按行识别
         }
+      } else {
+        console.log('未进入批量识别模式')
+        console.log('isMultiLine:', isMultiLine, 'aiModel:', aiModel)
       }
 
       // 如果智能批量失败或未启用，使用按行识别
@@ -142,6 +155,7 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
             // 单个优惠券识别失败时，如果是规则匹配，则跳过
             // 否则尝试规则匹配作为兜底
             if (aiModel !== 'rule') {
+              console.log(`尝试规则匹配作为兜底`)
               try {
                 const response = await fetch("/api/parse-coupon", {
                   method: "POST",
@@ -157,6 +171,7 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
                 if (response.ok) {
                   const result = await response.json()
                   if (result.success && result.data) {
+                    console.log(`规则匹配成功，但会覆盖aiModel为'rule'`)
                     extractedInfos.push({
                       ...result.data,
                       originalText: couponText,
@@ -177,6 +192,12 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
         return
       }
 
+      console.log('=== 转换前的数据 ===')
+      console.log('extractedInfos数量:', extractedInfos.length)
+      extractedInfos.forEach((info, index) => {
+        console.log(`[${index}] aiModel: ${info.aiModel}, storeName: ${info.storeName}`)
+      })
+
       // 转换为预览格式
       const previewData = extractedInfos.map((info, index) => ({
         id: `preview-${Date.now()}-${index}`,
@@ -194,6 +215,12 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
         aiModel: info.aiModel,
         rawResponse: info.rawResponse,
       }))
+
+      console.log('=== 转换后的预览数据 ===')
+      console.log('previewData数量:', previewData.length)
+      previewData.forEach((info, index) => {
+        console.log(`[${index}] aiModel: ${info.aiModel}, storeName: ${info.storeName}`)
+      })
 
       setPreviewCoupons(previewData)
       setShowPreviewDialog(true)

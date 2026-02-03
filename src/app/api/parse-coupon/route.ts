@@ -1321,9 +1321,6 @@ title 规则（严格执行）：
     if (parsedData.validTo) {
       const validTo = parsedData.validTo
 
-    // 日期映射
-    if (parsedData.validTo) {
-      const validTo = parsedData.validTo
       // 检查是否是相对日期（包含"今天/明天/后天/本周/下周/本月/下月/X天后"等）
       const isRelativeDate = /(?:今天|明天|后天|本周|下周|本月|下月|\d+天后|星期|周[一二三四五六日])/i.test(validTo)
 
@@ -1402,10 +1399,18 @@ title 规则（严格执行）：
     if (parsedData.platform) result.storeName = parsedData.platform
     if (parsedData.notes) result.description = parsedData.notes
 
+    console.log('【GLM单张识别】解析后的数据:')
+    console.log('parsedData:', JSON.stringify(parsedData, null, 2))
+    console.log('result:', JSON.stringify(result, null, 2))
+    console.log('discountAmount:', result.discountAmount)
+    console.log('discountType:', result.discountType)
+
     // 如果AI没有提取到完整信息，回退到规则匹配
     // 只要discountAmount和discountType有值就认为是有效识别
     if (!result.discountAmount || !result.discountType) {
-      console.log('GLM提取不完整，回退到规则匹配')
+      console.log('【GLM单张识别】GLM提取不完整，回退到规则匹配')
+      console.log('【GLM单张识别】discountAmount:', result.discountAmount)
+      console.log('【GLM单张识别】discountType:', result.discountType)
       return {
         ...extractCouponInfo(text),
         aiModel: 'rule',
@@ -1772,10 +1777,16 @@ title 规则（严格执行）：
       if (item.platform) result.storeName = item.platform
       if (item.notes) result.description = item.notes
 
+      console.log('【GLM批量识别】解析第' + i + '张优惠券:')
+      console.log('item:', JSON.stringify(item, null, 2))
+      console.log('result:', JSON.stringify(result, null, 2))
+      console.log('discountAmount:', result.discountAmount)
+      console.log('discountType:', result.discountType)
+
       // 如果AI没有提取到完整信息，使用规则匹配作为补充
       // 只要discountAmount和discountType有值就认为是有效识别
       if (!result.discountAmount || !result.discountType) {
-        console.log('GLM提取不完整，使用规则匹配补充')
+        console.log('【GLM批量识别】GLM提取不完整，使用规则匹配补充')
         // 使用对应的行文本进行规则匹配
         let matchedLine = textLines[i] || text
         if (item.platform) {

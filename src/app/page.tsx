@@ -514,8 +514,16 @@ export default function Home() {
     
     // 检查日期是否已经包含时间部分（完整的ISO格式）
     if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
-      // 完整ISO格式，直接使用
-      endDate = new Date(coupon.endDate)
+      // 完整ISO格式，需要检查是否有时区信息
+      if (coupon.endDate.endsWith('Z')) {
+        // 有时区信息（UTC），直接使用
+        endDate = new Date(coupon.endDate)
+      } else {
+        // 没有时区信息，假设是北京时间，转换为UTC
+        const beijingDate = new Date(coupon.endDate)
+        // 北京时间 = UTC + 8，所以 UTC = 北京时间 - 8小时
+        endDate = new Date(beijingDate.getTime() - 8 * 60 * 60 * 1000)
+      }
     } else {
       // 纯日期格式，添加时间部分
       endDate = new Date(coupon.endDate + 'T00:00:00Z')
@@ -547,13 +555,13 @@ export default function Home() {
     const endTimeUTC = endDate.getTime()
     
     const diff = endTimeUTC - nowUTC
-    
+
     // 验证计算结果是否有效
     if (isNaN(diff) || !isFinite(diff)) {
       return 0
     }
-    
-    const days = Math.ceil(diff / (1000 * 60 * 60 * 24))
+
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
     return days
   }
 
@@ -572,8 +580,16 @@ export default function Home() {
     
     // 检查日期是否已经包含时间部分（完整的ISO格式）
     if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
-      // 完整ISO格式，直接使用
-      endDate = new Date(coupon.endDate)
+      // 完整ISO格式，需要检查是否有时区信息
+      if (coupon.endDate.endsWith('Z')) {
+        // 有时区信息（UTC），直接使用
+        endDate = new Date(coupon.endDate)
+      } else {
+        // 没有时区信息，假设是北京时间，转换为UTC
+        const beijingDate = new Date(coupon.endDate)
+        // 北京时间 = UTC + 8，所以 UTC = 北京时间 - 8小时
+        endDate = new Date(beijingDate.getTime() - 8 * 60 * 60 * 1000)
+      }
     } else {
       // 纯日期格式，添加时间部分
       endDate = new Date(coupon.endDate + 'T00:00:00Z')
@@ -630,30 +646,33 @@ export default function Home() {
     
     // 检查日期是否已经包含时间部分（完整的ISO格式）
     if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
-      endDate = new Date(coupon.endDate)
+      // 完整ISO格式，需要检查是否有时区信息
+      if (coupon.endDate.endsWith('Z')) {
+        // 有时区信息（UTC），直接使用
+        endDate = new Date(coupon.endDate)
+      } else {
+        // 没有时区信息，假设是北京时间，转换为UTC
+        const beijingDate = new Date(coupon.endDate)
+        // 北京时间 = UTC + 8，所以 UTC = 北京时间 - 8小时
+        endDate = new Date(beijingDate.getTime() - 8 * 60 * 60 * 1000)
+      }
     } else {
       // 纯日期格式，添加时间部分
       endDate = new Date(coupon.endDate + 'T00:00:00Z')
+
+      // 获取截止时间的小时和分钟
+      const endHour = (coupon as any).endHour
+      const endMinute = (coupon as any).endMinute ?? 59
+
+      // 设置截止时间（UTC时间）
+      // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
+      let utcHour = (endHour ?? 23) - 8
+      if (utcHour < 0) {
+        utcHour += 24
+        endDate.setDate(endDate.getDate() - 1)
+      }
+      endDate.setUTCHours(utcHour, endMinute, 0, 0)
     }
-    
-    // 验证日期解析是否成功
-    if (isNaN(endDate.getTime())) {
-      console.error(`无效的截止日期: ${coupon.endDate}`)
-      return "截止日期无效"
-    }
-    
-    // 获取截止时间的小时和分钟
-    const endHour = (coupon as any).endHour
-    const endMinute = (coupon as any).endMinute ?? 59
-    
-    // 设置截止时间（UTC时间）
-    // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
-    let utcHour = (endHour ?? 23) - 8
-    if (utcHour < 0) {
-      utcHour += 24
-      endDate.setDate(endDate.getDate() - 1)
-    }
-    endDate.setUTCHours(utcHour, endMinute, 0, 0)
     
     // 当前时间（UTC）
     const nowUTC = now.getTime()
@@ -1411,11 +1430,23 @@ export default function Home() {
               const daysRemaining = getDaysRemaining(coupon)
               const expired = isExpired(coupon)
               const expiringSoon = isExpiringSoon(coupon) && !expired
+
+              // 计算准确的截止日期文本（考虑时区）
+              let endDateText: string
               const endHour = (coupon as any).endHour
               const endMinute = (coupon as any).endMinute ?? 59
-              const timeText = endHour !== null && endHour !== undefined
-                ? `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${endHour}:${endMinute.toString().padStart(2, '0')}`
-                : `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} 23:59`
+
+              if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
+                // 完整ISO格式，直接格式化
+                const endDate = new Date(coupon.endDate)
+                // 如果是UTC时间，需要转换为北京时间
+                const beijingTime = new Date(endDate.getTime() + 8 * 60 * 60 * 1000)
+                endDateText = `${beijingTime.toLocaleDateString("zh-CN")} ${beijingTime.getHours().toString().padStart(2, '0')}:${beijingTime.getMinutes().toString().padStart(2, '0')}`
+              } else {
+                // 纯日期格式，使用endHour和endMinute
+                endDateText = `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${endHour}:${endMinute.toString().padStart(2, '0')}`
+              }
+
               const discountText = getDiscountText(coupon)
               const remainingTimeText = getRemainingTimeText(coupon)
 
@@ -1478,7 +1509,7 @@ export default function Home() {
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
                           <span>
-                            截止：{timeText}
+                            截止：{endDateText}
                           </span>
                         </div>
                         {/* 统一使用剩余时间文本判断，而不是 daysRemaining */}
@@ -1571,11 +1602,22 @@ export default function Home() {
                 {usedCouponsExpanded && (
                   <div className="space-y-4">
                     {coupons.filter((c) => (c as any).isUsed).map((coupon) => {
+                      // 计算准确的截止日期文本（考虑时区）
+                      let endDateText: string
                       const endHour = (coupon as any).endHour
                       const endMinute = (coupon as any).endMinute ?? 59
-                      const timeText = endHour !== null && endHour !== undefined
-                        ? `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${endHour}:${endMinute.toString().padStart(2, '0')}`
-                        : `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} 23:59`
+
+                      if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
+                        // 完整ISO格式，直接格式化
+                        const endDate = new Date(coupon.endDate)
+                        // 如果是UTC时间，需要转换为北京时间
+                        const beijingTime = new Date(endDate.getTime() + 8 * 60 * 60 * 1000)
+                        endDateText = `${beijingTime.toLocaleDateString("zh-CN")} ${beijingTime.getHours().toString().padStart(2, '0')}:${beijingTime.getMinutes().toString().padStart(2, '0')}`
+                      } else {
+                        // 纯日期格式，使用endHour和endMinute
+                        endDateText = `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${endHour}:${endMinute.toString().padStart(2, '0')}`
+                      }
+
                       const discountText = getDiscountText(coupon)
 
                       return (
@@ -1612,7 +1654,7 @@ export default function Home() {
                               <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
                                 <div className="flex items-center gap-1">
                                   <Calendar className="h-3 w-3" />
-                                  <span>截止：{timeText}</span>
+                                  <span>截止：{endDateText}</span>
                                 </div>
                               </div>
                             </div>

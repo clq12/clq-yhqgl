@@ -189,18 +189,35 @@ export async function getExpiringCouponsByHours(hours: number): Promise<Coupon[]
     // 获取截止时间的小时和分钟
     const endHour = (coupon as any).endHour
     const endMinute = (coupon as any).endMinute ?? 59
-    
-    // 解析截止日期（使用UTC时间，避免时区影响）
-    const endDate = new Date(coupon.endDate + 'T00:00:00Z')
-    
-    // 设置截止时间（UTC时间）
-    // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
-    let utcHour = (endHour ?? 23) - 8
-    if (utcHour < 0) {
-      utcHour += 24
-      endDate.setDate(endDate.getDate() - 1)
+
+    // 解析截止日期
+    let endDate: Date
+
+    // 检查日期是否已经包含时间部分（完整的ISO格式）
+    if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
+      // 完整ISO格式，需要检查是否有时区信息
+      if (coupon.endDate.endsWith('Z')) {
+        // 有时区信息（UTC），直接使用
+        endDate = new Date(coupon.endDate)
+      } else {
+        // 没有时区信息，假设是北京时间，转换为UTC
+        const beijingDate = new Date(coupon.endDate)
+        // 北京时间 = UTC + 8，所以 UTC = 北京时间 - 8小时
+        endDate = new Date(beijingDate.getTime() - 8 * 60 * 60 * 1000)
+      }
+    } else {
+      // 纯日期格式，添加时间部分
+      endDate = new Date(coupon.endDate + 'T00:00:00Z')
+
+      // 设置截止时间（UTC时间）
+      // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
+      let utcHour = (endHour ?? 23) - 8
+      if (utcHour < 0) {
+        utcHour += 24
+        endDate.setDate(endDate.getDate() - 1)
+      }
+      endDate.setUTCHours(utcHour, endMinute, 0, 0)
     }
-    endDate.setUTCHours(utcHour, endMinute, 0, 0)
 
     // 当前时间（UTC）
     const nowUTC = now.getTime()
@@ -210,7 +227,7 @@ export async function getExpiringCouponsByHours(hours: number): Promise<Coupon[]
 
     // 计算剩余小时数
     const diff = endTimeUTC - nowUTC
-    const diffHours = Math.ceil(diff / (1000 * 60 * 60))
+    const diffHours = Math.floor(diff / (1000 * 60 * 60))
 
     return diffHours >= 0 && diffHours <= hours
   })
@@ -302,27 +319,44 @@ export async function getExpiringCoupons(days: number): Promise<Coupon[]> {
     // 获取截止时间的小时和分钟
     const endHour = (coupon as any).endHour
     const endMinute = (coupon as any).endMinute ?? 59
-    
-    // 解析截止日期（使用UTC时间，避免时区影响）
-    const endDate = new Date(coupon.endDate + 'T00:00:00Z')
-    
-    // 设置截止时间（UTC时间）
-    // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
-    let utcHour = (endHour ?? 23) - 8
-    if (utcHour < 0) {
-      utcHour += 24
-      endDate.setDate(endDate.getDate() - 1)
+
+    // 解析截止日期
+    let endDate: Date
+
+    // 检查日期是否已经包含时间部分（完整的ISO格式）
+    if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
+      // 完整ISO格式，需要检查是否有时区信息
+      if (coupon.endDate.endsWith('Z')) {
+        // 有时区信息（UTC），直接使用
+        endDate = new Date(coupon.endDate)
+      } else {
+        // 没有时区信息，假设是北京时间，转换为UTC
+        const beijingDate = new Date(coupon.endDate)
+        // 北京时间 = UTC + 8，所以 UTC = 北京时间 - 8小时
+        endDate = new Date(beijingDate.getTime() - 8 * 60 * 60 * 1000)
+      }
+    } else {
+      // 纯日期格式，添加时间部分
+      endDate = new Date(coupon.endDate + 'T00:00:00Z')
+
+      // 设置截止时间（UTC时间）
+      // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
+      let utcHour = (endHour ?? 23) - 8
+      if (utcHour < 0) {
+        utcHour += 24
+        endDate.setDate(endDate.getDate() - 1)
+      }
+      endDate.setUTCHours(utcHour, endMinute, 0, 0)
     }
-    endDate.setUTCHours(utcHour, endMinute, 0, 0)
 
     // 当前时间（UTC）
     const nowUTC = now.getTime()
-    
+
     // 截止时间（UTC）
     const endTimeUTC = endDate.getTime()
 
     const diff = endTimeUTC - nowUTC
-    const diffDays = Math.ceil(diff / (1000 * 60 * 60 * 24))
+    const diffDays = Math.floor(diff / (1000 * 60 * 60 * 24))
 
     return diffDays >= 0 && diffDays <= days
   })
@@ -339,22 +373,39 @@ export async function getExpiredCoupons(): Promise<Coupon[]> {
     // 获取截止时间的小时和分钟
     const endHour = (coupon as any).endHour
     const endMinute = (coupon as any).endMinute ?? 59
-    
-    // 解析截止日期（使用UTC时间，避免时区影响）
-    const endDate = new Date(coupon.endDate + 'T00:00:00Z')
-    
-    // 设置截止时间（UTC时间）
-    // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
-    let utcHour = (endHour ?? 23) - 8
-    if (utcHour < 0) {
-      utcHour += 24
-      endDate.setDate(endDate.getDate() - 1)
+
+    // 解析截止日期
+    let endDate: Date
+
+    // 检查日期是否已经包含时间部分（完整的ISO格式）
+    if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
+      // 完整ISO格式，需要检查是否有时区信息
+      if (coupon.endDate.endsWith('Z')) {
+        // 有时区信息（UTC），直接使用
+        endDate = new Date(coupon.endDate)
+      } else {
+        // 没有时区信息，假设是北京时间，转换为UTC
+        const beijingDate = new Date(coupon.endDate)
+        // 北京时间 = UTC + 8，所以 UTC = 北京时间 - 8小时
+        endDate = new Date(beijingDate.getTime() - 8 * 60 * 60 * 1000)
+      }
+    } else {
+      // 纯日期格式，添加时间部分
+      endDate = new Date(coupon.endDate + 'T00:00:00Z')
+
+      // 设置截止时间（UTC时间）
+      // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
+      let utcHour = (endHour ?? 23) - 8
+      if (utcHour < 0) {
+        utcHour += 24
+        endDate.setDate(endDate.getDate() - 1)
+      }
+      endDate.setUTCHours(utcHour, endMinute, 0, 0)
     }
-    endDate.setUTCHours(utcHour, endMinute, 0, 0)
 
     // 当前时间（UTC）
     const nowUTC = now.getTime()
-    
+
     // 截止时间（UTC）
     const endTimeUTC = endDate.getTime()
 

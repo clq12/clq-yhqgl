@@ -1450,6 +1450,23 @@ export default function Home() {
               const discountText = getDiscountText(coupon)
               const remainingTimeText = getRemainingTimeText(coupon)
 
+              // 处理卡片点击（批量模式下）
+              const handleCardClick = (e: React.MouseEvent) => {
+                if (isBulkMode) {
+                  // 如果点击的是复选框或按钮，不触发卡片点击
+                  const target = e.target as HTMLElement
+                  if (
+                    target.tagName === 'INPUT' ||
+                    target.tagName === 'BUTTON' ||
+                    target.closest('button') ||
+                    target.closest('input')
+                  ) {
+                    return
+                  }
+                  toggleSelection(coupon.id)
+                }
+              }
+
               return (
                 <Card
                   key={coupon.id}
@@ -1459,7 +1476,8 @@ export default function Home() {
                       : expiringSoon
                       ? "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800"
                       : "bg-white dark:bg-gray-800"
-                  }`}
+                  } ${isBulkMode ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors" : ""}`}
+                  onClick={handleCardClick}
                 >
                   <div className="flex items-start gap-3">
                     {/* 批量选择复选框 */}
@@ -1467,7 +1485,10 @@ export default function Home() {
                       <input
                         type="checkbox"
                         checked={selectedIds.includes(coupon.id)}
-                        onChange={() => toggleSelection(coupon.id)}
+                        onChange={(e) => {
+                          e.stopPropagation()
+                          toggleSelection(coupon.id)
+                        }}
                         className="h-4 w-4 mt-1 rounded border-gray-300"
                       />
                     )}
@@ -1525,7 +1546,10 @@ export default function Home() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => handleMarkReminded(coupon.id)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleMarkReminded(coupon.id)
+                          }}
                           disabled={isReminding === coupon.id}
                           className="text-orange-600 hover:text-orange-700 dark:text-orange-400"
                         >
@@ -1536,7 +1560,10 @@ export default function Home() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => handleMarkUsed(coupon.id, true)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleMarkUsed(coupon.id, true)
+                          }}
                           className="text-green-600 hover:text-green-700 dark:text-green-400"
                           title="标记为已使用"
                         >
@@ -1546,7 +1573,8 @@ export default function Home() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation()
                           setEditingCoupon(coupon)
                           setIsAddingMode(false)
                           setIsFormDialogOpen(true)
@@ -1620,10 +1648,28 @@ export default function Home() {
 
                       const discountText = getDiscountText(coupon)
 
+                      // 处理卡片点击（批量模式下）
+                      const handleCardClick = (e: React.MouseEvent) => {
+                        if (isBulkMode) {
+                          // 如果点击的是复选框或按钮，不触发卡片点击
+                          const target = e.target as HTMLElement
+                          if (
+                            target.tagName === 'INPUT' ||
+                            target.tagName === 'BUTTON' ||
+                            target.closest('button') ||
+                            target.closest('input')
+                          ) {
+                            return
+                          }
+                          toggleSelection(coupon.id)
+                        }
+                      }
+
                       return (
                         <Card
                           key={coupon.id}
-                          className="p-4 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 opacity-75"
+                          className={`p-4 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 opacity-75 ${isBulkMode ? "cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors" : ""}`}
+                          onClick={handleCardClick}
                         >
                           <div className="flex items-start gap-3">
                             {/* 批量选择复选框 */}
@@ -1631,7 +1677,10 @@ export default function Home() {
                               <input
                                 type="checkbox"
                                 checked={selectedIds.includes(coupon.id)}
-                                onChange={() => toggleSelection(coupon.id)}
+                                onChange={(e) => {
+                                  e.stopPropagation()
+                                  toggleSelection(coupon.id)
+                                }}
                                 className="h-4 w-4 mt-1 rounded border-gray-300"
                               />
                             )}
@@ -1662,7 +1711,10 @@ export default function Home() {
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={() => handleMarkUsed(coupon.id, false)}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleMarkUsed(coupon.id, false)
+                                }}
                                 className="text-gray-600 hover:text-gray-700 dark:text-gray-400"
                                 title="取消已使用"
                               >
@@ -1671,7 +1723,8 @@ export default function Home() {
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation()
                                   setEditingCoupon(coupon)
                                   setIsAddingMode(false)
                                   setIsFormDialogOpen(true)

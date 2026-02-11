@@ -1476,7 +1476,7 @@ export default function Home() {
                       : expiringSoon
                       ? "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800"
                       : "bg-white dark:bg-gray-800"
-                  } ${isBulkMode ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors" : ""}`}
+                  } ${isBulkMode ? "hover:border-blue-500 dark:hover:border-blue-400 transition-colors" : ""}`}
                   onClick={handleCardClick}
                 >
                   <div className="flex items-start gap-3">
@@ -1668,7 +1668,7 @@ export default function Home() {
                       return (
                         <Card
                           key={coupon.id}
-                          className={`p-4 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 opacity-75 ${isBulkMode ? "cursor-pointer hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors" : ""}`}
+                          className={`p-4 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 opacity-75 ${isBulkMode ? "hover:border-blue-500 dark:hover:border-blue-400 transition-colors" : ""}`}
                           onClick={handleCardClick}
                         >
                           <div className="flex items-start gap-3">

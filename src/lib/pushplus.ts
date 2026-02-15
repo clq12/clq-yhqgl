@@ -261,11 +261,11 @@ export function generateGroupedExpiringMessage(groups: {
   within1Day: any[]
   within3Days: any[]
   within7Days: any[]
-}, oilPriceSection?: string): string {
+}): string {
   const { within1Day, within3Days, within7Days } = groups
   const totalCoupons = within1Day.length + within3Days.length + within7Days.length
 
-  if (totalCoupons === 0 && !oilPriceSection) {
+  if (totalCoupons === 0) {
     return ""
   }
 
@@ -277,16 +277,6 @@ export function generateGroupedExpiringMessage(groups: {
         <h2 style="color: #e11d48; margin: 0 0 16px 0; font-size: 24px;">
           🔔 优惠券即将到期提醒
         </h2>
-  `
-
-  // 如果有油价信息，添加油价变化提醒
-  if (oilPriceSection) {
-    html += `
-        ${oilPriceSection}
-    `
-  }
-
-  html += `
         <p style="color: #666; margin: 0 0 20px 0;">
           今天是 ${today}，您共有 <strong style="color: #e11d48; font-size: 18px;">${totalCoupons}</strong> 张优惠券即将到期
         </p>

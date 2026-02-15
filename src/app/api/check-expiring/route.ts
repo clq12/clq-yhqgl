@@ -9,41 +9,6 @@ import {
 import { sendPushPlus, generateGroupedExpiringMessage } from "@/lib/pushplus"
 
 /**
- * 调价日检测
- * 中国油价每10个工作日调整一次
- * 返回：isAdjustmentDay（是否是调价日），isNextDay（是否是调价日次日）
- */
-function checkAdjustmentDay(): { isAdjustmentDay: boolean; isNextDay: boolean } {
-  const now = new Date()
-  const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000) // 转换为北京时间
-  
-  // 2025年已知的油价调整日（每10个工作日调整一次）
-  // 注意：这些日期需要根据实际调整日历更新
-  const adjustmentDays = [
-    "2025-01-03", "2025-01-17", "2025-02-06", "2025-02-20",
-    "2025-03-06", "2025-03-20", "2025-04-03", "2025-04-17",
-    "2025-05-08", "2025-05-22", "2025-06-05", "2025-06-19",
-    "2025-07-03", "2025-07-17", "2025-08-01", "2025-08-15",
-    "2025-09-05", "2025-09-19", "2025-10-10", "2025-10-24",
-    "2025-11-07", "2025-11-21", "2025-12-05", "2025-12-19",
-  ]
-  
-  // 格式化当前日期为 YYYY-MM-DD（北京时间）
-  const currentDateStr = beijingTime.toISOString().split('T')[0]
-  
-  // 计算明天的日期（北京时间）
-  const tomorrow = new Date(beijingTime)
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  const tomorrowDateStr = tomorrow.toISOString().split('T')[0]
-  
-  // 检查是否是调价日或调价日次日
-  const isAdjustmentDay = adjustmentDays.includes(currentDateStr)
-  const isNextDay = adjustmentDays.includes(tomorrowDateStr)
-  
-  return { isAdjustmentDay, isNextDay }
-}
-
-/**
  * 计算优惠券剩余天数（使用北京时间 UTC+8）
  */
 function getDaysRemaining(coupon: any): number {
@@ -209,15 +174,6 @@ function getConfigFromEnv(): WebDAVConfig | null {
 // 检查即将到期的优惠券并发送推送
 export async function GET(request: NextRequest) {
   try {
-    // 0. 检查是否是调价日或调价日次日
-    const { isAdjustmentDay, isNextDay } = checkAdjustmentDay()
-    const now = new Date()
-    const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000) // 转换为北京时间
-    const currentHour = beijingTime.getUTCHours() // UTC小时（北京时间8:30 = UTC 0:30）
-    const currentMinute = beijingTime.getUTCMinutes()
-    
-    console.log(`调价日检测: isAdjustmentDay=${isAdjustmentDay}, isNextDay=${isNextDay}, 当前北京时间=${beijingTime.toISOString()}`)
-
     // 1. 获取配置（优先从环境变量，其次从 Cookie）
     let config = getConfigFromEnv()
 
@@ -252,107 +208,7 @@ export async function GET(request: NextRequest) {
     // 3. 获取所有优惠券
     const allCoupons = await getAllCoupons()
 
-    // 4. 调价日处理：如果是调价日且时间是8:30，发送油价趋势推送
-    if (isAdjustmentDay && currentHour === 0 && currentMinute === 30) {
-      console.log("检测到调价日8:30，开始获取油价趋势...")
-
-      try {
-        // 调用油价检测API
-        const oilPriceResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:5000'}/api/check-oil-price`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        })
-
-        if (oilPriceResponse.ok) {
-          const oilPriceData = await oilPriceResponse.json()
-
-          if (oilPriceData.success && oilPriceData.data) {
-            const trend = oilPriceData.data
-            console.log(`油价趋势分析结果: ${JSON.stringify(trend)}`)
-
-            // 生成油价趋势推送消息
-            const oilPriceMessage = `
-<h3>🚗 油价趋势预测</h3>
-<p>中国下一轮油价调整预测：</p>
-<ul>
-  <li><strong>趋势：</strong>${trend.trend}</li>
-  <li><strong>置信度：</strong>${trend.confidence}%</li>
-  <li><strong>原因：</strong>${trend.core_factor}</li>
-</ul>
-<p><em>注：油价以国家发改委最终公布为准，请以官方消息为准。</em></p>
-`.trim()
-
-            const result = await sendPushPlus({
-              token: config.pushplusToken,
-              title: "油价调整提醒",
-              content: oilPriceMessage,
-              template: "html",
-            })
-
-            if (result.success) {
-              console.log("油价趋势推送成功！")
-              return NextResponse.json({
-                success: true,
-                message: "油价趋势推送成功",
-                data: trend,
-              })
-            } else {
-              console.error("油价趋势推送失败:", result.error)
-            }
-          } else {
-            console.error("油价趋势API返回失败:", oilPriceData)
-          }
-        } else {
-          console.error("油价趋势API调用失败:", oilPriceResponse.status)
-        }
-      } catch (error) {
-        console.error("获取油价趋势失败:", error)
-      }
-
-      // 如果油价推送失败，继续执行常规推送逻辑
-    }
-
-    // 5. 获取油价变化信息（仅在调价日次日）
-    let oilPriceSection = ""
-    if (isNextDay) {
-      console.log("检测到调价日次日，获取油价变化信息...")
-
-      try {
-        // 调用油价检测API
-        const oilPriceResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:5000'}/api/check-oil-price`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        })
-
-        if (oilPriceResponse.ok) {
-          const oilPriceData = await oilPriceResponse.json()
-
-          if (oilPriceData.success && oilPriceData.data) {
-            const trend = oilPriceData.data
-            console.log(`油价变化信息: ${JSON.stringify(trend)}`)
-
-            oilPriceSection = `
-<h3>🚗 油价变化提醒</h3>
-<p>中国下一轮油价预测：</p>
-<ul>
-  <li><strong>趋势：</strong>${trend.trend}</li>
-  <li><strong>置信度：</strong>${trend.confidence}%</li>
-  <li><strong>原因：</strong>${trend.core_factor}</li>
-</ul>
-<hr/>
-`.trim()
-          }
-        }
-      } catch (error) {
-        console.error("获取油价变化失败:", error)
-      }
-    }
-
-    // 6. 新的提醒逻辑：合并推送，按紧急程度排序
+    // 4. 新的提醒逻辑：合并推送，按紧急程度排序
     // 检查所有未使用的优惠券，根据剩余时间分组
     const within7Days: Coupon[] = []
     const within3Days: Coupon[] = []
@@ -404,7 +260,7 @@ export async function GET(request: NextRequest) {
         within1Day,
         within3Days,
         within7Days,
-      }, oilPriceSection)
+      })
 
       console.log(`推送消息已生成，长度: ${message.length} 字符`)
 

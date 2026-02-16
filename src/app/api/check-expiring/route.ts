@@ -7,6 +7,7 @@ import {
   Coupon,
 } from "@/lib/webdav-storage"
 import { sendPushPlus, generateGroupedExpiringMessage } from "@/lib/pushplus"
+import { getRemainingHours, isRemindWithinDays } from "@/lib/utils"
 
 /**
  * 计算优惠券剩余天数（使用北京时间 UTC+8）
@@ -78,72 +79,6 @@ function getDaysRemaining(coupon: any): number {
 }
 
 /**
- * 计算优惠券剩余小时数（使用北京时间 UTC+8）
- */
-function getRemainingHours(coupon: any): number {
-  const now = new Date()
-
-  // 验证截止日期是否存在
-  if (!coupon.endDate) {
-    return 0
-  }
-
-  // 解析截止日期
-  let endDate: Date
-
-  // 检查日期是否已经包含时间部分（完整的ISO格式）
-  if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
-    // 完整ISO格式，需要检查是否有时区信息
-    if (coupon.endDate.endsWith('Z')) {
-      // 有时区信息（UTC），直接使用
-      endDate = new Date(coupon.endDate)
-    } else {
-      // 没有时区信息，假设是北京时间，转换为UTC
-      const beijingDate = new Date(coupon.endDate)
-      // 北京时间 = UTC + 8，所以 UTC = 北京时间 - 8小时
-      endDate = new Date(beijingDate.getTime() - 8 * 60 * 60 * 1000)
-    }
-  } else {
-    // 纯日期格式，添加时间部分
-    endDate = new Date(coupon.endDate + 'T00:00:00Z')
-
-    // 获取截止时间的小时和分钟（只对纯日期格式添加）
-    const endHour = (coupon as any).endHour ?? 23
-    const endMinute = (coupon as any).endMinute ?? 59
-
-    // 设置截止时间（UTC时间）
-    // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
-    let utcHour = endHour - 8
-    if (utcHour < 0) {
-      utcHour += 24
-      endDate.setDate(endDate.getDate() - 1)
-    }
-    endDate.setUTCHours(utcHour, endMinute, 0, 0)
-  }
-
-  // 验证日期解析是否成功
-  if (isNaN(endDate.getTime())) {
-    return 0
-  }
-
-  // 当前时间（UTC）
-  const nowUTC = now.getTime()
-
-  // 截止时间（UTC）
-  const endTimeUTC = endDate.getTime()
-
-  const diffMs = endTimeUTC - nowUTC
-
-  // 验证计算结果是否有效
-  if (isNaN(diffMs) || !isFinite(diffMs)) {
-    return 0
-  }
-
-  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-  return diffHours
-}
-
-/**
  * 从环境变量获取配置（用于定时任务）
  */
 function getConfigFromEnv(): WebDAVConfig | null {
@@ -210,6 +145,7 @@ export async function GET(request: NextRequest) {
 
     // 4. 新的提醒逻辑：合并推送，按紧急程度排序
     // 检查所有未使用的优惠券，根据剩余时间分组
+    // 使用精确的小时数判断，确保只有严格小于指定天数的优惠券才会被提醒
     const within7Days: Coupon[] = []
     const within3Days: Coupon[] = []
     const within1Day: Coupon[] = []
@@ -222,25 +158,26 @@ export async function GET(request: NextRequest) {
         continue
       }
 
-      // 计算剩余天数
-      const days = getDaysRemaining(coupon)
+      // 计算剩余天数和小时数（仅用于日志输出）
       const hours = getRemainingHours(coupon)
+      const days = Math.floor(hours / 24)
 
-      console.log(`优惠券 "${coupon.title}": 剩余 ${days}天 ${hours}小时`)
+      console.log(`优惠券 "${coupon.title}": 剩余 ${days}天 ${hours % 24}小时`)
 
       // 分组：每次推送都包含所有符合条件的优惠券
       // 每张优惠券只出现在最紧急的那个组中（避免在推送消息中重复显示）
-      if (days < 0) {
+      // 使用 isRemindWithinDays 进行精确判断：剩余小时数 < 天数 * 24
+      if (hours < 0) {
         // 已过期，跳过
         continue
-      } else if (days <= 1) {
-        // 1天内到期（最紧急）
+      } else if (isRemindWithinDays(coupon, 1)) {
+        // 严格小于1天（24小时），最紧急
         within1Day.push(coupon)
-      } else if (days <= 3) {
-        // 3天内到期
+      } else if (isRemindWithinDays(coupon, 3)) {
+        // 严格小于3天（72小时）
         within3Days.push(coupon)
-      } else if (days <= 7) {
-        // 7天内到期
+      } else if (isRemindWithinDays(coupon, 7)) {
+        // 严格小于7天（168小时）
         within7Days.push(coupon)
       }
       // 超过7天的不提醒

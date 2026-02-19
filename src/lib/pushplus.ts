@@ -11,69 +11,130 @@ export interface PushPlusMessage {
 }
 
 /**
+ * 带重试和超时的 fetch 请求
+ */
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  maxRetries: number = 3,
+  timeout: number = 30000
+): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeout)
+
+  // 合并 AbortSignal
+  const abortSignal = options.signal
+    ? AbortSignal.any([controller.signal, options.signal])
+    : controller.signal
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`PushPlus 请求尝试 ${attempt}/${maxRetries}: ${url}`)
+
+      const response = await fetch(url, {
+        ...options,
+        signal: abortSignal,
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 100)}`)
+      }
+
+      return response
+    } catch (error) {
+      clearTimeout(timeoutId)
+
+      if (attempt === maxRetries) {
+        throw error
+      }
+
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      console.warn(`PushPlus 请求失败（尝试 ${attempt}/${maxRetries}）: ${errorMsg}`)
+
+      // 指数退避：1秒、2秒、4秒
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 4000)
+      console.log(`等待 ${delay}ms 后重试...`)
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+
+  throw new Error("所有重试都失败")
+}
+
+/**
  * 发送 PushPlus 消息
  */
 export async function sendPushPlus(message: PushPlusMessage): Promise<{ success: boolean; error?: string }> {
-  try {
-    // 使用 HTTPS 协议
-    const url = "https://www.pushplus.plus/send"
+  const urls = [
+    "https://www.pushplus.plus/send",
+    "https://pushplus.plus/send",
+    "http://www.pushplus.plus/send", // 备用 HTTP
+  ]
 
-    const params = new URLSearchParams({
-      token: message.token,
-      title: message.title,
-      content: message.content,
-      template: message.template || "html",
-    })
+  let lastError: string | null = null
 
-    // 使用 POST 方法，参数放在请求体中
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: params.toString(),
-    })
+  for (const url of urls) {
+    try {
+      console.log(`尝试使用 PushPlus API: ${url}`)
 
-    // 检查响应状态
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error(`PushPlus API HTTP 错误: ${response.status}`)
-      console.error(`响应内容: ${errorText.substring(0, 200)}`)
-      return {
-        success: false,
-        error: `HTTP 错误: ${response.status}`
+      const params = new URLSearchParams({
+        token: message.token,
+        title: message.title,
+        content: message.content,
+        template: message.template || "html",
+      })
+
+      // 使用 POST 方法，参数放在请求体中
+      const response = await fetchWithRetry(
+        url,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: params.toString(),
+        },
+        3, // 最多重试 3 次
+        30000 // 30 秒超时
+      )
+
+      // 检查响应类型
+      const contentType = response.headers.get("content-type")
+      if (!contentType || !contentType.includes("application/json")) {
+        const errorText = await response.text()
+        console.error(`PushPlus API 返回非 JSON 响应: ${contentType}`)
+        console.error(`响应内容: ${errorText.substring(0, 200)}`)
+        lastError = `API 返回非 JSON 格式，可能是 Token 无效或 API 地址错误`
+        continue // 尝试下一个 URL
       }
-    }
 
-    // 检查响应类型
-    const contentType = response.headers.get("content-type")
-    if (!contentType || !contentType.includes("application/json")) {
-      const errorText = await response.text()
-      console.error(`PushPlus API 返回非 JSON 响应: ${contentType}`)
-      console.error(`响应内容: ${errorText.substring(0, 200)}`)
-      return {
-        success: false,
-        error: `API 返回非 JSON 格式，可能是 Token 无效或 API 地址错误`
+      const result = await response.json()
+      console.log(`PushPlus 响应:`, result)
+
+      if (result.code === 200) {
+        console.log("PushPlus 推送成功！")
+        return { success: true }
+      } else {
+        lastError = result.msg || `PushPlus API 返回错误: code=${result.code}`
+        console.error(`PushPlus API 错误: ${lastError}`)
+        continue // 尝试下一个 URL
       }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error)
+      lastError = errorMsg
+      console.error(`PushPlus 推送失败（${url}）:`, errorMsg)
+      continue // 尝试下一个 URL
     }
+  }
 
-    const result = await response.json()
-
-    if (result.code === 200) {
-      return { success: true }
-    } else {
-      return {
-        success: false,
-        error: result.msg || `PushPlus API 返回错误: code=${result.code}`
-      }
-    }
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error)
-    console.error("PushPlus 推送失败:", errorMsg)
-    return {
-      success: false,
-      error: `推送失败: ${errorMsg}`
-    }
+  // 所有 URL 都失败了
+  console.error("PushPlus 所有 API 地址都失败:", lastError)
+  return {
+    success: false,
+    error: `推送失败: ${lastError}`
   }
 }
 

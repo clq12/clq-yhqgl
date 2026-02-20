@@ -211,7 +211,7 @@ export async function GET(request: NextRequest) {
       if (result.success) {
         console.log(`推送成功！`)
         
-        // 更新提醒记录（用于统计）
+        // 更新提醒记录（仅用于统计）
         const updatedCoupons = allCoupons.map(coupon => {
           // 检查这张优惠券在哪个组中
           const inWithin1Day = within1Day.some(pc => pc.id === coupon.id)
@@ -235,18 +235,19 @@ export async function GET(request: NextRequest) {
             newRemindedDays.push(7)
           }
           
-          // 更新提醒状态（仅用于显示和统计，不影响推送逻辑）
+          // 注意：不再更新 isReminded 字段
+          // 每次推送都应该检查即将到期的优惠券，重复提醒
           return {
             ...coupon,
             remindedDays: newRemindedDays,
-            isReminded: true,
+            // 移除 isReminded 的更新
             updatedAt: new Date().toISOString(),
           }
         })
         
         // 保存更新后的优惠券
         await saveCoupons(updatedCoupons)
-        console.log(`已更新提醒记录（用于统计，不影响下次推送）`)
+        console.log(`已更新提醒记录（remindedDays，不影响下次推送）`)
         
         return NextResponse.json({
           success: true,

@@ -143,49 +143,48 @@ export async function sendPushPlus(message: PushPlusMessage): Promise<{ success:
  */
 function calculateRemainingTime(coupon: any): { days: number; hours: number; text: string } {
   const now = new Date()
-  
+  const nowTimestamp = now.getTime()
+
   // 验证截止日期是否存在
   if (!coupon.endDate) {
     return { days: 0, hours: 0, text: "截止日期无效" }
   }
-  
-  // 解析截止日期
-  let endDate: Date
-  
-  // 检查日期是否已经包含时间部分（完整的ISO格式）
-  if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
-    endDate = new Date(coupon.endDate)
-  } else {
-    // 纯日期格式，添加时间部分
-    endDate = new Date(coupon.endDate + 'T00:00:00Z')
-  }
-  
-  // 验证日期解析是否成功
-  if (isNaN(endDate.getTime())) {
-    console.error(`无效的截止日期: ${coupon.endDate}`)
-    return { days: 0, hours: 0, text: "截止日期无效" }
-  }
-  
-  // 获取截止时间的小时和分钟
-  const endHour = (coupon as any).endHour ?? 23
-  const endMinute = (coupon as any).endMinute ?? 59
-  
-  // 设置截止时间（UTC时间）
-  // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
-  let utcHour = endHour - 8
-  if (utcHour < 0) {
-    utcHour += 24
-    endDate.setDate(endDate.getDate() - 1)
-  }
-  endDate.setUTCHours(utcHour, endMinute, 0, 0)
-  
-  // 当前时间（UTC）
-  const nowUTC = now.getTime()
-  
-  // 截止时间（UTC）
-  const endTimeUTC = endDate.getTime()
 
-  const diffMs = endTimeUTC - nowUTC
+  // 获取截止时间的小时和分钟（北京时间）
+  const endHour = (coupon as any).endHour ?? 23
+  const endMinute = 59
+  const endSecond = 59
+
+  let endDateTimestamp: number
+
+  // 处理不同的日期格式（与 utils.ts 中的逻辑保持一致）
+  if (coupon.endDate.includes('T') && coupon.endDate.endsWith('Z')) {
+    // 带Z后缀，表示UTC时间，直接解析
+    const utcDate = new Date(coupon.endDate)
+    endDateTimestamp = utcDate.getTime()
+  } else if (coupon.endDate.includes('T')) {
+    // 带T但不带Z，假设为本地时间（北京时间），手动解析
+    const [datePart, timePart] = coupon.endDate.split('T')
+    const [year, month, day] = datePart.split('-').map(Number)
+    const timeComponents = (timePart || '00:00:00').split(':')
+    const hour = Number(timeComponents[0])
+    const minute = Number(timeComponents[1] || 0)
+    const second = Number(timeComponents[2] || 0)
+
+    // 创建本地时间对象（北京时间）
+    const localDate = new Date(year, month - 1, day, hour, minute, second)
+    endDateTimestamp = localDate.getTime()
+  } else {
+    // 纯日期格式（如 2026-02-23），假设为北京时间
+    // 使用手动解析方式
+    const [year, month, day] = coupon.endDate.split('-').map(Number)
+    // 创建本地时间对象（北京时间），使用 endHour:endMinute:59
+    const localDate = new Date(year, month - 1, day, endHour, endMinute, endSecond)
+    endDateTimestamp = localDate.getTime()
+  }
+
+  // 计算剩余毫秒数
+  const diffMs = endDateTimestamp - nowTimestamp
 
   // 验证计算结果是否有效
   if (isNaN(diffMs) || !isFinite(diffMs)) {
@@ -194,7 +193,7 @@ function calculateRemainingTime(coupon: any): { days: number; hours: number; tex
   }
 
   // 计算天数和小时数
-  const totalHours = Math.ceil(diffMs / (1000 * 60 * 60))
+  const totalHours = Math.floor(diffMs / (1000 * 60 * 60))
   const days = Math.floor(totalHours / 24)
   const hours = totalHours % 24
 
@@ -217,34 +216,38 @@ function formatExpiryDate(coupon: any): string {
   if (!coupon.endDate) {
     return "截止日期无效"
   }
-  
-  const endHour = (coupon as any).endHour
-  const endMinute = (coupon as any).endMinute ?? 59
-  
-  // 解析截止日期
-  let dateObj: Date
-  
-  // 检查日期格式
-  if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
-    dateObj = new Date(coupon.endDate)
+
+  const endHour = (coupon as any).endHour ?? 23
+  const endMinute = 59
+
+  let year: number, month: number, day: number
+
+  // 处理不同的日期格式（与 utils.ts 中的逻辑保持一致）
+  if (coupon.endDate.includes('T') && coupon.endDate.endsWith('Z')) {
+    // 带Z后缀，表示UTC时间，直接解析并转换为北京时间
+    const utcDate = new Date(coupon.endDate)
+    year = utcDate.getUTCFullYear()
+    month = utcDate.getUTCMonth() + 1
+    day = utcDate.getUTCDate()
+  } else if (coupon.endDate.includes('T')) {
+    // 带T但不带Z，假设为本地时间（北京时间），手动解析
+    const [datePart] = coupon.endDate.split('T')
+    const dateComponents = datePart.split('-').map(Number)
+    year = dateComponents[0]
+    month = dateComponents[1]
+    day = dateComponents[2]
   } else {
-    dateObj = new Date(coupon.endDate + 'T00:00:00Z')
+    // 纯日期格式（如 2026-02-23），假设为北京时间
+    const dateComponents = coupon.endDate.split('-').map(Number)
+    year = dateComponents[0]
+    month = dateComponents[1]
+    day = dateComponents[2]
   }
-  
-  // 验证日期解析是否成功
-  if (isNaN(dateObj.getTime())) {
-    return "截止日期无效"
-  }
-  
-  // 提取年月日（转换为北京时间 UTC+8）
-  const year = dateObj.getUTCFullYear()
-  const month = (dateObj.getUTCMonth() + 1).toString().padStart(2, '0')
-  const day = dateObj.getUTCDate().toString().padStart(2, '0')
-  
+
   // 组合日期和时间
-  const dateStr = `${year}-${month}-${day}`
-  const timeStr = `${endHour ?? 23}:${(endMinute ?? 59).toString().padStart(2, '0')}`
-  
+  const dateStr = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
+  const timeStr = `${endHour}:${endMinute.toString().padStart(2, '0')}`
+
   return `${dateStr} ${timeStr}`
 }
 

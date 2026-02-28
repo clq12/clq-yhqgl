@@ -480,11 +480,11 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
             ) : (
               <div className="space-y-4">
                 {/* 图片预览 */}
-                <div className="relative">
+                <div className="relative h-64 bg-muted/30 rounded-lg border flex items-center justify-center overflow-hidden">
                   <img
                     src={image}
                     alt="优惠券截图"
-                    className="w-full rounded-lg border"
+                    className="max-h-full max-w-full object-contain"
                   />
                   <Button
                     variant="destructive"
@@ -611,11 +611,11 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
               ) : (
                 <div className="space-y-4">
                   {/* 图片预览 */}
-                  <div className="relative">
+                  <div className="relative h-64 bg-muted/30 rounded-lg border flex items-center justify-center overflow-hidden">
                     <img
                       src={image}
                       alt="优惠券截图"
-                      className="w-full rounded-lg border"
+                      className="max-h-full max-w-full object-contain"
                     />
                     <Button
                       variant="destructive"

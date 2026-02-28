@@ -317,14 +317,26 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
       const result = await apiResponse.json()
 
       if (result.success) {
-        // 处理API返回的数据格式（可能是result.data或result.data.coupons）
-        const coupons = result.data.coupons || result.data
+        // API返回格式：{success: true, data: {rawText, coupons, aiModel}}
+        const responseData = result.data
+
+        // 确保获取到正确的coupons数组
+        let coupons: any[] = []
+        if (Array.isArray(responseData?.coupons)) {
+          coupons = responseData.coupons
+        } else if (Array.isArray(responseData)) {
+          coupons = responseData
+        }
+
+        console.log('ChatGPT识别结果:', responseData)
+        console.log('识别到的优惠券数量:', coupons.length)
+
         setAiResult(coupons)
-        console.log('ChatGPT识别结果:', result.data)
 
         // 如果识别到优惠券，自动填充第一张
         if (coupons && coupons.length > 0) {
           const firstCoupon = coupons[0]
+          console.log('第一张优惠券:', firstCoupon)
           const extractedInfo = convertAiToExtractedInfo(firstCoupon)
           setExtractedInfo(extractedInfo)
           onExtracted(extractedInfo)

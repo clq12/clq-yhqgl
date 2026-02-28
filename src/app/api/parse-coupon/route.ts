@@ -1053,7 +1053,7 @@ async function extractCouponInfoWithChatGPT(text: string, apiKey?: string): Prom
 
 【字段定义】
 
-- title: string | null - 优惠券标题
+- title: string | null - 优惠券标题（必须包含店铺名称，格式：店铺名称+优惠描述，如"瑞幸咖啡 20元立减金"）
 - description: string | null - 描述信息
 - discountType: "amount" | "percentage" | "full" | null - 折扣类型（满减/full，折扣/percentage，减免/amount）
 - discountAmount: number | null - 优惠金额（满减中的减金额、减免金额）
@@ -1062,7 +1062,7 @@ async function extractCouponInfoWithChatGPT(text: string, apiKey?: string): Prom
 - endDate: string | null - 到期日期，格式YYYY-MM-DD
 - endHour: number | null - 截止小时，0-23
 - endMinute: number | null - 截止分钟，0-59
-- storeName: string | null - 商家或平台名称
+- storeName: string | null - 商家或平台名称（需要单独提取，不要只从title中取）
 - notes: string | null - 备注信息
 
 【解析规则】
@@ -1078,13 +1078,18 @@ async function extractCouponInfoWithChatGPT(text: string, apiKey?: string): Prom
    - 相对时间（今天、明天等）保持原样
 4. 如果某些字段无法提取，返回null
 
+【标题生成规则（重要）】
+- title必须包含店铺名称，格式：店铺名称 + 空格 + 优惠描述
+- 示例："瑞幸咖啡 20元立减金"、"建设银行 满2000减5"、"星巴克 8折优惠券"
+- 如果原始文本没有店铺名称，title可以为null或只包含优惠描述
+
 【示例】
 
 输入: "瑞幸咖啡 20元立减金 2026年2月25日到期"
 输出: {"title":"瑞幸咖啡 20元立减金","discountType":"amount","discountAmount":20,"endDate":"2026-02-25","storeName":"瑞幸咖啡"}
 
 输入: "建设银行 满2000减5 2026年2月23日23:59失效"
-输出: {"title":"建设银行立减金","discountType":"full","fullAmount":2000,"discountAmount":5,"endDate":"2026-02-23","endHour":23,"endMinute":59,"storeName":"建设银行"}`
+输出: {"title":"建设银行 满2000减5","discountType":"full","fullAmount":2000,"discountAmount":5,"endDate":"2026-02-23","endHour":23,"endMinute":59,"storeName":"建设银行"}`
 
   const messages = [
     { role: 'system' as const, content: systemPrompt },
@@ -1201,7 +1206,7 @@ async function extractCouponsWithChatGPTBatch(text: string, apiKey?: string): Pr
 
 【字段定义】
 
-- title: string | null - 优惠券标题
+- title: string | null - 优惠券标题（必须包含店铺名称，格式：店铺名称+优惠描述，如"瑞幸咖啡 20元立减金"）
 - description: string | null - 描述信息
 - discountType: "amount" | "percentage" | "full" | null - 折扣类型（满减/full，折扣/percentage，减免/amount）
 - discountAmount: number | null - 优惠金额（满减中的减金额、减免金额）
@@ -1210,7 +1215,7 @@ async function extractCouponsWithChatGPTBatch(text: string, apiKey?: string): Pr
 - endDate: string | null - 到期日期，格式YYYY-MM-DD
 - endHour: number | null - 截止小时，0-23
 - endMinute: number | null - 截止分钟，0-59
-- storeName: string | null - 商家或平台名称
+- storeName: string | null - 商家或平台名称（需要单独提取，不要只从title中取）
 - notes: string | null - 备注信息
 
 【解析规则】
@@ -1226,6 +1231,11 @@ async function extractCouponsWithChatGPTBatch(text: string, apiKey?: string): Pr
    - 时间格式：23点、23点30分 → 提取endHour和endMinute
    - 相对时间（今天、明天等）保持原样
 5. 如果某些字段无法提取，返回null
+
+【标题生成规则（重要）】
+- title必须包含店铺名称，格式：店铺名称 + 空格 + 优惠描述
+- 示例："瑞幸咖啡 20元立减金"、"建设银行 满2000减5"、"星巴克 8折优惠券"
+- 如果原始文本没有店铺名称，title可以为null或只包含优惠描述
 
 【示例】
 

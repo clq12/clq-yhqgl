@@ -267,7 +267,9 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
           const firstCoupon = result.data.coupons[0]
           const extractedInfo: ExtractedCouponInfo = {
             storeName: firstCoupon.storeName,
-            title: firstCoupon.title,
+            title: firstCoupon.storeName && firstCoupon.title 
+              ? `${firstCoupon.storeName} ${firstCoupon.title}`.trim()
+              : firstCoupon.title,
             description: `${firstCoupon.condition} ${firstCoupon.endDate}`,
             notes: `AI识别: ChatGPT`,
           }

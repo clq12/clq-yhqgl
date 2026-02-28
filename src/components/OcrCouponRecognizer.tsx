@@ -40,7 +40,9 @@ interface OcrCouponRecognizerProps {
 }
 
 // 辅助函数：计算剩余天数（北京时间UTC+8）
-function getDaysRemaining(endDate: string): number {
+function getDaysRemaining(endDate: string | undefined): number {
+  if (!endDate) return 0
+
   let year: number, month: number, day: number
 
   // 处理不同的日期格式
@@ -81,7 +83,9 @@ function getDaysRemaining(endDate: string): number {
 }
 
 // 辅助函数：格式化到期时间
-function formatExpiryDate(endDate: string): string {
+function formatExpiryDate(endDate: string | undefined): string {
+  if (!endDate) return '日期未设置'
+
   let year: number, month: number, day: number
 
   // 处理不同的日期格式
@@ -656,22 +660,26 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
                           >
                             <div className="space-y-2">
                               <div className="flex justify-between items-start">
-                                <span className="font-medium">{coupon.merchant || coupon.storeName}</span>
-                                <Badge variant={getCouponTypeBadge(coupon.discountType)}>
-                                  {getDiscountTypeLabel(coupon.discountType)}
-                                </Badge>
+                                <span className="font-medium">{coupon.merchant || coupon.storeName || '未知商家'}</span>
+                                {coupon.discountType && (
+                                  <Badge variant={getCouponTypeBadge(coupon.discountType)}>
+                                    {getDiscountTypeLabel(coupon.discountType)}
+                                  </Badge>
+                                )}
                               </div>
-                              <div className="text-sm">{coupon.title}</div>
+                              <div className="text-sm">{coupon.title || '无标题'}</div>
                               <div className="text-xs text-muted-foreground">
-                                {coupon.conditions || coupon.condition}
+                                {coupon.conditions || coupon.condition || '无条件信息'}
                               </div>
                               <div className="flex justify-between items-center">
                                 <span className={`text-xs font-medium ${getExpiryColor(coupon.expiryDate || coupon.endDate)}`}>
                                   {formatExpiryDate(coupon.expiryDate || coupon.endDate)}
                                 </span>
-                                <span className="text-xs text-muted-foreground">
-                                  剩余 {getDaysRemaining(coupon.expiryDate || coupon.endDate)} 天
-                                </span>
+                                {(coupon.expiryDate || coupon.endDate) && (
+                                  <span className="text-xs text-muted-foreground">
+                                    剩余 {getDaysRemaining(coupon.expiryDate || coupon.endDate)} 天
+                                  </span>
+                                )}
                               </div>
                               <Button
                                 onClick={() => handleAddCoupon(coupon)}

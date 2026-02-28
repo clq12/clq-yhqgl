@@ -262,32 +262,67 @@ function parseExtractedText(text: string): Array<{
 
   for (const line of lines) {
     // 尝试解析格式：商家 优惠名称 优惠条件 到期时间
-    // 使用多个空格分割
-    const parts = line.split(/\s{2,}|\t/)
+    // 日期时间正则：匹配 YYYY年M月D日 或 YYYY年M月D日 HH:MM
+    const datePattern = /(\d{4}年\d{1,2}月\d{1,2}日(?:\s+\d{1,2}:\d{1,2})?)/
+    const dateMatch = line.match(datePattern)
 
-    if (parts.length >= 4) {
-      coupons.push({
-        storeName: parts[0],
-        title: parts[1],
-        condition: parts[2],
-        endDate: parts.slice(3).join(' ')
-      })
-    } else if (parts.length === 3) {
-      // 可能缺少某个字段
-      coupons.push({
-        storeName: parts[0],
-        title: parts[1],
-        condition: parts[2],
-        endDate: ''
-      })
-    } else if (parts.length === 2) {
-      // 只有商家和优惠名称
-      coupons.push({
-        storeName: parts[0],
-        title: parts[1],
-        condition: '',
-        endDate: ''
-      })
+    if (dateMatch) {
+      const endDate = dateMatch[0]
+      const remainingText = line.replace(datePattern, '').trim()
+
+      // 按空格分割剩余文本
+      const parts = remainingText.split(/\s+/).filter(p => p)
+
+      if (parts.length >= 3) {
+        // 商家 优惠名称 优惠条件
+        coupons.push({
+          storeName: parts[0],
+          title: parts[1],
+          condition: parts.slice(2).join(' '),
+          endDate: endDate
+        })
+      } else if (parts.length === 2) {
+        // 商家 优惠名称（无优惠条件）
+        coupons.push({
+          storeName: parts[0],
+          title: parts[1],
+          condition: '',
+          endDate: endDate
+        })
+      } else if (parts.length === 1) {
+        // 只有商家
+        coupons.push({
+          storeName: parts[0],
+          title: '',
+          condition: '',
+          endDate: endDate
+        })
+      }
+    } else {
+      // 没有找到日期，尝试简单分割
+      const parts = line.split(/\s+/).filter(p => p)
+      if (parts.length >= 3) {
+        coupons.push({
+          storeName: parts[0],
+          title: parts[1],
+          condition: parts.slice(2).join(' '),
+          endDate: ''
+        })
+      } else if (parts.length >= 2) {
+        coupons.push({
+          storeName: parts[0],
+          title: parts.slice(1).join(' '),
+          condition: '',
+          endDate: ''
+        })
+      } else if (parts.length === 1) {
+        coupons.push({
+          storeName: parts[0],
+          title: '',
+          condition: '',
+          endDate: ''
+        })
+      }
     }
   }
 

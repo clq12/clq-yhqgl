@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
 
     // 步骤4：转换为base64
     const bytes = await file.arrayBuffer()
-    log('步骤4：读取文件字节数据成功', { bytesLength: bytes.length })
+    log('步骤4：读取文件字节数据成功', { bytesLength: bytes.byteLength })
 
     const buffer = Buffer.from(bytes)
     const base64Image = buffer.toString('base64')

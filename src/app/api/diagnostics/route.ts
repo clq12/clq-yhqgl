@@ -18,7 +18,8 @@ export async function GET(request: NextRequest) {
     },
     sdkTest: {
       status: 'unknown',
-      error: null,
+      error: null as string | null,
+      clientCreated: false,
     }
   }
 

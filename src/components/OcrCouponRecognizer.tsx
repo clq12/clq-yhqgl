@@ -1,12 +1,20 @@
 "use client"
 
 import { useState, useRef } from "react"
-import { Upload, X, Loader2, ScanText, Check, AlertCircle, FileText, Image as ImageIcon } from "lucide-react"
+import { Upload, X, Loader2, ScanText, Check, AlertCircle, FileText, Image as ImageIcon, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 export interface OcrResult {
   text: string
@@ -31,12 +39,112 @@ interface OcrCouponRecognizerProps {
   onCancel?: () => void
 }
 
+// 辅助函数：计算剩余天数（北京时间UTC+8）
+function getDaysRemaining(endDate: string): number {
+  let year: number, month: number, day: number
+
+  // 处理不同的日期格式
+  if (endDate.includes('T') && endDate.endsWith('Z')) {
+    // 带Z后缀，表示UTC时间，直接解析并转换为北京时间
+    const utcDate = new Date(endDate)
+    year = utcDate.getUTCFullYear()
+    month = utcDate.getUTCMonth() + 1
+    day = utcDate.getUTCDate()
+  } else if (endDate.includes('T')) {
+    // 带T但不带Z，假设为本地时间（北京时间），手动解析
+    const [datePart] = endDate.split('T')
+    const dateComponents = datePart.split('-').map(Number)
+    year = dateComponents[0]
+    month = dateComponents[1]
+    day = dateComponents[2]
+  } else {
+    // 纯日期格式（如 2026-02-23），假设为北京时间
+    const dateComponents = endDate.split('-').map(Number)
+    year = dateComponents[0]
+    month = dateComponents[1]
+    day = dateComponents[2]
+  }
+
+  // 创建北京时间日期对象（手动设置年月日，避免时区转换）
+  const couponExpiryDate = new Date()
+  couponExpiryDate.setFullYear(year, month - 1, day)
+  couponExpiryDate.setHours(23, 59, 59, 999)
+
+  // 当前北京时间（UTC+8）
+  const now = new Date()
+  const utcNow = now.getTime() + (now.getTimezoneOffset() * 60000)
+  const beijingNow = new Date(utcNow + (8 * 3600000))
+
+  // 计算剩余天数
+  const diffTime = couponExpiryDate.getTime() - beijingNow.getTime()
+  return Math.floor(diffTime / (1000 * 60 * 60 * 24))
+}
+
+// 辅助函数：格式化到期时间
+function formatExpiryDate(endDate: string): string {
+  let year: number, month: number, day: number
+
+  // 处理不同的日期格式
+  if (endDate.includes('T') && endDate.endsWith('Z')) {
+    const utcDate = new Date(endDate)
+    year = utcDate.getUTCFullYear()
+    month = utcDate.getUTCMonth() + 1
+    day = utcDate.getUTCDate()
+  } else if (endDate.includes('T')) {
+    const [datePart] = endDate.split('T')
+    const dateComponents = datePart.split('-').map(Number)
+    year = dateComponents[0]
+    month = dateComponents[1]
+    day = dateComponents[2]
+  } else {
+    const dateComponents = endDate.split('-').map(Number)
+    year = dateComponents[0]
+    month = dateComponents[1]
+    day = dateComponents[2]
+  }
+
+  const dateStr = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
+  const timeStr = `23:59`
+
+  return `${dateStr} ${timeStr}`
+}
+
+// 辅助函数：获取到期时间颜色
+function getExpiryColor(endDate: string): string {
+  const days = getDaysRemaining(endDate)
+  if (days <= 1) return 'text-red-600 dark:text-red-400'
+  if (days <= 7) return 'text-orange-600 dark:text-orange-400'
+  return 'text-green-600 dark:text-green-400'
+}
+
+// 辅助函数：获取折扣类型标签
+function getDiscountTypeLabel(type?: string): string {
+  switch (type) {
+    case 'full': return '满减'
+    case 'percentage': return '折扣'
+    case 'amount': return '减免'
+    default: return '优惠'
+  }
+}
+
+// 辅助函数：获取折扣类型badge样式
+function getCouponTypeBadge(type?: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+  switch (type) {
+    case 'full': return 'destructive'
+    case 'percentage': return 'default'
+    case 'amount': return 'secondary'
+    default: return 'outline'
+  }
+}
+
 export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCouponRecognizerProps) {
-  const [mode, setMode] = useState<'image' | 'text'>('image') // 'image' 或 'text'
+  const [mode, setMode] = useState<'ocr' | 'ai' | 'text'>('ai') // 'ocr' 或 'ai' 或 'text'
+  const [aiModel, setAiModel] = useState<'doubao' | 'glm'>('doubao')
   const [image, setImage] = useState<string | null>(null)
   const [isRecognizing, setIsRecognizing] = useState(false)
   const [progress, setProgress] = useState(0)
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null)
+  const [aiResult, setAiResult] = useState<any>(null)
   const [isExtracting, setIsExtracting] = useState(false)
   const [extractedInfo, setExtractedInfo] = useState<ExtractedCouponInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -126,6 +234,93 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
     }
   }
 
+  const recognizeWithAI = async () => {
+    if (!image) return
+
+    setIsRecognizing(true)
+    setProgress(0)
+    setError(null)
+    setAiResult(null)
+
+    try {
+      // 将data URL转换为Blob
+      const response = await fetch(image)
+      const blob = await response.blob()
+
+      // 创建FormData
+      const formData = new FormData()
+      formData.append('image', blob)
+      formData.append('aiModel', aiModel)
+
+      // 调用API
+      const apiResponse = await fetch('/api/parse-coupon-image', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const result = await apiResponse.json()
+
+      if (result.success) {
+        setAiResult(result.data)
+        console.log('AI识别结果:', result.data)
+
+        // 如果识别到优惠券，自动填充第一张
+        if (result.data.coupons && result.data.coupons.length > 0) {
+          const firstCoupon = result.data.coupons[0]
+          const extractedInfo: ExtractedCouponInfo = {
+            storeName: firstCoupon.storeName,
+            title: firstCoupon.title,
+            description: `${firstCoupon.condition} ${firstCoupon.endDate}`,
+            notes: `AI识别: ${aiModel}`,
+          }
+
+          // 尝试解析优惠条件
+          if (firstCoupon.condition.includes('满')) {
+            const match = firstCoupon.condition.match(/满(\d+(?:\.\d+)?)减(\d+(?:\.\d+)?)/)
+            if (match) {
+              extractedInfo.discountType = 'full'
+              extractedInfo.fullAmount = parseFloat(match[1])
+              extractedInfo.discountAmount = parseFloat(match[2])
+            }
+          } else if (firstCoupon.condition.includes('无门槛')) {
+            // 无门槛，尝试从标题中提取金额
+            const amountMatch = firstCoupon.title.match(/(\d+(?:\.\d+)?)元/)
+            if (amountMatch) {
+              extractedInfo.discountType = 'amount'
+              extractedInfo.discountAmount = parseFloat(amountMatch[1])
+            }
+          }
+
+          // 尝试解析到期时间
+          if (firstCoupon.endDate) {
+            const dateMatch = firstCoupon.endDate.match(/(\d{4})年(\d+)月(\d+)日(?:\s+(\d+):(\d+))?/)
+            if (dateMatch) {
+              const year = parseInt(dateMatch[1])
+              const month = parseInt(dateMatch[2])
+              const day = parseInt(dateMatch[3])
+              extractedInfo.endDate = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
+
+              if (dateMatch[4]) {
+                extractedInfo.endHour = parseInt(dateMatch[4])
+                extractedInfo.endMinute = parseInt(dateMatch[5])
+              }
+            }
+          }
+
+          setExtractedInfo(extractedInfo)
+          onExtracted(extractedInfo)
+        }
+      } else {
+        setError(result.error || 'AI识别失败')
+      }
+    } catch (err) {
+      console.error('AI识别失败:', err)
+      setError('AI识别失败，请重试')
+    } finally {
+      setIsRecognizing(false)
+    }
+  }
+
   const extractCouponInfo = async () => {
     if (!ocrResult?.text) return
 
@@ -159,6 +354,7 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
   const clearImage = () => {
     setImage(null)
     setOcrResult(null)
+    setAiResult(null)
     setExtractedInfo(null)
     setError(null)
     setProgress(0)
@@ -218,11 +414,15 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
         </div>
 
         {/* 模式切换 */}
-        <Tabs value={mode} onValueChange={(value) => setMode(value as 'image' | 'text')}>
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="image" className="gap-2">
+        <Tabs value={mode} onValueChange={(value) => setMode(value as 'ocr' | 'ai' | 'text')}>
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="ocr" className="gap-2">
               <ImageIcon className="h-4 w-4" />
-              图片识别
+              OCR识别
+            </TabsTrigger>
+            <TabsTrigger value="ai" className="gap-2">
+              <Sparkles className="h-4 w-4" />
+              AI视觉识别
             </TabsTrigger>
             <TabsTrigger value="text" className="gap-2">
               <FileText className="h-4 w-4" />
@@ -240,9 +440,9 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
           </Alert>
         )}
 
-        <Tabs value={mode} onValueChange={(value) => setMode(value as 'image' | 'text')} className="w-full">
-          {/* 图片识别模式 */}
-          <TabsContent value="image" className="space-y-4 mt-0">
+        <Tabs value={mode} onValueChange={(value) => setMode(value as 'ocr' | 'ai' | 'text')} className="w-full">
+          {/* OCR识别模式 */}
+          <TabsContent value="ocr" className="space-y-4 mt-0">
             {!image ? (
               <div
                 className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors"
@@ -348,6 +548,134 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
                 )}
               </div>
             )}
+          </TabsContent>
+
+          {/* AI智能识别模式 */}
+          <TabsContent value="ai" className="space-y-4 mt-0">
+            <div className="space-y-4">
+              {/* AI模型选择 */}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant={aiModel === 'doubao' ? 'default' : 'outline'}
+                  onClick={() => setAiModel('doubao')}
+                  className="flex-1"
+                >
+                  🌱 豆包AI
+                </Button>
+                <Button
+                  type="button"
+                  variant={aiModel === 'glm' ? 'default' : 'outline'}
+                  onClick={() => setAiModel('glm')}
+                  className="flex-1"
+                >
+                  🧠 GLM-4
+                </Button>
+              </div>
+
+              {/* 上传图片 */}
+              {!image ? (
+                <div
+                  className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors"
+                  onDrop={handleDrop}
+                  onDragOver={handleDragOver}
+                  onClick={handleImageClick}
+                >
+                  <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-sm text-muted-foreground mb-2">
+                    拖拽优惠券截图到此处，或点击选择
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    AI将自动识别商家、优惠名称、优惠条件和到期时间
+                  </p>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileInputChange}
+                    className="hidden"
+                  />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* 图片预览 */}
+                  <div className="relative">
+                    <img
+                      src={image}
+                      alt="优惠券截图"
+                      className="w-full rounded-lg border"
+                    />
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="absolute top-2 right-2"
+                      onClick={clearImage}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {/* AI提示信息 */}
+                  <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg text-sm text-blue-700 dark:text-blue-300">
+                    <p className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4" />
+                      {aiModel === 'doubao' ? '豆包AI' : 'GLM-4'}将智能识别优惠券信息
+                    </p>
+                  </div>
+
+                  {/* 识别结果 */}
+                  {aiResult && aiResult.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="text-sm font-medium">识别结果：</div>
+                      <div className="space-y-2">
+                        {aiResult.map((coupon: any, index: number) => (
+                          <div
+                            key={index}
+                            className="border rounded-lg p-3 bg-muted/50"
+                          >
+                            <div className="space-y-1">
+                              <div className="flex justify-between items-start">
+                                <span className="font-medium">{coupon.merchant}</span>
+                                <Badge variant={getCouponTypeBadge(coupon.discountType)}>
+                                  {getDiscountTypeLabel(coupon.discountType)}
+                                </Badge>
+                              </div>
+                              <div className="text-sm">{coupon.title}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {coupon.conditions}
+                              </div>
+                              <div className="flex justify-between items-center">
+                                <span className={`text-xs font-medium ${getExpiryColor(coupon.expiryDate)}`}>
+                                  {formatExpiryDate(coupon.expiryDate)}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  剩余 {getDaysRemaining(coupon.expiryDate)} 天
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {error && (
+                        <Alert variant="destructive">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertTitle>识别失败</AlertTitle>
+                          <AlertDescription>{error}</AlertDescription>
+                        </Alert>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 操作按钮 */}
+                  {!aiResult && !isRecognizing && (
+                    <Button onClick={recognizeWithAI} className="w-full gap-2">
+                      <Sparkles className="h-4 w-4" />
+                      开始AI识别
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
           </TabsContent>
 
           {/* 文本粘贴模式 */}

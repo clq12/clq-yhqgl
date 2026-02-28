@@ -3,7 +3,7 @@ export interface WebDAVConfig {
   username: string
   password: string
   pushplusToken?: string // PushPlus 推送令牌
-  glmApiKey?: string // GLM-4.7-Flash API Key
+  chatgptApiKey?: string // ChatGPT API Key
   api52Key?: string // 52api API Key
 }
 

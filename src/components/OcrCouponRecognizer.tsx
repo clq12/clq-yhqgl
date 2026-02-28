@@ -139,8 +139,6 @@ function getCouponTypeBadge(type?: string): 'default' | 'secondary' | 'destructi
 
 export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCouponRecognizerProps) {
   const [mode, setMode] = useState<'ocr' | 'ai' | 'text'>('ai') // 'ocr' 或 'ai' 或 'text'
-  // 默认使用GLM-4，避免豆包AI的地区限制问题
-  const [aiModel, setAiModel] = useState<'doubao' | 'glm'>('glm')
   const [image, setImage] = useState<string | null>(null)
   const [isRecognizing, setIsRecognizing] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -251,7 +249,6 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
       // 创建FormData
       const formData = new FormData()
       formData.append('image', blob)
-      formData.append('aiModel', aiModel)
 
       // 调用API
       const apiResponse = await fetch('/api/parse-coupon-image', {
@@ -263,7 +260,7 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
 
       if (result.success) {
         setAiResult(result.data)
-        console.log('AI识别结果:', result.data)
+        console.log('ChatGPT识别结果:', result.data)
 
         // 如果识别到优惠券，自动填充第一张
         if (result.data.coupons && result.data.coupons.length > 0) {
@@ -272,7 +269,7 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
             storeName: firstCoupon.storeName,
             title: firstCoupon.title,
             description: `${firstCoupon.condition} ${firstCoupon.endDate}`,
-            notes: `AI识别: ${aiModel}`,
+            notes: `AI识别: ChatGPT`,
           }
 
           // 尝试解析优惠条件
@@ -312,22 +309,11 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
           onExtracted(extractedInfo)
         }
       } else {
-        // 检查是否是地区限制错误
-        if (result.details?.errorType === 'region_restriction') {
-          setError(result.error || 'AI识别失败')
-          // 可以在这里显示特殊的UI提示
-        } else {
-          setError(result.error || 'AI识别失败')
-        }
+        setError(result.error || 'AI识别失败')
       }
     } catch (err: any) {
-      console.error('AI识别失败:', err)
-      // 检查是否是地区限制错误
-      if (err?.code === 'unsupported_country_region_territory' || err?.status === 403) {
-        setError('豆包AI不支持当前地区访问。请使用GLM-4模型。在Vercel环境变量中配置 GLM_API_KEY。')
-      } else {
-        setError('AI识别失败，请重试')
-      }
+      console.error('ChatGPT识别失败:', err)
+      setError('AI识别失败，请重试')
     } finally {
       setIsRecognizing(false)
     }
@@ -565,26 +551,6 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
           {/* AI智能识别模式 */}
           <TabsContent value="ai" className="space-y-4 mt-0">
             <div className="space-y-4">
-              {/* AI模型选择 */}
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant={aiModel === 'doubao' ? 'default' : 'outline'}
-                  onClick={() => setAiModel('doubao')}
-                  className="flex-1"
-                >
-                  🌱 豆包AI
-                </Button>
-                <Button
-                  type="button"
-                  variant={aiModel === 'glm' ? 'default' : 'outline'}
-                  onClick={() => setAiModel('glm')}
-                  className="flex-1"
-                >
-                  🧠 GLM-4
-                </Button>
-              </div>
-
               {/* 上传图片 */}
               {!image ? (
                 <div
@@ -598,7 +564,7 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
                     拖拽优惠券截图到此处，或点击选择
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    AI将自动识别商家、优惠名称、优惠条件和到期时间
+                    ChatGPT将自动识别商家、优惠名称、优惠条件和到期时间
                   </p>
                   <input
                     ref={fileInputRef}
@@ -631,7 +597,7 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
                   <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded-lg text-sm text-blue-700 dark:text-blue-300">
                     <p className="flex items-center gap-2">
                       <Sparkles className="h-4 w-4" />
-                      {aiModel === 'doubao' ? '豆包AI' : 'GLM-4'}将智能识别优惠券信息
+                      ChatGPT将智能识别优惠券信息
                     </p>
                   </div>
 
@@ -682,7 +648,7 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
                   {!aiResult && !isRecognizing && (
                     <Button onClick={recognizeWithAI} className="w-full gap-2">
                       <Sparkles className="h-4 w-4" />
-                      开始AI识别
+                      开始ChatGPT识别
                     </Button>
                   )}
                 </div>

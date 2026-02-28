@@ -36,8 +36,6 @@ interface ExtractedCouponInfo {
 export default function TestAIPage() {
   const [inputText, setInputText] = useState("")
   const [aiModel, setAiModel] = useState<'glm' | 'doubao' | 'rule'>('doubao')
-  // 默认使用GLM-4，避免豆包AI的地区限制问题
-  const [imageAiModel, setImageAiModel] = useState<'doubao' | 'glm'>('glm')
   const [useFallback, setUseFallback] = useState(true)
   const [smartBatch, setSmartBatch] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -192,7 +190,6 @@ export default function TestAIPage() {
       const blob = await response.blob()
       const formData = new FormData()
       formData.append('image', blob)
-      formData.append('aiModel', imageAiModel)
 
       const apiResponse = await fetch('/api/parse-coupon-image', {
         method: 'POST',
@@ -434,43 +431,8 @@ export default function TestAIPage() {
 
         <TabsContent value="image">
           <div className="grid gap-6 md:grid-cols-2">
-            {/* 左侧：图片上传和设置 */}
+            {/* 左侧：图片上传 */}
             <div className="space-y-6">
-              {/* 设置卡片 */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Settings2 className="w-5 h-5" />
-                    模型设置
-                  </CardTitle>
-                  <CardDescription>选择图片识别的AI模型</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">AI 模型</label>
-                    <Select value={imageAiModel} onValueChange={(value: any) => setImageAiModel(value)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="doubao">
-                          <div className="flex items-center gap-2">
-                            <Sparkles className="w-4 h-4" />
-                            豆包 AI
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="glm">
-                          <div className="flex items-center gap-2">
-                            <Sparkles className="w-4 h-4" />
-                            GLM-4.7-Flash
-                          </div>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </CardContent>
-              </Card>
-
               {/* 图片上传卡片 */}
               <Card>
                 <CardHeader>
@@ -478,7 +440,7 @@ export default function TestAIPage() {
                     <ImageIcon className="w-5 h-5" />
                     上传图片
                   </CardTitle>
-                  <CardDescription>上传优惠券截图进行识别</CardDescription>
+                  <CardDescription>使用ChatGPT识别优惠券截图</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {!image ? (
@@ -618,10 +580,10 @@ export default function TestAIPage() {
                   <CardTitle>使用说明</CardTitle>
                 </CardHeader>
                 <CardContent className="text-sm space-y-2">
-                  <div><strong>豆包 AI：</strong>默认模型，适合大多数场景</div>
-                  <div><strong>GLM-4.7-Flash：</strong>备选模型，需要配置API Key</div>
+                  <div><strong>ChatGPT：</strong>使用免费ChatGPT API识别图片</div>
                   <div><strong>支持格式：</strong>JPG、PNG、WEBP，最大10MB</div>
                   <div><strong>识别内容：</strong>商家、优惠名称、优惠条件、到期时间</div>
+                  <div><strong>配置要求：</strong>需在环境变量中配置CHATGPT_API_KEY</div>
                 </CardContent>
               </Card>
             </div>

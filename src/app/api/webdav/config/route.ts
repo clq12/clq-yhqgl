@@ -7,7 +7,7 @@ export interface WebDAVConfigRequest {
   username: string
   password: string
   pushplusToken?: string
-  glmApiKey?: string
+  chatgptApiKey?: string
   api52Key?: string
 }
 
@@ -26,8 +26,8 @@ export async function GET(request: NextRequest) {
       : ""
 
     // 脱敏处理 GLM API Key
-    const maskedGlmApiKey = config.glmApiKey
-      ? config.glmApiKey.substring(0, 4) + "****" + config.glmApiKey.substring(config.glmApiKey.length - 4)
+    const maskedChatgptApiKey = config.chatgptApiKey
+      ? config.chatgptApiKey.substring(0, 4) + "****" + config.chatgptApiKey.substring(config.chatgptApiKey.length - 4)
       : ""
 
     // 脱敏处理 52api Key
@@ -44,8 +44,8 @@ export async function GET(request: NextRequest) {
         username: config.username,
         pushplusToken: maskedPushPlusToken,
         hasPushPlusToken: !!config.pushplusToken && config.pushplusToken.length > 0,
-        glmApiKey: maskedGlmApiKey,
-        hasGlmApiKey: !!config.glmApiKey && config.glmApiKey.length > 0,
+        chatgptApiKey: maskedChatgptApiKey,
+        hasChatgptApiKey: !!config.chatgptApiKey && config.chatgptApiKey.length > 0,
         api52Key: maskedApi52Key,
         hasApi52Key: !!config.api52Key && config.api52Key.length > 0,
       },
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
       username: body.username.trim(),
       password: body.password,
       pushplusToken: body.pushplusToken?.trim() || "",
-      glmApiKey: body.glmApiKey?.trim() || "",
+      chatgptApiKey: body.chatgptApiKey?.trim() || "",
       api52Key: body.api52Key?.trim() || "",
     }
 

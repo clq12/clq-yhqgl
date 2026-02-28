@@ -109,7 +109,7 @@ importers:
         version: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.9))(@types/react@19.2.9)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       coze-coding-dev-sdk:
         specifier: ^0.7.3
-        version: 0.7.3(@types/pg@8.16.0)(openai@6.16.0(zod@4.3.5))
+        version: 0.7.3(@types/pg@8.16.0)(openai@6.25.0(zod@4.3.5))
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
@@ -137,6 +137,9 @@ importers:
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      openai:
+        specifier: ^6.25.0
+        version: 6.25.0(zod@4.3.5)
       pg:
         specifier: ^8.16.3
         version: 8.17.2
@@ -4433,8 +4436,8 @@ packages:
     resolution: {integrity: sha512-7x81NCL719oNbsq/3mh+hVrAWmFuEYUqrq/Iw3kUzH8ReypT9QQ0BLoJS7/G9k6N81XjW4qHWtjWwe/9eLy1EQ==}
     engines: {node: '>=12'}
 
-  openai@6.16.0:
-    resolution: {integrity: sha512-fZ1uBqjFUjXzbGc35fFtYKEOxd20kd9fDpFeqWtsOZWiubY8CZ1NAlXHW3iathaFvqmNtCWMIsosCuyeI7Joxg==}
+  openai@6.25.0:
+    resolution: {integrity: sha512-mEh6VZ2ds2AGGokWARo18aPISI1OhlgdEIC1ewhkZr8pSIT31dec0ecr9Nhxx0JlybyOgoAT1sWeKtwPZzJyww==}
     hasBin: true
     peerDependencies:
       ws: ^8.18.0
@@ -6587,14 +6590,14 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@langchain/core@1.1.16(openai@6.16.0(zod@4.3.5))':
+  '@langchain/core@1.1.16(openai@6.25.0(zod@4.3.5))':
     dependencies:
       '@cfworker/json-schema': 4.1.1
       ansi-styles: 5.2.0
       camelcase: 6.3.0
       decamelize: 1.2.0
       js-tiktoken: 1.0.21
-      langsmith: 0.4.7(openai@6.16.0(zod@4.3.5))
+      langsmith: 0.4.7(openai@6.25.0(zod@4.3.5))
       mustache: 4.2.0
       p-queue: 6.6.2
       uuid: 10.0.0
@@ -6605,11 +6608,11 @@ snapshots:
       - '@opentelemetry/sdk-trace-base'
       - openai
 
-  '@langchain/openai@1.2.3(@langchain/core@1.1.16(openai@6.16.0(zod@4.3.5)))':
+  '@langchain/openai@1.2.3(@langchain/core@1.1.16(openai@6.25.0(zod@4.3.5)))':
     dependencies:
-      '@langchain/core': 1.1.16(openai@6.16.0(zod@4.3.5))
+      '@langchain/core': 1.1.16(openai@6.25.0(zod@4.3.5))
       js-tiktoken: 1.0.21
-      openai: 6.16.0(zod@4.3.5)
+      openai: 6.25.0(zod@4.3.5)
       zod: 4.3.5
     transitivePeerDependencies:
       - ws
@@ -8548,12 +8551,12 @@ snapshots:
     optionalDependencies:
       typescript: 5.9.3
 
-  coze-coding-dev-sdk@0.7.3(@types/pg@8.16.0)(openai@6.16.0(zod@4.3.5)):
+  coze-coding-dev-sdk@0.7.3(@types/pg@8.16.0)(openai@6.25.0(zod@4.3.5)):
     dependencies:
       '@aws-sdk/client-s3': 3.972.0
       '@aws-sdk/lib-storage': 3.972.0(@aws-sdk/client-s3@3.972.0)
-      '@langchain/core': 1.1.16(openai@6.16.0(zod@4.3.5))
-      '@langchain/openai': 1.2.3(@langchain/core@1.1.16(openai@6.16.0(zod@4.3.5)))
+      '@langchain/core': 1.1.16(openai@6.25.0(zod@4.3.5))
+      '@langchain/openai': 1.2.3(@langchain/core@1.1.16(openai@6.25.0(zod@4.3.5)))
       axios: 1.13.2
       chalk: 5.6.2
       commander: 14.0.2
@@ -9870,7 +9873,7 @@ snapshots:
 
   kleur@4.1.5: {}
 
-  langsmith@0.4.7(openai@6.16.0(zod@4.3.5)):
+  langsmith@0.4.7(openai@6.25.0(zod@4.3.5)):
     dependencies:
       '@types/uuid': 10.0.0
       chalk: 4.1.2
@@ -9879,7 +9882,7 @@ snapshots:
       semver: 7.7.3
       uuid: 10.0.0
     optionalDependencies:
-      openai: 6.16.0(zod@4.3.5)
+      openai: 6.25.0(zod@4.3.5)
 
   language-subtag-registry@0.3.23: {}
 
@@ -10221,7 +10224,7 @@ snapshots:
       is-docker: 2.2.1
       is-wsl: 2.2.0
 
-  openai@6.16.0(zod@4.3.5):
+  openai@6.25.0(zod@4.3.5):
     optionalDependencies:
       zod: 4.3.5
 

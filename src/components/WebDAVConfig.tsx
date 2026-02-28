@@ -24,7 +24,7 @@ const webdavConfigSchema = z.object({
   username: z.string().min(1, "用户名不能为空"),
   password: z.string().min(1, "密码不能为空"),
   pushplusToken: z.string().optional(),
-  glmApiKey: z.string().optional(),
+  chatgptApiKey: z.string().optional(),
   api52Key: z.string().optional(),
 })
 
@@ -36,7 +36,7 @@ export default function WebDAVConfig() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
   const [configUrl, setConfigUrl] = useState("")
   const [hasPushPlusToken, setHasPushPlusToken] = useState(false)
-  const [hasGlmApiKey, setHasGlmApiKey] = useState(false)
+  const [hasChatgptApiKey, setHasChatgptApiKey] = useState(false)
   const [hasApi52Key, setHasApi52Key] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
 
@@ -61,7 +61,7 @@ export default function WebDAVConfig() {
         setIsConfigured(true)
         setConfigUrl(localConfig.url)
         setHasPushPlusToken(!!localConfig.pushplusToken && localConfig.pushplusToken.length > 0)
-        setHasGlmApiKey(!!localConfig.glmApiKey && localConfig.glmApiKey.length > 0)
+        setHasChatgptApiKey(!!localConfig.chatgptApiKey && localConfig.chatgptApiKey.length > 0)
         setHasApi52Key(!!localConfig.api52Key && localConfig.api52Key.length > 0)
         return
       }
@@ -73,7 +73,7 @@ export default function WebDAVConfig() {
         setIsConfigured(true)
         setConfigUrl(result.config.url)
         setHasPushPlusToken(result.config.hasPushPlusToken || false)
-        setHasGlmApiKey(result.config.hasGlmApiKey || false)
+        setHasChatgptApiKey(result.config.hasChatgptApiKey || false)
         setHasApi52Key(result.config.hasApi52Key || false)
       }
     } catch (error) {
@@ -101,7 +101,7 @@ export default function WebDAVConfig() {
           username: data.username,
           password: data.password,
           pushplusToken: data.pushplusToken || undefined,
-          glmApiKey: data.glmApiKey || undefined,
+          chatgptApiKey: data.chatgptApiKey || undefined,
           api52Key: data.api52Key || undefined,
         }
         setWebDAVConfigToLocalStorage(config)
@@ -111,7 +111,7 @@ export default function WebDAVConfig() {
         setIsEditing(false)
         setConfigUrl(data.url)
         setHasPushPlusToken(!!data.pushplusToken && data.pushplusToken.length > 0)
-        setHasGlmApiKey(!!data.glmApiKey && data.glmApiKey.length > 0)
+        setHasChatgptApiKey(!!data.chatgptApiKey && data.chatgptApiKey.length > 0)
         setHasApi52Key(!!data.api52Key && data.api52Key.length > 0)
         setTimeout(() => {
           window.location.reload()
@@ -146,7 +146,7 @@ export default function WebDAVConfig() {
         setIsConfigured(false)
         setConfigUrl("")
         setHasPushPlusToken(false)
-        setHasGlmApiKey(false)
+        setHasChatgptApiKey(false)
         setHasApi52Key(false)
         form.reset()
         setMessage({ type: "success", text: "配置已清除" })
@@ -259,16 +259,16 @@ export default function WebDAVConfig() {
                   PushPlus 未配置（可选）
                 </div>
               )}
-              {hasGlmApiKey && (
+              {hasChatgptApiKey && (
                 <div className="flex items-center gap-2 mt-3 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-md inline-flex">
                   <CheckCircle className="h-4 w-4" />
-                  GLM-4.7-Flash AI 已配置
+                  ChatGPT AI 已配置
                 </div>
               )}
-              {!hasGlmApiKey && (
+              {!hasChatgptApiKey && (
                 <div className="flex items-center gap-2 mt-3 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-md inline-flex">
                   <Info className="h-4 w-4" />
-                  GLM-4.7-Flash 未配置（可选，豆包已免费提供）
+                  ChatGPT 未配置（可选）
                 </div>
               )}
               {hasApi52Key && (
@@ -438,29 +438,29 @@ export default function WebDAVConfig() {
 
               <FormField
                 control={form.control}
-                name="glmApiKey"
+                name="chatgptApiKey"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabelField>GLM-4.7-Flash API Key（可选）</FormLabelField>
+                    <FormLabelField>ChatGPT API Key（可选）</FormLabelField>
                     <FormControl>
                       <Input
                         type="password"
-                        placeholder="输入 GLM-4.7-Flash API Key"
+                        placeholder="输入 ChatGPT API Key"
                         {...field}
                       />
                     </FormControl>
                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                       获取 API Key：<a
-                        href="https://open.bigmodel.cn/usercenter/apikeys"
+                        href="https://free.v36.cm/github"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:underline"
                       >
-                        智谱AI控制台
+                        免费ChatGPT API
                       </a>
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      用于AI识别优惠券，不配置则使用豆包模型（免费）
+                      用于AI识别优惠券图片
                     </div>
                     <FormMessage />
                   </FormItem>

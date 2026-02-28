@@ -36,7 +36,8 @@ interface ExtractedCouponInfo {
 export default function TestAIPage() {
   const [inputText, setInputText] = useState("")
   const [aiModel, setAiModel] = useState<'glm' | 'doubao' | 'rule'>('doubao')
-  const [imageAiModel, setImageAiModel] = useState<'doubao' | 'glm'>('doubao')
+  // 默认使用GLM-4，避免豆包AI的地区限制问题
+  const [imageAiModel, setImageAiModel] = useState<'doubao' | 'glm'>('glm')
   const [useFallback, setUseFallback] = useState(true)
   const [smartBatch, setSmartBatch] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)

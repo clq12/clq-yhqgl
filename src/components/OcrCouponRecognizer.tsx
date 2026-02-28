@@ -139,7 +139,8 @@ function getCouponTypeBadge(type?: string): 'default' | 'secondary' | 'destructi
 
 export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCouponRecognizerProps) {
   const [mode, setMode] = useState<'ocr' | 'ai' | 'text'>('ai') // 'ocr' 或 'ai' 或 'text'
-  const [aiModel, setAiModel] = useState<'doubao' | 'glm'>('doubao')
+  // 默认使用GLM-4，避免豆包AI的地区限制问题
+  const [aiModel, setAiModel] = useState<'doubao' | 'glm'>('glm')
   const [image, setImage] = useState<string | null>(null)
   const [isRecognizing, setIsRecognizing] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -311,11 +312,22 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
           onExtracted(extractedInfo)
         }
       } else {
-        setError(result.error || 'AI识别失败')
+        // 检查是否是地区限制错误
+        if (result.details?.errorType === 'region_restriction') {
+          setError(result.error || 'AI识别失败')
+          // 可以在这里显示特殊的UI提示
+        } else {
+          setError(result.error || 'AI识别失败')
+        }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('AI识别失败:', err)
-      setError('AI识别失败，请重试')
+      // 检查是否是地区限制错误
+      if (err?.code === 'unsupported_country_region_territory' || err?.status === 403) {
+        setError('豆包AI不支持当前地区访问。请使用GLM-4模型。在Vercel环境变量中配置 GLM_API_KEY。')
+      } else {
+        setError('AI识别失败，请重试')
+      }
     } finally {
       setIsRecognizing(false)
     }

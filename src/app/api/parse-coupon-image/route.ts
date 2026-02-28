@@ -7,7 +7,8 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData()
     const file = formData.get('image') as File
-    const aiModel = (formData.get('aiModel') as string) || 'doubao'
+    // 默认使用GLM-4，避免豆包AI的地区限制问题
+    const aiModel = (formData.get('aiModel') as string) || 'glm'
 
     if (!file) {
       return NextResponse.json(
@@ -129,8 +130,22 @@ async function extractWithDoubao(imageDataUrl: string): Promise<NextResponse> {
         aiModel: 'doubao'
       }
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('豆包AI识别失败:', error)
+
+    // 检查是否是地区限制错误
+    if (error?.code === 'unsupported_country_region_territory' || error?.status === 403) {
+      return NextResponse.json({
+        success: false,
+        error: '豆包AI不支持当前地区访问。请使用GLM-4模型。在Vercel环境变量中配置 GLM_API_KEY。',
+        details: {
+          errorCode: error.code,
+          errorType: 'region_restriction',
+          suggestion: '请访问 https://open.bigmodel.cn/ 获取GLM API Key，并在Vercel环境变量中配置 GLM_API_KEY'
+        }
+      }, { status: 403 })
+    }
+
     throw error
   }
 }

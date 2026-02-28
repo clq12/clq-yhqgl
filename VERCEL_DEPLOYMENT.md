@@ -1,260 +1,186 @@
-# Vercel 部署指南
+# Vercel部署指南
 
-## 🚀 部署步骤
+## 图片识别功能配置
 
-### 1. 推送代码到 Git
+### 功能说明
 
-```bash
-# 添加新创建的 vercel.json 文件
-git add vercel.json
+优惠券管理系统支持AI图片识别功能，可以从优惠券截图中自动提取以下信息：
+- 商家名称
+- 优惠名称
+- 优惠条件
+- 到期时间
 
-# 提交代码
-git commit -m "feat: 添加Vercel Cron定时任务配置
+### 支持的AI模型
 
-- 配置每天UTC 23点（北京时间早上7点）执行
-- 自动检查即将到期的优惠券并发送推送"
+1. **豆包AI（默认）**
+   - 模型名称：`doubao-seed-1-8-251228`
+   - 配置：无需额外环境变量
+   - 特点：准确度高，响应速度快
+   - 推荐：大多数场景使用
 
-# 推送到远程仓库
-git push origin main
-```
+2. **GLM-4.7-Flash（可选）**
+   - 模型名称：`glm-4v-flash`
+   - 配置：需要设置环境变量 `GLM_API_KEY`
+   - 特点：适合复杂场景
+   - 使用：需要在Vercel环境变量中配置API Key
 
-### 2. 配置 Vercel 环境变量
+### Vercel部署注意事项
 
-在 Vercel 项目中配置以下环境变量：
+#### 1. 超时限制
 
-| 变量名 | 说明 | 示例值 |
-|--------|------|--------|
-| `WEBDAV_URL` | WebDAV服务器地址 | `https://dav.jianguoyun.com/dav/` |
-| `WEBDAV_USERNAME` | WebDAV用户名 | `your-email@example.com` |
-| `WEBDAV_PASSWORD` | WebDAV密码 | `app-password-generated-above` |
-| `PUSHPLUS_TOKEN` | PushPlus推送Token | `your-32-char-token-here` |
+**免费版：**
+- API请求超时：10秒
+- 适合：小图片（<1MB）识别
+- 平均响应时间：3-5秒
 
-**配置步骤**：
-1. 进入 Vercel 项目
-2. 点击 `Settings` → `Environment Variables`
-3. 点击 `Add New` 添加每个变量
-4. 选择环境：`Production`、`Preview`、`Development`（全部勾选）
-5. 点击 `Save`
+**Pro版：**
+- API请求超时：60秒
+- 适合：大图片（<5MB）识别
+- 推荐用于生产环境
 
-### 3. 部署到 Vercel
+#### 2. 请求大小限制
 
-#### 方式A：通过 Vercel Dashboard（推荐）
+- 请求体大小：4.5MB（免费版）
+- 推荐图片大小：<2MB
+- 支持格式：JPG、PNG、WEBP
 
-1. 访问 [Vercel Dashboard](https://vercel.com/dashboard)
-2. 点击 `Add New` → `Project`
-3. 选择你的 Git 仓库
-4. 点击 `Import`
-5. 点击 `Deploy`
-6. 等待部署完成（约1-2分钟）
+#### 3. 环境变量配置
 
-#### 方式B：通过 Vercel CLI
+在Vercel项目设置中添加环境变量：
 
-```bash
-# 安装 Vercel CLI
-npm i -g vercel
+**必选（自动管理）：**
+- `PGDATABASE_URL`：由coze-coding-dev-sdk自动配置，无需手动设置
 
-# 登录
-vercel login
+**可选：**
+- `GLM_API_KEY`：如需使用GLM-4模型，需要手动配置
 
-# 部署
-vercel
+#### 4. 构建配置
 
-# 生产环境部署
-vercel --prod
-```
+项目已包含 `vercel.json` 配置文件，设置：
+- API超时时间：60秒（Pro版）
+- 构建命令：`pnpm run build`
+- 开发命令：`pnpm run dev`
+- 安装命令：`pnpm install`
+- 部署区域：香港（`hkg1`，适合中国用户）
 
-### 4. 重新部署（如果环境变量是后添加的）
+### 部署步骤
 
-如果环境变量是在首次部署后添加的，需要重新部署：
+1. **代码部署**
+   ```bash
+   git add .
+   git commit -m "添加图片识别功能"
+   git push
+   ```
 
-1. 进入 Vercel 项目
-2. 点击 `Deployments` 标签
-3. 找到最新的部署，点击右上角 `...`
-4. 选择 `Redeploy`
+2. **Vercel自动部署**
+   - 推送代码后，Vercel会自动开始部署
+   - 等待部署完成（通常1-3分钟）
 
-### 5. 验证部署
+3. **配置环境变量**
+   - 进入Vercel项目设置
+   - 找到"Environment Variables"
+   - 添加可选的环境变量（如需要）
 
-#### 测试 API 接口
+4. **测试部署**
+   - 访问部署的URL
+   - 进入测试页面 `/test-ai`
+   - 切换到"图片识别"标签
+   - 上传测试图片进行验证
 
-访问以下URL测试（替换为你的域名）：
+### 故障排查
 
-```bash
-# 测试定时任务接口
-curl https://your-app.vercel.app/api/check-expiring
+#### 问题1：图片识别超时
 
-# 预期返回
-{
-  "success": true,
-  "message": "检查完成，发送了 X 条提醒",
-  "data": {
-    "results": {
-      "7": 0,
-      "3": 0,
-      "1": 0
-    },
-    "totalSent": 0
-  }
-}
-```
+**原因：**
+- 图片过大
+- Vercel免费版超时限制
 
-#### 测试定时任务触发
+**解决方案：**
+- 压缩图片到2MB以下
+- 升级到Vercel Pro版
+- 使用本地部署或自建服务器
 
-1. 进入 Vercel 项目
-2. 点击 `Cron Jobs` 标签
-3. 可以看到 `vercel.json` 中配置的 Cron 任务
-4. 点击任务右侧的 `Run` 手动触发一次测试
+#### 问题2：API返回404
 
-### 6. 查看 Cron 日志
+**原因：**
+- 部署未完成
+- 路由未正确注册
 
-1. 进入 Vercel 项目
-2. 点击 `Logs` 标签
-3. 可以查看 Cron 任务的执行日志
-4. 如果出现错误，可以在这里看到详细错误信息
+**解决方案：**
+- 等待部署完成
+- 检查部署日志
+- 重新部署
 
-## 📅 定时任务说明
+#### 问题3：SDK导入失败
 
-### Cron 表达式
+**原因：**
+- 依赖未正确安装
+- Node.js版本不兼容
 
-```json
-{
-  "schedule": "0 23 * * *"
-}
-```
+**解决方案：**
+- 检查 `package.json` 中的依赖
+- 确认Node.js版本（推荐18+）
+- 重新部署
 
-- `0` - 分钟（第0分钟）
-- `23` - 小时（UTC时间，即北京时间早上7点）
-- `*` - 每月的每一天
-- `*` - 每月
-- `*` - 每周的每一天
+#### 问题4：GLM模型无法使用
 
-**时区说明**：
-- Vercel Cron 使用 **UTC 时间**
-- 中国时间是 **UTC+8**
-- UTC 23点 = 中国时间 次日 7点
+**原因：**
+- `GLM_API_KEY` 未配置
+- API Key无效
 
-### Cron 任务执行逻辑
+**解决方案：**
+- 在Vercel环境变量中配置 `GLM_API_KEY`
+- 确认API Key有效性
+- 检查API Key权限
 
-每天 UTC 23点（北京时间早上7点）自动执行 `/api/check-expiring` 接口：
+### 性能优化建议
 
-1. 检查剩余 7天、3天、1天 的优惠券
-2. 排除已经提醒过的
-3. 生成推送消息
-4. 通过 PushPlus 发送微信提醒
-5. 更新优惠券的提醒状态
+1. **图片压缩**
+   - 上传前压缩图片
+   - 使用WebP格式（体积更小）
+   - 控制分辨率在1080p以下
 
-## ⚠️ 重要注意事项
+2. **缓存策略**
+   - Vercel自动缓存静态资源
+   - API响应缓存由Next.js管理
 
-### 1. 环境变量必须配置
+3. **区域选择**
+   - 中国用户选择：香港（`hkg1`）
+   - 全球用户选择：多个区域
 
-定时任务依赖环境变量运行，必须配置以下变量：
+### 监控和日志
 
-- ✅ `WEBDAV_URL` - WebDAV服务器地址
-- ✅ `WEBDAV_USERNAME` - WebDAV用户名
-- ✅ `WEBDAV_PASSWORD` - WebDAV密码
-- ✅ `PUSHPLUS_TOKEN` - PushPlus推送Token
+1. **Vercel Dashboard**
+   - 查看部署状态
+   - 监控API响应时间
+   - 查看错误日志
 
-**如果没有配置环境变量，定时任务会返回 401 错误。**
+2. **诊断API**
+   - 访问 `/api/diagnostics` 检查配置
+   - 访问 `/api/test-image-recognition` 测试识别流程
 
-### 2. Vercel 免费版限制
+### 成本估算
 
-- Vercel 免费版支持 Cron Jobs
-- 每天最多可以执行 **100 次** Cron 任务
-- 超过限制后任务会被跳过
-- 本项目每天执行 1 次，完全在免费额度内
+**免费版：**
+- 100GB带宽/月
+- 10GB数据存储
+- 适合个人使用
 
-### 3. 推送频率限制
+**Pro版（$20/月）：**
+- 1TB带宽/月
+- 100GB数据存储
+- 更快的响应速度
+- 60秒API超时
 
-- PushPlus 免费版每天最多推送 **200 条**消息
-- 本项目每次最多推送 3 条（7天、3天、1天）
-- 完全在免费额度内
+**推荐：**
+- 个人项目：免费版
+- 小团队：Pro版
+- 企业：Enterprise版
 
-### 4. WebDAV 连接稳定性
+### 技术支持
 
-- 确保坚果云账号正常
-- 定期检查 WebDAV 连接
-- 坚果云免费版有一定的请求限制，但本项目请求量很小，不受影响
-
-## 🔧 故障排查
-
-### 问题1：Cron 任务没有执行
-
-**检查步骤**：
-1. 进入 Vercel 项目 → `Cron Jobs`
-2. 确认任务状态为 `Active`
-3. 查看 `Logs` 标签，检查是否有错误日志
-
-**可能原因**：
-- `vercel.json` 文件配置错误
-- Cron 表达式语法错误
-- Vercel 账号问题
-
-### 问题2：Cron 任务返回 401 错误
-
-**原因**：环境变量未配置或配置错误
-
-**解决方法**：
-1. 检查 Vercel 环境变量是否已配置
-2. 确认环境变量名称拼写正确
-3. 重新部署项目使环境变量生效
-
-### 问题3：Cron 任务返回 500 错误
-
-**原因**：API 接口内部错误
-
-**解决方法**：
-1. 查看 Vercel Logs 中的详细错误信息
-2. 检查 WebDAV 连接是否正常
-3. 检查 PushPlus Token 是否有效
-
-### 问题4：微信没有收到推送
-
-**检查步骤**：
-1. 确认 PushPlus Token 是否正确
-2. 登录 PushPlus 检查发送记录
-3. 检查是否有优惠券即将到期
-4. 手动访问 `/api/check-expiring` 测试
-
-### 问题5：时区不正确
-
-**症状**：推送时间不是早上7点
-
-**原因**：Cron 表达式使用了错误的 UTC 时间
-
-**解决方法**：
-- 修改 `vercel.json` 中的 `schedule` 字段
-- 中国时间 = UTC时间 + 8小时
-- 重新部署项目
-
-## 📊 监控和维护
-
-### 查看 Cron 执行记录
-
-1. 进入 Vercel 项目
-2. 点击 `Cron Jobs` 标签
-3. 可以看到每次执行的记录
-4. 点击记录可以查看详细日志
-
-### 查看 API 调用统计
-
-1. 进入 Vercel 项目
-2. 点击 `Analytics` 标签
-3. 可以查看请求量、响应时间等统计信息
-
-### 数据备份
-
-优惠券数据存储在坚果云，定期自动备份：
-
-- 备份路径：`/coupons/backups/`
-- 备份文件名：`backup-YYYY-MM-DDTHH:mm:ss.sssZ.json`
-- 可以在坚果云网页版查看和下载
-
-## 🎉 完成！
-
-现在你的优惠券管理系统已经完全部署并配置好定时任务了！
-
-- ✅ 每天早上7点自动检查即将到期的优惠券
-- ✅ 自动发送微信推送提醒
-- ✅ 数据安全存储在坚果云
-- ✅ 支持多设备同步
-
-享受自动化的优惠券管理吧！🎊
+如遇到问题，请检查：
+1. Vercel部署日志
+2. 浏览器控制台错误
+3. 使用诊断API检查配置
+4. 查看项目Issues

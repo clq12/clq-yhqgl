@@ -29,7 +29,7 @@ interface ExtractedCouponInfo {
   endMinute?: number
   notes?: string
   storeName?: string
-  aiModel?: 'glm' | 'doubao' | 'rule'
+  aiModel?: 'glm' | 'doubao' | 'rule' | 'chatgpt'
   rawResponse?: string
 }
 

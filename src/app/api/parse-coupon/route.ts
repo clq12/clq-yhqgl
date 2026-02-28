@@ -13,7 +13,7 @@ export interface ExtractedCouponInfo {
   storeName?: string
   description?: string
   notes?: string
-  aiModel?: 'glm' | 'doubao' | 'rule' // 使用的AI模型
+  aiModel?: 'glm' | 'doubao' | 'rule' | 'chatgpt' // 使用的AI模型
   rawResponse?: string // AI模型的原始返回值
 }
 
@@ -1025,414 +1025,143 @@ async function extractCouponsWithDoubaoBatch(text: string): Promise<ExtractedCou
 }
 
 /**
- * 使用GLM-4.7-Flash提取优惠券信息
+ * 使用ChatGPT提取优惠券信息
  */
-async function extractCouponInfoWithGLM(text: string, apiKey?: string): Promise<ExtractedCouponInfo> {
-  const API_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
+async function extractCouponInfoWithChatGPT(text: string, apiKey?: string): Promise<ExtractedCouponInfo> {
+  const { default: OpenAI } = await import('openai')
 
   // API Key 优先级：参数 > 环境变量
-  const finalApiKey = apiKey || process.env.GLM_API_KEY
+  const finalApiKey = apiKey || process.env.CHATGPT_API_KEY
 
   if (!finalApiKey) {
-    console.error('GLM API Key 未配置')
+    console.error('ChatGPT API Key 未配置')
     return extractCouponInfo(text)
   }
 
-  const messages = [
-    {
-      role: 'system',
-      content: `你是一个【优惠券信息结构化解析程序】，
+  const openai = new OpenAI({
+    apiKey: finalApiKey,
+    baseURL: 'https://free.v36.cm/v1/',
+  })
+
+  const systemPrompt = `你是一个【优惠券信息结构化解析程序】，
 只负责从原始文本中抽取字段并输出 JSON，
 禁止解释、禁止总结、禁止对话、禁止补全。
 
-====================
-【输入说明】
-- 输入文本中可能包含 1 张或多张优惠券
-- 多张优惠券通常以换行分隔
-- 每一行最多只对应 1 张优惠券
-- 不允许将多行内容合并成同一张券
-
-====================
 【输出格式】
-- 仅输出 JSON
-- 顶层必须是数组
-- 每个数组元素对应 1 张优惠券
-- 即使只识别出 1 张，也必须使用数组
+- 仅输出 JSON 对象
+- 不要使用 JSON 数组格式
 
-====================
 【字段定义】
 
-- title: string | null
-- type: "满减" | "折扣" | "直减" | "其他"
-- threshold: number | null
-- amountOff: number | null
-- discountRate: number | null      // 0.8 表示 8 折
-- validFrom: string | null         // 原始文本中的时间描述
-- validTo: string | null           // 原始文本中的时间描述
-- platform: string | null
-- notes: string | null
+- title: string | null - 优惠券标题
+- description: string | null - 描述信息
+- discountType: "amount" | "percentage" | "full" | null - 折扣类型（满减/full，折扣/percentage，减免/amount）
+- discountAmount: number | null - 优惠金额（满减中的减金额、减免金额）
+- fullAmount: number | null - 满减中的满金额
+- startDate: string | null - 开始日期，格式YYYY-MM-DD
+- endDate: string | null - 到期日期，格式YYYY-MM-DD
+- endHour: number | null - 截止小时，0-23
+- endMinute: number | null - 截止分钟，0-59
+- storeName: string | null - 商家或平台名称
+- notes: string | null - 备注信息
 
-====================
-【核心解析规则（非常重要）】
+【解析规则】
 
-【1️⃣ 多券拆分规则】
-- 必须先按"换行"拆分文本
-- 每一行单独解析
-- 严禁将不同平台 / 不同行的优惠合并
+1. 提取商家名称（淘宝、京东、拼多多、美团、瑞幸等）
+2. 识别优惠类型：
+   - "满X减Y" → discountType=full, fullAmount=X, discountAmount=Y
+   - "X折" → discountType=percentage, discountAmount=X
+   - "立减X"、"X元无门槛" → discountType=amount, discountAmount=X
+3. 提取时间信息：
+   - 日期格式：2024-12-31、2024年12月31日 → 转换为YYYY-MM-DD
+   - 时间格式：23点、23点30分 → 提取endHour和endMinute
+   - 相对时间（今天、明天等）保持原样
+4. 如果某些字段无法提取，返回null
 
-【2️⃣ title 生成规则（重点）】
+【示例】
 
-title 规则（严格执行）：
+输入: "瑞幸咖啡 20元立减金 2026年2月25日到期"
+输出: {"title":"瑞幸咖啡 20元立减金","discountType":"amount","discountAmount":20,"endDate":"2026-02-25","storeName":"瑞幸咖啡"}
 
-- title 必须直接来源于原始文本
-- 禁止总结、禁止理解、禁止改写
-- title 取"首次出现优惠数字（金额 / 折扣）之前的文本"
+输入: "建设银行 满2000减5 2026年2月23日23:59失效"
+输出: {"title":"建设银行立减金","discountType":"full","fullAmount":2000,"discountAmount":5,"endDate":"2026-02-23","endHour":23,"endMinute":59,"storeName":"建设银行"}`
 
-【优惠数字包括】：
-- 金额数字（如：20、100、5元）
-- 折扣数字（如：5折、8折、0.8）
-
-【title 清洗规则】：
-- 若 title 末尾是"优惠结构引导词"，必须删除该词
-- 常见引导词包括（但不限于）：
-  - 满
-  - 减
-  - 立减
-  - 直减
-  - 打
-  - 享
-- 删除后再进行 trim（去空格）
-
-【title 兜底规则】：
-- 若清洗后 title 为空字符串 → 返回 null
-- 若 title 中包含"券 / 优惠 / 活动"等通用词，允许保留
-- 不允许基于理解生成名称
-
-【示例】：
-- "淘宝优惠券 满100减20" → "淘宝优惠券"
-- "京东20元无门槛" → "京东"
-- "满100减20" → null
-
-【3️⃣ 优惠类型 type 判定规则】
-
-- 出现"满X减Y" → type = 满减
-- 出现"X折 / 打X折 / 折扣" → type = 折扣
-- 出现"立减 / 直减 / 无门槛减" → type = 直减
-- 无法判断 → 其他
-
-【4️⃣ 数值字段规则】
-
-- threshold：仅在"满减"中填写 X
-- amountOff：
-  - 满减 → 填 Y
-  - 直减 → 填减免金额
-- discountRate：
-  - 折扣 → 转换为小数（5折 → 0.5）
-- 文本未明确出现的字段 → 必须返回 null
-- 严禁猜测或计算未给出的数值
-
-【5️⃣ 时间规则（北京时间）】
-
-- 所有时间默认基于北京时间（UTC+8）
-- 以下相对时间允许解析：
-  - 今天 / 明天 / 后天
-- 若出现"23点 / 12点"等 → 原样写入 validTo
-- 不要求转换为 ISO 时间，只保留原始文本描述
-- 未出现时间 → 返回 null
-
-【6️⃣ platform 规则】
-
-- 若文本中明确出现平台名（淘宝 / 京东 / 拼多多 / 美团 等）→ 填写
-- 若仅体现在 title 中，可与 title 相同
-- 未明确出现 → null
-
-【7️⃣ notes 规则】
-
-- 剩余无法归类但有意义的文本
-- 不允许重复 title 或优惠信息
-- 可为空
-
-====================
-【严格约束】
-
-- 不允许合并多张优惠券
-- 不允许推理用户意图
-- 不允许生成示例
-- 不允许输出 Markdown
-- 不允许输出解释性文字
-- 只输出 JSON
-
-====================
-【开始解析下面文本】`
-    },
-    {
-      role: 'user',
-      content: text
-    }
+  const messages = [
+    { role: 'system' as const, content: systemPrompt },
+    { role: 'user' as const, content: text },
   ]
 
   try {
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${finalApiKey}`
-      },
-      body: JSON.stringify({
-        model: 'glm-4.7-flash',
-        messages,
-        temperature: 0,
-        max_tokens: 1024
-      })
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages,
+      temperature: 0,
     })
 
-    const data = await response.json()
+    console.log('【ChatGPT单张识别】原始数据:', JSON.stringify(response, null, 2))
 
-    if (!response.ok) {
-      console.error('GLM API Error:', JSON.stringify(data, null, 2))
-      return extractCouponInfo(text)
-    }
-
-    console.log('GLM API 响应:', JSON.stringify(data, null, 2))
-
-    // GLM-4.7-Flash 可能会返回 reasoning_content 而不是 content
-    const content = data.choices[0]?.message?.content || data.choices[0]?.message?.reasoning_content
+    const content = response.choices[0]?.message?.content
     if (!content) {
-      console.error('GLM API 返回内容为空, 响应数据:', JSON.stringify(data, null, 2))
+      console.error('【ChatGPT单张识别】返回内容为空')
       return extractCouponInfo(text)
     }
 
     // 提取JSON内容
-    // GLM-4.7-Flash 可能返回大量推理过程，需要提取最后的JSON代码块
     let jsonStr = content.trim()
-
-    console.log('原始内容前300字符:', content.substring(0, 300))
-    console.log('原始内容总长度:', content.length)
-
-    // 策略1：尝试提取最后一个以```json开头、以```结尾的代码块
-    const jsonBlockMatch = content.match(/```json\s*([\s\S]*?)\s*```/g)
-    if (jsonBlockMatch && jsonBlockMatch.length > 0) {
-      // 使用最后一个匹配的代码块
-      const lastMatch = jsonBlockMatch[jsonBlockMatch.length - 1]
-      jsonStr = lastMatch.replace(/```json\s*/, '').replace(/```$/, '').trim()
-      console.log('策略1：找到JSON代码块')
-    } else {
-      // 策略2：尝试提取最后一个以```开头、以```结尾的代码块
-      const codeBlockMatch = content.match(/```\s*([\s\S]*?)\s*```/g)
-      if (codeBlockMatch && codeBlockMatch.length > 0) {
-        // 使用最后一个匹配的代码块
-        const lastMatch = codeBlockMatch[codeBlockMatch.length - 1]
-        jsonStr = lastMatch.replace(/```\s*/, '').replace(/```$/, '').trim()
-        console.log('策略2：找到普通代码块')
-      } else {
-        // 策略3：尝试直接从内容中提取JSON数组（新格式返回数组）
-        const jsonArrayMatch = content.match(/\[[\s\S]*\]/g)
-        if (jsonArrayMatch && jsonArrayMatch.length > 0) {
-          // 使用最后一个匹配的JSON数组
-          const lastMatch = jsonArrayMatch[jsonArrayMatch.length - 1]
-          jsonStr = lastMatch.trim()
-          console.log('策略3：找到JSON数组')
-        } else {
-          // 策略4：尝试提取JSON对象（兼容旧格式）
-          const jsonObjectMatch = content.match(/\{[\s\S]*\}/g)
-          if (jsonObjectMatch && jsonObjectMatch.length > 0) {
-            // 使用最后一个匹配的JSON对象
-            const lastMatch = jsonObjectMatch[jsonObjectMatch.length - 1]
-            jsonStr = lastMatch.trim()
-            console.log('策略4：找到JSON对象')
-          } else {
-            console.log('策略5：使用完整内容')
-            jsonStr = content.trim()
-          }
-        }
-      }
+    
+    // 尝试提取JSON对象
+    const jsonObjectMatch = content.match(/\{[\s\S]*\}/)
+    if (jsonObjectMatch) {
+      jsonStr = jsonObjectMatch[0]
     }
 
-    console.log('提取的JSON字符串前200字符:', jsonStr.substring(0, 200))
-    console.log('提取的JSON字符串完整长度:', jsonStr.length)
+    console.log('【ChatGPT单张识别】提取的JSON:', jsonStr)
 
-    // 尝试解析JSON，如果失败则记录详细错误
     let parsedData
     try {
       parsedData = JSON.parse(jsonStr)
-      // 如果是数组，取第一个元素（新格式）
-      if (Array.isArray(parsedData)) {
-        if (parsedData.length > 0) {
-          parsedData = parsedData[0]
-          console.log('从数组中提取第一个元素')
-        } else {
-          console.error('返回的数组为空')
-          throw new Error('返回的数组为空')
-        }
-      }
     } catch (jsonError) {
-      console.error('JSON解析失败，原始内容前500字符:', content.substring(0, 500))
-      console.error('JSON解析失败，提取的字符串:', jsonStr)
-      console.error('JSON解析错误:', jsonError instanceof Error ? jsonError.message : jsonError)
-
-      // 尝试修复常见的JSON错误
-      // 例如：删除末尾的逗号
-      const fixedJson = jsonStr.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']')
-      try {
-        parsedData = JSON.parse(fixedJson)
-        // 如果是数组，取第一个元素
-        if (Array.isArray(parsedData)) {
-          if (parsedData.length > 0) {
-            parsedData = parsedData[0]
-          } else {
-            throw new Error('返回的数组为空')
-          }
-        }
-        console.log('JSON修复后解析成功')
-      } catch (fixedError) {
-        console.error('JSON修复后仍然失败')
-        throw jsonError
-      }
-    }
-
-    // 验证和转换数据（字段映射）
-    const result: ExtractedCouponInfo = {}
-
-    // 标题映射
-    if (parsedData.title) result.title = parsedData.title
-
-    // 类型转换
-    if (parsedData.type) {
-      const typeMap: Record<string, 'amount' | 'percentage' | 'full'> = {
-        '满减': 'full',
-        '折扣': 'percentage',
-        '直减': 'amount',
-        '其他': 'amount'
-      }
-      result.discountType = typeMap[parsedData.type] || 'amount'
-    }
-
-    // 金额映射
-    if (parsedData.threshold) result.fullAmount = Number(parsedData.threshold)
-    if (parsedData.amountOff) result.discountAmount = Number(parsedData.amountOff)
-    if (parsedData.discountRate) {
-      // 折扣率转换为折扣金额（用于计算折扣率）
-      // 0.8 表示 8 折，保持原值
-      result.discountAmount = Number(parsedData.discountRate)
-    }
-
-    // 日期映射
-    if (parsedData.validFrom) result.startDate = parsedData.validFrom
-    if (parsedData.validTo) {
-      const validTo = parsedData.validTo
-
-      // 检查是否是相对日期（包含"今天/明天/后天/本周/下周/本月/下月/X天后"等）
-      const isRelativeDate = /(?:今天|明天|后天|本周|下周|本月|下月|\d+天后|星期|周[一二三四五六日])/i.test(validTo)
-
-      if (isRelativeDate) {
-        console.log('GLM识别到相对日期:', validTo, '，调用规则匹配进行转换')
-        // 使用规则匹配来转换相对日期
-        const ruleResult = extractCouponInfo(text)
-        if (ruleResult.endDate) {
-          result.endDate = ruleResult.endDate
-          if (ruleResult.endHour) result.endHour = ruleResult.endHour
-          if (ruleResult.endMinute) result.endMinute = ruleResult.endMinute
-          console.log('规则匹配转换结果:', {
-            endDate: result.endDate,
-            endHour: result.endHour,
-            endMinute: result.endMinute
-          })
-        } else {
-          // 如果规则匹配也无法转换，保持原值
-          result.endDate = validTo
-          console.log('规则匹配无法转换，保持原值:', validTo)
-        }
-      } else {
-        // 检查是否是混合格式（日期+中文时间），如"2024-12-31 23点"、"2024-12-31 23点30分"
-        const dateTimePattern = /^(\d{4}[-/年]\d{1,2}[-/月]\d{1,2})\s*(?:日号)?\s*(\d{1,2})\s*点(?:\s*(\d{1,2})\s*分)?$/
-        const dateTimeMatch = validTo.match(dateTimePattern)
-
-        if (dateTimeMatch) {
-          // 提取日期和时间
-          const datePart = dateTimeMatch[1]
-          const hour = parseInt(dateTimeMatch[2])
-          const minute = dateTimeMatch[3] ? parseInt(dateTimeMatch[3]) : 0
-
-          // 转换日期格式（统一为YYYY-MM-DD）
-          const formattedDate = datePart
-            .replace(/\//g, '-')
-            .replace(/年/g, '-')
-            .replace(/月/g, '-')
-            .replace(/日/g, '')
-
-          result.endDate = formattedDate
-          if (hour >= 0 && hour <= 23) {
-            result.endHour = hour
-            if (minute >= 0 && minute <= 59) {
-              result.endMinute = minute
-            }
-          }
-          console.log('解析混合格式日期时间:', {
-            original: validTo,
-            date: formattedDate,
-            time: `${hour}:${minute}`
-          })
-        } else {
-          // 纯日期格式，直接使用
-          // 尝试标准化日期格式
-          let standardizedDate = validTo
-            .replace(/\//g, '-')
-            .replace(/年/g, '-')
-            .replace(/月/g, '-')
-            .replace(/日/g, '')
-
-          // 如果格式不是YYYY-MM-DD，尝试补充
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(standardizedDate)) {
-            // 可能是"12-31"或"2024.12.31"等格式
-            const dateMatch = standardizedDate.match(/(\d{4})[-.](\d{1,2})[-.](\d{1,2})/)
-            if (dateMatch) {
-              standardizedDate = `${dateMatch[1]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[3].padStart(2, '0')}`
-            }
-          }
-
-          result.endDate = standardizedDate
-        }
-      }
-    }
-
-    // 平台和描述
-    if (parsedData.platform) result.storeName = parsedData.platform
-    if (parsedData.notes) result.description = parsedData.notes
-
-    console.log('【GLM单张识别】解析后的数据:')
-    console.log('parsedData:', JSON.stringify(parsedData, null, 2))
-    console.log('result:', JSON.stringify(result, null, 2))
-    console.log('discountAmount:', result.discountAmount)
-    console.log('discountType:', result.discountType)
-
-    // 如果AI没有提取到完整信息，回退到规则匹配
-    // 只要discountAmount和discountType有值就认为是有效识别
-    if (!result.discountAmount || !result.discountType) {
-      console.log('【GLM单张识别】GLM提取不完整，回退到规则匹配')
-      console.log('【GLM单张识别】discountAmount:', result.discountAmount)
-      console.log('【GLM单张识别】discountType:', result.discountType)
+      console.error('【ChatGPT单张识别】JSON解析失败:', jsonError)
       return {
         ...extractCouponInfo(text),
         aiModel: 'rule',
-        rawResponse: JSON.stringify(parsedData)
+        rawResponse: content
       }
     }
 
-    // 如果没有title，尝试从原始文本中提取
-    if (!result.title && text.trim()) {
-      // 提取第一行或前20个字符作为title
-      const firstLine = text.split('\n')[0].trim()
-      result.title = firstLine.length > 20 ? firstLine.substring(0, 20) : firstLine
-    }
-
-    return {
-      ...result,
-      aiModel: 'glm',
+    // 直接映射到结果
+    const result: ExtractedCouponInfo = {
+      title: parsedData.title,
+      description: parsedData.description,
+      discountType: parsedData.discountType,
+      discountAmount: parsedData.discountAmount,
+      fullAmount: parsedData.fullAmount,
+      startDate: parsedData.startDate,
+      endDate: parsedData.endDate,
+      endHour: parsedData.endHour,
+      endMinute: parsedData.endMinute,
+      storeName: parsedData.storeName,
+      notes: parsedData.notes,
+      aiModel: 'chatgpt',
       rawResponse: content
     }
 
+    console.log('【ChatGPT单张识别】解析结果:', result)
+
+    // 如果AI没有提取到完整信息，回退到规则匹配
+    if (!result.discountAmount || !result.discountType) {
+      console.log('【ChatGPT单张识别】提取不完整，回退到规则匹配')
+      return {
+        ...extractCouponInfo(text),
+        aiModel: 'rule',
+        rawResponse: content
+      }
+    }
+
+    return result
+
   } catch (error) {
-    console.error('GLM解析失败，回退到规则匹配:', error)
+    console.error('【ChatGPT单张识别】调用失败:', error)
     return {
       ...extractCouponInfo(text),
       aiModel: 'rule',
@@ -1442,397 +1171,137 @@ title 规则（严格执行）：
 }
 
 /**
- * 使用GLM-4.7-Flash批量提取优惠券信息（智能拆分）
+ * 使用ChatGPT批量提取优惠券信息（智能拆分）
  */
-async function extractCouponsWithGLMBatch(text: string, apiKey?: string): Promise<ExtractedCouponInfo[]> {
-  const API_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions'
+async function extractCouponsWithChatGPTBatch(text: string, apiKey?: string): Promise<ExtractedCouponInfo[]> {
+  const { default: OpenAI } = await import('openai')
 
   // API Key 优先级：参数 > 环境变量
-  const finalApiKey = apiKey || process.env.GLM_API_KEY
+  const finalApiKey = apiKey || process.env.CHATGPT_API_KEY
 
   if (!finalApiKey) {
-    console.error('GLM API Key 未配置，回退到按行识别')
-    // 回退到按行识别
+    console.error('ChatGPT API Key 未配置，回退到按行识别')
     return text.split('\n').map(line => extractCouponInfo(line.trim()))
   }
 
-  const messages = [
-    {
-      role: 'system',
-      content: `你是一个【优惠券信息结构化解析程序】，
+  const openai = new OpenAI({
+    apiKey: finalApiKey,
+    baseURL: 'https://free.v36.cm/v1/',
+  })
+
+  const systemPrompt = `你是一个【优惠券信息结构化解析程序】，
 只负责从原始文本中抽取字段并输出 JSON，
 禁止解释、禁止总结、禁止对话、禁止补全。
 
-====================
-【输入说明】
-- 输入文本中可能包含 1 张或多张优惠券
-- 多张优惠券通常以换行分隔
-- 每一行最多只对应 1 张优惠券
-- 不允许将多行内容合并成同一张券
-
-====================
 【输出格式】
-- 仅输出 JSON
+- 仅输出 JSON 数组
 - 顶层必须是数组
 - 每个数组元素对应 1 张优惠券
 - 即使只识别出 1 张，也必须使用数组
 
-====================
 【字段定义】
 
-- title: string | null
-- type: "满减" | "折扣" | "直减" | "其他"
-- threshold: number | null
-- amountOff: number | null
-- discountRate: number | null      // 0.8 表示 8 折
-- validFrom: string | null         // 原始文本中的时间描述
-- validTo: string | null           // 原始文本中的时间描述
-- platform: string | null
-- notes: string | null
+- title: string | null - 优惠券标题
+- description: string | null - 描述信息
+- discountType: "amount" | "percentage" | "full" | null - 折扣类型（满减/full，折扣/percentage，减免/amount）
+- discountAmount: number | null - 优惠金额（满减中的减金额、减免金额）
+- fullAmount: number | null - 满减中的满金额
+- startDate: string | null - 开始日期，格式YYYY-MM-DD
+- endDate: string | null - 到期日期，格式YYYY-MM-DD
+- endHour: number | null - 截止小时，0-23
+- endMinute: number | null - 截止分钟，0-59
+- storeName: string | null - 商家或平台名称
+- notes: string | null - 备注信息
 
-====================
-【核心解析规则（非常重要）】
+【解析规则】
 
-【1️⃣ 多券拆分规则】
-- 必须先按"换行"拆分文本
-- 每一行单独解析
-- 严禁将不同平台 / 不同行的优惠合并
+1. 按行拆分文本，每行识别为一张优惠券
+2. 提取商家名称（淘宝、京东、拼多多、美团、瑞幸等）
+3. 识别优惠类型：
+   - "满X减Y" → discountType=full, fullAmount=X, discountAmount=Y
+   - "X折" → discountType=percentage, discountAmount=X
+   - "立减X"、"X元无门槛" → discountType=amount, discountAmount=X
+4. 提取时间信息：
+   - 日期格式：2024-12-31、2024年12月31日 → 转换为YYYY-MM-DD
+   - 时间格式：23点、23点30分 → 提取endHour和endMinute
+   - 相对时间（今天、明天等）保持原样
+5. 如果某些字段无法提取，返回null
 
-【2️⃣ title 生成规则（重点）】
+【示例】
 
-title 规则（严格执行）：
+输入: "瑞幸咖啡 20元立减金 2026年2月25日到期"
+输出: [{"title":"瑞幸咖啡 20元立减金","discountType":"amount","discountAmount":20,"endDate":"2026-02-25","storeName":"瑞幸咖啡"}]`
 
-- title 必须直接来源于原始文本
-- 禁止总结、禁止理解、禁止改写
-- title 取"首次出现优惠数字（金额 / 折扣）之前的文本"
-
-【优惠数字包括】：
-- 金额数字（如：20、100、5元）
-- 折扣数字（如：5折、8折、0.8）
-
-【title 清洗规则】：
-- 若 title 末尾是"优惠结构引导词"，必须删除该词
-- 常见引导词包括（但不限于）：
-  - 满
-  - 减
-  - 立减
-  - 直减
-  - 打
-  - 享
-- 删除后再进行 trim（去空格）
-
-【title 兜底规则】：
-- 若清洗后 title 为空字符串 → 返回 null
-- 若 title 中包含"券 / 优惠 / 活动"等通用词，允许保留
-- 不允许基于理解生成名称
-
-【示例】：
-- "淘宝优惠券 满100减20" → "淘宝优惠券"
-- "京东20元无门槛" → "京东"
-- "满100减20" → null
-
-【3️⃣ 优惠类型 type 判定规则】
-
-- 出现"满X减Y" → type = 满减
-- 出现"X折 / 打X折 / 折扣" → type = 折扣
-- 出现"立减 / 直减 / 无门槛减" → type = 直减
-- 无法判断 → 其他
-
-【4️⃣ 数值字段规则】
-
-- threshold：仅在"满减"中填写 X
-- amountOff：
-  - 满减 → 填 Y
-  - 直减 → 填减免金额
-- discountRate：
-  - 折扣 → 转换为小数（5折 → 0.5）
-- 文本未明确出现的字段 → 必须返回 null
-- 严禁猜测或计算未给出的数值
-
-【5️⃣ 时间规则（北京时间）】
-
-- 所有时间默认基于北京时间（UTC+8）
-- 以下相对时间允许解析：
-  - 今天 / 明天 / 后天
-- 若出现"23点 / 12点"等 → 原样写入 validTo
-- 不要求转换为 ISO 时间，只保留原始文本描述
-- 未出现时间 → 返回 null
-
-【6️⃣ platform 规则】
-
-- 若文本中明确出现平台名（淘宝 / 京东 / 拼多多 / 美团 等）→ 填写
-- 若仅体现在 title 中，可与 title 相同
-- 未明确出现 → null
-
-【7️⃣ notes 规则】
-
-- 剩余无法归类但有意义的文本
-- 不允许重复 title 或优惠信息
-- 可为空
-
-====================
-【严格约束】
-
-- 不允许合并多张优惠券
-- 不允许推理用户意图
-- 不允许生成示例
-- 不允许输出 Markdown
-- 不允许输出解释性文字
-- 只输出 JSON
-
-====================
-【开始解析下面文本】`
-    },
-    {
-      role: 'user',
-      content: text
-    }
+  const messages = [
+    { role: 'system' as const, content: systemPrompt },
+    { role: 'user' as const, content: text },
   ]
 
   try {
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${finalApiKey}`
-      },
-      body: JSON.stringify({
-        model: 'glm-4.7-flash',
-        messages,
-        temperature: 0,
-        max_tokens: 4096  // 增加token限制，支持批量抽取
-      })
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages,
+      temperature: 0,
     })
 
-    const data = await response.json()
+    console.log('【ChatGPT批量识别】原始数据:', JSON.stringify(response, null, 2))
 
-    if (!response.ok) {
-      console.error('GLM API Error:', JSON.stringify(data, null, 2))
-      // 回退到按行识别
-      return text.split('\n').map(line => extractCouponInfo(line.trim()))
-    }
-
-    console.log('GLM API 响应:', JSON.stringify(data, null, 2))
-
-    // GLM-4.7-Flash 可能会返回 reasoning_content 而不是 content
-    const content = data.choices[0]?.message?.content || data.choices[0]?.message?.reasoning_content
+    const content = response.choices[0]?.message?.content
     if (!content) {
-      console.error('GLM API 返回内容为空, 响应数据:', JSON.stringify(data, null, 2))
+      console.error('【ChatGPT批量识别】返回内容为空')
       return text.split('\n').map(line => extractCouponInfo(line.trim()))
     }
 
-    // 提取JSON数组内容
+    // 提取JSON数组
     let jsonStr = content.trim()
-
-    console.log('原始内容前300字符:', content.substring(0, 300))
-    console.log('原始内容总长度:', content.length)
-
-    // 策略1：尝试提取最后一个以```json开头、以```结尾的代码块
-    const jsonBlockMatch = content.match(/```json\s*([\s\S]*?)\s*```/g)
-    if (jsonBlockMatch && jsonBlockMatch.length > 0) {
-      const lastMatch = jsonBlockMatch[jsonBlockMatch.length - 1]
-      jsonStr = lastMatch.replace(/```json\s*/, '').replace(/```$/, '').trim()
-      console.log('策略1：找到JSON代码块')
-    } else {
-      // 策略2：尝试提取最后一个以```开头、以```结尾的代码块
-      const codeBlockMatch = content.match(/```\s*([\s\S]*?)\s*```/g)
-      if (codeBlockMatch && codeBlockMatch.length > 0) {
-        const lastMatch = codeBlockMatch[codeBlockMatch.length - 1]
-        jsonStr = lastMatch.replace(/```\s*/, '').replace(/```$/, '').trim()
-        console.log('策略2：找到普通代码块')
-      } else {
-        // 策略3：尝试直接从内容中提取JSON数组（以[开头，以]结尾）
-        const jsonArrayMatch = content.match(/\[[\s\S]*\]/)
-        if (jsonArrayMatch) {
-          jsonStr = jsonArrayMatch[0].trim()
-          console.log('策略3：找到JSON数组')
-        } else {
-          console.log('策略4：使用完整内容')
-          jsonStr = content.trim()
-        }
-      }
+    const jsonArrayMatch = content.match(/\[[\s\S]*\]/)
+    if (jsonArrayMatch) {
+      jsonStr = jsonArrayMatch[0]
     }
 
-    console.log('提取的JSON字符串前200字符:', jsonStr.substring(0, 200))
-    console.log('提取的JSON字符串完整长度:', jsonStr.length)
+    console.log('【ChatGPT批量识别】提取的JSON:', jsonStr)
 
-    // 尝试解析JSON数组
-    let parsedArray: any[]
+    let parsedArray
     try {
       parsedArray = JSON.parse(jsonStr)
       if (!Array.isArray(parsedArray)) {
-        console.error('解析结果不是数组，回退到按行识别')
+        console.error('【ChatGPT批量识别】返回的不是数组')
         return text.split('\n').map(line => extractCouponInfo(line.trim()))
       }
     } catch (jsonError) {
-      console.error('JSON解析失败，原始内容前500字符:', content.substring(0, 500))
-      console.error('JSON解析失败，提取的字符串:', jsonStr)
-      console.error('JSON解析错误:', jsonError instanceof Error ? jsonError.message : jsonError)
-      // 回退到按行识别
+      console.error('【ChatGPT批量识别】JSON解析失败:', jsonError)
       return text.split('\n').map(line => extractCouponInfo(line.trim()))
     }
 
-    // 转换每个优惠券对象为内部格式
-    const results: ExtractedCouponInfo[] = []
+    // 转换为系统格式
+    const results: ExtractedCouponInfo[] = parsedArray.map((item: any) => ({
+      title: item.title,
+      description: item.description,
+      discountType: item.discountType,
+      discountAmount: item.discountAmount,
+      fullAmount: item.fullAmount,
+      startDate: item.startDate,
+      endDate: item.endDate,
+      endHour: item.endHour,
+      endMinute: item.endMinute,
+      storeName: item.storeName,
+      notes: item.notes,
+      aiModel: 'chatgpt' as const,
+      rawResponse: JSON.stringify(item),
+    }))
 
-    // 先按行分割文本，用于后续规则匹配
-    const textLines = text.split('\n').map(line => line.trim()).filter(line => line)
-
-    for (let i = 0; i < parsedArray.length; i++) {
-      const item = parsedArray[i]
-      const result: ExtractedCouponInfo = {}
-
-      // 直接映射字段
-      if (item.title) result.title = item.title
-
-      // 类型映射：满减→full，折扣→percentage，直减→amount
-      if (item.type) {
-        const typeMap: Record<string, 'amount' | 'percentage' | 'full'> = {
-          '满减': 'full',
-          '折扣': 'percentage',
-          '直减': 'amount',
-          '其他': 'amount'
-        }
-        result.discountType = typeMap[item.type] || 'amount'
-      }
-
-      // 金额映射
-      if (item.threshold) result.fullAmount = Number(item.threshold)
-      if (item.amountOff) result.discountAmount = Number(item.amountOff)
-      if (item.discountRate) {
-        // 折扣率转换为折扣金额（用于计算折扣率）
-        // 0.8 表示 8 折，保持原值
-        result.discountAmount = Number(item.discountRate)
-      }
-
-      // 日期映射
-      if (item.validFrom) result.startDate = item.validFrom
-      if (item.validTo) {
-        const endDate = item.validTo
-        // 检查是否是相对日期（包含"今天/明天/后天/本周/下周/本月/下月/X天后"等）
-        const isRelativeDate = /(?:今天|明天|后天|本周|下周|本月|下月|\d+天后|星期|周[一二三四六日])/i.test(endDate)
-
-        if (isRelativeDate) {
-          console.log('GLM识别到相对日期:', endDate, '，调用规则匹配进行转换')
-          // 使用对应的行文本进行规则匹配
-          let matchedLine = textLines[i] || text
-          if (item.storeName) {
-            // 尝试找到包含平台名称的行
-            matchedLine = textLines.find(line => line.includes(item.storeName!)) || textLines[i] || text
-          }
-
-          console.log('使用行文本进行规则匹配:', matchedLine)
-          const ruleResult = extractCouponInfo(matchedLine)
-          if (ruleResult.endDate) {
-            result.endDate = ruleResult.endDate
-            if (ruleResult.endHour) result.endHour = ruleResult.endHour
-            if (ruleResult.endMinute) result.endMinute = ruleResult.endMinute
-          } else {
-            result.endDate = endDate
-          }
-        } else {
-          // 检查是否是混合格式（日期+中文时间），如"2024-12-31 23点"
-          const dateTimePattern = /^(\d{4}[-/年]\d{1,2}[-/月]\d{1,2})\s*(?:日号)?\s*(\d{1,2})\s*点(?:\s*(\d{1,2})\s*分)?$/
-          const dateTimeMatch = endDate.match(dateTimePattern)
-
-          if (dateTimeMatch) {
-            const datePart = dateTimeMatch[1]
-            const hour = parseInt(dateTimeMatch[2])
-            const minute = dateTimeMatch[3] ? parseInt(dateTimeMatch[3]) : 0
-
-            const formattedDate = datePart
-              .replace(/\//g, '-')
-              .replace(/年/g, '-')
-              .replace(/月/g, '-')
-              .replace(/日/g, '')
-
-            result.endDate = formattedDate
-            if (hour >= 0 && hour <= 23) {
-              result.endHour = hour
-              if (minute >= 0 && minute <= 59) {
-                result.endMinute = minute
-              }
-            }
-          } else {
-            // 纯日期格式
-            let standardizedDate = endDate
-              .replace(/\//g, '-')
-              .replace(/年/g, '-')
-              .replace(/月/g, '-')
-              .replace(/日/g, '')
-
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(standardizedDate)) {
-              const dateMatch = standardizedDate.match(/(\d{4})[-.](\d{1,2})[-.](\d{1,2})/)
-              if (dateMatch) {
-                standardizedDate = `${dateMatch[1]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[3].padStart(2, '0')}`
-              }
-            }
-
-            result.endDate = standardizedDate
-          }
-        }
-      }
-
-      // 平台和描述
-      if (item.platform) result.storeName = item.platform
-      if (item.notes) result.description = item.notes
-
-      console.log('【GLM批量识别】解析第' + i + '张优惠券:')
-      console.log('item:', JSON.stringify(item, null, 2))
-      console.log('result:', JSON.stringify(result, null, 2))
-      console.log('discountAmount:', result.discountAmount)
-      console.log('discountType:', result.discountType)
-
-      // 如果AI没有提取到完整信息，使用规则匹配作为补充
-      // 只要discountAmount和discountType有值就认为是有效识别
-      if (!result.discountAmount || !result.discountType) {
-        console.log('【GLM批量识别】GLM提取不完整，使用规则匹配补充')
-        // 使用对应的行文本进行规则匹配
-        let matchedLine = textLines[i] || text
-        if (item.platform) {
-          // 尝试找到包含平台名称的行
-          matchedLine = textLines.find(line => line.includes(item.platform!)) || textLines[i] || text
-        }
-
-        const ruleResult = extractCouponInfo(matchedLine)
-        if (!result.discountAmount && ruleResult.discountAmount) {
-          result.discountAmount = ruleResult.discountAmount
-        }
-        if (!result.discountType && ruleResult.discountType) {
-          result.discountType = ruleResult.discountType
-        }
-        if (!result.endDate && ruleResult.endDate) {
-          result.endDate = ruleResult.endDate
-          if (ruleResult.endHour) result.endHour = ruleResult.endHour
-          if (ruleResult.endMinute) result.endMinute = ruleResult.endMinute
-        }
-        if (!result.fullAmount && ruleResult.fullAmount) {
-          result.fullAmount = ruleResult.fullAmount
-        }
-        if (!result.storeName && ruleResult.storeName) {
-          result.storeName = ruleResult.storeName
-        }
-      }
-
-      result.aiModel = 'glm'
-      result.rawResponse = JSON.stringify(item)
-
-      results.push(result)
-    }
-
-    console.log('【GLM批量识别】转换后的结果:')
-    console.log(JSON.stringify(results, null, 2))
+    console.log('【ChatGPT批量识别】解析结果:', results)
 
     return results
 
   } catch (error) {
-    console.error('GLM批量抽取失败，回退到按行识别:', error)
+    console.error('【ChatGPT批量识别】调用失败:', error)
     return text.split('\n').map(line => extractCouponInfo(line.trim()))
   }
 }
 
 /**
- * 使用AI提取优惠券信息（回退链：GLM → 豆包 → 规则匹配）
+ * 使用AI提取优惠券信息
  */
 async function extractCouponInfoWithAI(text: string, aiModel?: 'doubao' | 'glm', glmApiKey?: string, useFallback = true): Promise<ExtractedCouponInfo> {
   let result: ExtractedCouponInfo
@@ -1840,8 +1309,8 @@ async function extractCouponInfoWithAI(text: string, aiModel?: 'doubao' | 'glm',
   try {
     // 1. 优先使用指定的AI模型
     if (aiModel === 'glm') {
-      result = await extractCouponInfoWithGLM(text, glmApiKey)
-      // GLM可能有相对日期，需要验证
+      result = await extractCouponInfoWithChatGPT(text, glmApiKey)
+      // ChatGPT可能有相对日期，需要验证
       const isComplete = result.discountType && result.endDate
       if (isComplete || !useFallback) {
         return result
@@ -1897,21 +1366,21 @@ export async function POST(request: NextRequest) {
         let results: ExtractedCouponInfo[]
 
         if (aiModel === 'glm') {
-          // GLM批量抽取
+          // ChatGPT批量抽取
           // 尝试从多个来源获取API Key
-          let finalGlmApiKey = requestChatgptApiKey
-          if (!finalGlmApiKey) {
+          let finalChatgptApiKey = requestChatgptApiKey
+          if (!finalChatgptApiKey) {
             const { getWebDAVConfigFromRequest } = await import('@/lib/config')
             const webdavConfig = getWebDAVConfigFromRequest(request)
             if (webdavConfig?.chatgptApiKey) {
-              finalGlmApiKey = webdavConfig.chatgptApiKey
+              finalChatgptApiKey = webdavConfig.chatgptApiKey
             }
-            if (!finalGlmApiKey && process.env.CHATGPT_API_KEY) {
-              finalGlmApiKey = process.env.CHATGPT_API_KEY
+            if (!finalChatgptApiKey && process.env.CHATGPT_API_KEY) {
+              finalChatgptApiKey = process.env.CHATGPT_API_KEY
             }
           }
 
-          results = await extractCouponsWithGLMBatch(text, finalGlmApiKey)
+          results = await extractCouponsWithChatGPTBatch(text, finalChatgptApiKey)
         } else {
           // 豆包批量抽取（默认）
           results = await extractCouponsWithDoubaoBatch(text)

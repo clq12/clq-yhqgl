@@ -28,8 +28,8 @@ import {
 import CouponForm from "@/components/CouponForm"
 import WebDAVConfig from "@/components/WebDAVConfig"
 import StatDashboard from "@/components/StatDashboard"
-import TextRecognizer from "@/components/TextRecognizer"
 import CouponPreviewDialog, { type PreviewCoupon } from "@/components/CouponPreviewDialog"
+import OcrCouponRecognizer, { type ExtractedCouponInfo } from "@/components/OcrCouponRecognizer"
 import {
   Select,
   SelectContent,
@@ -74,7 +74,8 @@ export default function Home() {
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
   const [isAddingMode, setIsAddingMode] = useState(false)
-  const [isBatchOcrDialogOpen, setIsBatchOcrDialogOpen] = useState(false)
+  const [isOcrDialogOpen, setIsOcrDialogOpen] = useState(false)
+  const [ocrExtractedInfo, setOcrExtractedInfo] = useState<ExtractedCouponInfo | null>(null)
   const [exportFilter, setExportFilter] = useState<'all' | 'used' | 'unused' | 'expired'>('all')
   const [importMode, setImportMode] = useState<'merge' | 'skip' | 'overwrite'>('merge')
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false)
@@ -112,36 +113,18 @@ export default function Home() {
     }
   }
 
-  // 处理批量OCR识别结果
-  const handleBatchOcrExtracted = async (coupons: PreviewCoupon[]) => {
-    if (coupons.length === 0) {
-      alert("未能识别到任何优惠券信息")
-      return
-    }
+  // 处理OCR识别结果
+  const handleOcrExtracted = (info: ExtractedCouponInfo) => {
+    // 保存OCR提取的信息
+    setOcrExtractedInfo(info)
 
-    // 先关闭对话框
-    setIsBatchOcrDialogOpen(false)
+    // 关闭OCR对话框
+    setIsOcrDialogOpen(false)
 
-    try {
-      const response = await fetch("/api/coupons/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ coupons }),
-      })
-
-      const result = await response.json()
-
-      if (result.success) {
-        await fetchCoupons()
-        alert(`成功添加 ${result.data.addedCount} 个优惠券`)
-      } else {
-        console.error('批量添加失败:', result.error)
-        alert(`添加失败：${result.error}`)
-      }
-    } catch (error) {
-      console.error("批量添加优惠券失败:", error)
-      alert("批量添加失败，请检查网络连接")
-    }
+    // 打开添加对话框
+    setIsAddingMode(true)
+    setEditingCoupon(null)
+    setIsFormDialogOpen(true)
   }
 
   // 导出优惠券
@@ -962,8 +945,8 @@ export default function Home() {
               添加
             </Button>
 
-            {/* 批量OCR识别按钮 */}
-            <Dialog open={isBatchOcrDialogOpen} onOpenChange={setIsBatchOcrDialogOpen}>
+            {/* OCR识别按钮 */}
+            <Dialog open={isOcrDialogOpen} onOpenChange={setIsOcrDialogOpen}>
               <DialogTrigger asChild>
                 <Button
                   size="sm"
@@ -972,13 +955,13 @@ export default function Home() {
                   disabled={!isWebDAVConfigured}
                 >
                   <ScanText className="h-4 w-4" />
-                  智能识别
+                  OCR识别
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
-                <TextRecognizer
-                  onExtracted={handleBatchOcrExtracted}
-                  onCancel={() => setIsBatchOcrDialogOpen(false)}
+                <OcrCouponRecognizer
+                  onExtracted={handleOcrExtracted}
+                  onCancel={() => setIsOcrDialogOpen(false)}
                 />
               </DialogContent>
             </Dialog>
@@ -1826,6 +1809,7 @@ export default function Home() {
           </DialogHeader>
           <CouponForm
             coupon={editingCoupon}
+            ocrExtractedInfo={isAddingMode ? ocrExtractedInfo : null}
             onSubmit={isAddingMode
               ? handleAddCoupon
               : (data) => handleUpdateCoupon(editingCoupon!.id, data)
@@ -1834,6 +1818,7 @@ export default function Home() {
               setIsFormDialogOpen(false)
               setIsAddingMode(false)
               setEditingCoupon(null)
+              setOcrExtractedInfo(null)  // 清空OCR提取信息
             }}
           />
         </DialogContent>

@@ -18,11 +18,11 @@ import {
 } from "@/components/ui/form"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, ScanText } from "lucide-react"
+import { CalendarIcon } from "lucide-react"
 import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import type { Coupon } from "@/lib/webdav-storage"
-import OcrCouponRecognizer, { type ExtractedCouponInfo } from "./OcrCouponRecognizer"
+import type { ExtractedCouponInfo } from "./OcrCouponRecognizer"
 
 const couponSchema = z.object({
   title: z.string().min(1, "标题不能为空").max(255, "标题不能超过255个字符"),
@@ -57,13 +57,13 @@ type CouponFormData = z.infer<typeof couponSchema>
 
 interface CouponFormProps {
   coupon?: Coupon | null
+  ocrExtractedInfo?: ExtractedCouponInfo | null
   onSubmit: (data: CouponFormData) => void
   onCancel: () => void
 }
 
-export default function CouponForm({ coupon, onSubmit, onCancel }: CouponFormProps) {
+export default function CouponForm({ coupon, ocrExtractedInfo, onSubmit, onCancel }: CouponFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [showOcr, setShowOcr] = useState(false)
 
   const form = useForm<CouponFormData>({
     resolver: zodResolver(couponSchema),
@@ -105,49 +105,24 @@ export default function CouponForm({ coupon, onSubmit, onCancel }: CouponFormPro
     }
   }
 
-  // 处理OCR识别结果
-  const handleOcrExtracted = (info: ExtractedCouponInfo) => {
-    // 填充表单字段
-    if (info.title) form.setValue('title', info.title)
-    if (info.description) form.setValue('description', info.description)
-    if (info.discountType) form.setValue('discountType', info.discountType)
-    if (info.discountAmount !== undefined) form.setValue('discountAmount', info.discountAmount)
-    if (info.fullAmount !== undefined) form.setValue('fullAmount', info.fullAmount)
-    if (info.endDate) form.setValue('endDate', new Date(info.endDate))
-    if (info.endHour !== undefined) form.setValue('endHour', info.endHour)
-    if (info.endMinute !== undefined) form.setValue('endMinute', info.endMinute)
-    if (info.notes) form.setValue('notes', info.notes)
-
-    // 关闭OCR组件
-    setShowOcr(false)
-  }
+  // 当ocrExtractedInfo变化时填充表单
+  useEffect(() => {
+    if (ocrExtractedInfo) {
+      if (ocrExtractedInfo.title) form.setValue('title', ocrExtractedInfo.title)
+      if (ocrExtractedInfo.description) form.setValue('description', ocrExtractedInfo.description)
+      if (ocrExtractedInfo.discountType) form.setValue('discountType', ocrExtractedInfo.discountType)
+      if (ocrExtractedInfo.discountAmount !== undefined) form.setValue('discountAmount', ocrExtractedInfo.discountAmount)
+      if (ocrExtractedInfo.fullAmount !== undefined) form.setValue('fullAmount', ocrExtractedInfo.fullAmount)
+      if (ocrExtractedInfo.endDate) form.setValue('endDate', new Date(ocrExtractedInfo.endDate))
+      if (ocrExtractedInfo.endHour !== undefined) form.setValue('endHour', ocrExtractedInfo.endHour)
+      if (ocrExtractedInfo.endMinute !== undefined) form.setValue('endMinute', ocrExtractedInfo.endMinute)
+      if (ocrExtractedInfo.notes) form.setValue('notes', ocrExtractedInfo.notes)
+    }
+  }, [ocrExtractedInfo, form])
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-        {/* OCR识别按钮 */}
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setShowOcr(!showOcr)}
-            className="gap-2"
-          >
-            <ScanText className="h-4 w-4" />
-            {showOcr ? '关闭OCR' : 'OCR识别'}
-          </Button>
-        </div>
-
-        {/* OCR识别组件 */}
-        {showOcr && (
-          <div className="mb-4">
-            <OcrCouponRecognizer
-              onExtracted={handleOcrExtracted}
-              onCancel={() => setShowOcr(false)}
-            />
-          </div>
-        )}
         <FormField
           control={form.control}
           name="title"

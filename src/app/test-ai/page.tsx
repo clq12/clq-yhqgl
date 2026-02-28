@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { Loader2, Send, Code, FileText, Settings2, Sparkles, Copy, Check } from "lucide-react"
+import { useState, useRef } from "react"
+import { Loader2, Send, Code, FileText, Settings2, Sparkles, Copy, Check, Upload, X, Image as ImageIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
@@ -36,12 +36,16 @@ interface ExtractedCouponInfo {
 export default function TestAIPage() {
   const [inputText, setInputText] = useState("")
   const [aiModel, setAiModel] = useState<'glm' | 'doubao' | 'rule'>('doubao')
+  const [imageAiModel, setImageAiModel] = useState<'doubao' | 'glm'>('doubao')
   const [useFallback, setUseFallback] = useState(true)
   const [smartBatch, setSmartBatch] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<any>(null)
   const [copied, setCopied] = useState(false)
+  const [image, setImage] = useState<string | null>(null)
+  const [imageResult, setImageResult] = useState<any>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const sampleTexts = [
     {
@@ -148,6 +152,66 @@ export default function TestAIPage() {
     </Card>
   )
 
+  const handleFileSelect = (file: File) => {
+    setError(null)
+    setImageResult(null)
+
+    if (!file.type.startsWith('image/')) {
+      setError('请选择图片文件')
+      return
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setError('图片大小不能超过10MB')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      setImage(e.target?.result as string)
+    }
+    reader.onerror = () => {
+      setError('图片读取失败')
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleImageTest = async () => {
+    if (!image) {
+      setError('请上传图片')
+      return
+    }
+
+    setIsProcessing(true)
+    setError(null)
+    setImageResult(null)
+
+    try {
+      const response = await fetch(image)
+      const blob = await response.blob()
+      const formData = new FormData()
+      formData.append('image', blob)
+      formData.append('aiModel', imageAiModel)
+
+      const apiResponse = await fetch('/api/parse-coupon-image', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await apiResponse.json()
+
+      if (data.success) {
+        setImageResult(data)
+      } else {
+        setError(data.error || '图片识别失败')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '图片识别失败')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 dark:from-gray-900 dark:to-gray-800 p-6">
       <div className="max-w-6xl mx-auto">
@@ -161,7 +225,20 @@ export default function TestAIPage() {
           </p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
+        <Tabs defaultValue="text" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsTrigger value="text" className="gap-2">
+              <FileText className="w-4 h-4" />
+              文本识别
+            </TabsTrigger>
+            <TabsTrigger value="image" className="gap-2">
+              <ImageIcon className="w-4 h-4" />
+              图片识别
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="text">
+            <div className="grid gap-6 md:grid-cols-2">
           {/* 左侧：输入和设置 */}
           <div className="space-y-6">
             {/* 设置卡片 */}
@@ -352,6 +429,204 @@ export default function TestAIPage() {
             </Card>
           </div>
         </div>
+        </TabsContent>
+
+        <TabsContent value="image">
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* 左侧：图片上传和设置 */}
+            <div className="space-y-6">
+              {/* 设置卡片 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings2 className="w-5 h-5" />
+                    模型设置
+                  </CardTitle>
+                  <CardDescription>选择图片识别的AI模型</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">AI 模型</label>
+                    <Select value={imageAiModel} onValueChange={(value: any) => setImageAiModel(value)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="doubao">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4" />
+                            豆包 AI
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="glm">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="w-4 h-4" />
+                            GLM-4.7-Flash
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 图片上传卡片 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ImageIcon className="w-5 h-5" />
+                    上传图片
+                  </CardTitle>
+                  <CardDescription>上传优惠券截图进行识别</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {!image ? (
+                    <div
+                      className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                      <p className="text-sm text-muted-foreground mb-2">
+                        点击选择图片，或拖拽到此处
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        支持 JPG、PNG、WEBP 格式，最大10MB
+                      </p>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) handleFileSelect(file)
+                        }}
+                        className="hidden"
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="relative">
+                        <img
+                          src={image}
+                          alt="优惠券截图"
+                          className="w-full rounded-lg border"
+                        />
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="absolute top-2 right-2"
+                          onClick={() => setImage(null)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      <Button
+                        onClick={handleImageTest}
+                        disabled={isProcessing}
+                        className="w-full"
+                        size="lg"
+                      >
+                        {isProcessing ? (
+                          <>
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            识别中...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-4 h-4 mr-2" />
+                            开始识别
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* 右侧：结果展示 */}
+            <div className="space-y-6">
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              {imageResult && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle>识别结果</CardTitle>
+                      <Badge variant={imageResult.success ? "default" : "destructive"}>
+                        {imageResult.success ? "成功" : "失败"}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <Tabs defaultValue="formatted">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="formatted">格式化展示</TabsTrigger>
+                        <TabsTrigger value="json">原始 JSON</TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="formatted" className="mt-4">
+                        {imageResult.data?.coupons && imageResult.data.coupons.length > 0 ? (
+                          <div>
+                            <div className="mb-4 text-sm text-gray-600">
+                              共识别到 {imageResult.data.coupons.length} 张优惠券
+                            </div>
+                            {imageResult.data.coupons.map((coupon: ExtractedCouponInfo, index: number) =>
+                              renderCoupon(coupon, index)
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-center text-gray-500 py-8">
+                            未能识别到优惠券信息
+                          </div>
+                        )}
+                      </TabsContent>
+
+                      <TabsContent value="json" className="mt-4">
+                        <div className="relative">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute top-2 right-2"
+                            onClick={() => handleCopy(JSON.stringify(imageResult, null, 2))}
+                          >
+                            {copied ? (
+                              <Check className="w-4 h-4" />
+                            ) : (
+                              <Copy className="w-4 h-4" />
+                            )}
+                          </Button>
+                          <pre className="bg-gray-100 dark:bg-gray-900 p-4 rounded-lg overflow-x-auto text-xs">
+                            {JSON.stringify(imageResult, null, 2)}
+                          </pre>
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* 使用说明 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>使用说明</CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm space-y-2">
+                  <div><strong>豆包 AI：</strong>默认模型，适合大多数场景</div>
+                  <div><strong>GLM-4.7-Flash：</strong>备选模型，需要配置API Key</div>
+                  <div><strong>支持格式：</strong>JPG、PNG、WEBP，最大10MB</div>
+                  <div><strong>识别内容：</strong>商家、优惠名称、优惠条件、到期时间</div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </TabsContent>
+      </Tabs>
       </div>
     </div>
   )

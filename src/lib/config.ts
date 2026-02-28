@@ -4,6 +4,7 @@ export interface WebDAVConfig {
   password: string
   pushplusToken?: string // PushPlus 推送令牌
   glmApiKey?: string // GLM-4.7-Flash API Key
+  api52Key?: string // 52api API Key
 }
 
 const CONFIG_COOKIE_NAME = "webdav_config"

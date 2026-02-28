@@ -8,6 +8,7 @@ export interface WebDAVConfigRequest {
   password: string
   pushplusToken?: string
   glmApiKey?: string
+  api52Key?: string
 }
 
 // 获取配置
@@ -29,6 +30,11 @@ export async function GET(request: NextRequest) {
       ? config.glmApiKey.substring(0, 4) + "****" + config.glmApiKey.substring(config.glmApiKey.length - 4)
       : ""
 
+    // 脱敏处理 52api Key
+    const maskedApi52Key = config.api52Key
+      ? config.api52Key.substring(0, 4) + "****" + config.api52Key.substring(config.api52Key.length - 4)
+      : ""
+
     // 不返回密码，但返回脱敏后的 Token
     return NextResponse.json({
       success: true,
@@ -40,6 +46,8 @@ export async function GET(request: NextRequest) {
         hasPushPlusToken: !!config.pushplusToken && config.pushplusToken.length > 0,
         glmApiKey: maskedGlmApiKey,
         hasGlmApiKey: !!config.glmApiKey && config.glmApiKey.length > 0,
+        api52Key: maskedApi52Key,
+        hasApi52Key: !!config.api52Key && config.api52Key.length > 0,
       },
     })
   } catch (error) {
@@ -76,6 +84,7 @@ export async function POST(request: NextRequest) {
       password: body.password,
       pushplusToken: body.pushplusToken?.trim() || "",
       glmApiKey: body.glmApiKey?.trim() || "",
+      api52Key: body.api52Key?.trim() || "",
     }
 
     // 测试连接

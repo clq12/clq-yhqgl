@@ -25,6 +25,7 @@ const webdavConfigSchema = z.object({
   password: z.string().min(1, "密码不能为空"),
   pushplusToken: z.string().optional(),
   glmApiKey: z.string().optional(),
+  api52Key: z.string().optional(),
 })
 
 type WebDAVConfigForm = z.infer<typeof webdavConfigSchema>
@@ -36,6 +37,7 @@ export default function WebDAVConfig() {
   const [configUrl, setConfigUrl] = useState("")
   const [hasPushPlusToken, setHasPushPlusToken] = useState(false)
   const [hasGlmApiKey, setHasGlmApiKey] = useState(false)
+  const [hasApi52Key, setHasApi52Key] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
 
   const form = useForm<WebDAVConfigForm>({
@@ -60,6 +62,7 @@ export default function WebDAVConfig() {
         setConfigUrl(localConfig.url)
         setHasPushPlusToken(!!localConfig.pushplusToken && localConfig.pushplusToken.length > 0)
         setHasGlmApiKey(!!localConfig.glmApiKey && localConfig.glmApiKey.length > 0)
+        setHasApi52Key(!!localConfig.api52Key && localConfig.api52Key.length > 0)
         return
       }
 
@@ -71,6 +74,7 @@ export default function WebDAVConfig() {
         setConfigUrl(result.config.url)
         setHasPushPlusToken(result.config.hasPushPlusToken || false)
         setHasGlmApiKey(result.config.hasGlmApiKey || false)
+        setHasApi52Key(result.config.hasApi52Key || false)
       }
     } catch (error) {
       console.error("检查配置失败:", error)
@@ -98,6 +102,7 @@ export default function WebDAVConfig() {
           password: data.password,
           pushplusToken: data.pushplusToken || undefined,
           glmApiKey: data.glmApiKey || undefined,
+          api52Key: data.api52Key || undefined,
         }
         setWebDAVConfigToLocalStorage(config)
 
@@ -107,6 +112,7 @@ export default function WebDAVConfig() {
         setConfigUrl(data.url)
         setHasPushPlusToken(!!data.pushplusToken && data.pushplusToken.length > 0)
         setHasGlmApiKey(!!data.glmApiKey && data.glmApiKey.length > 0)
+        setHasApi52Key(!!data.api52Key && data.api52Key.length > 0)
         setTimeout(() => {
           window.location.reload()
         }, 1000)
@@ -141,6 +147,7 @@ export default function WebDAVConfig() {
         setConfigUrl("")
         setHasPushPlusToken(false)
         setHasGlmApiKey(false)
+        setHasApi52Key(false)
         form.reset()
         setMessage({ type: "success", text: "配置已清除" })
       } else {
@@ -262,6 +269,18 @@ export default function WebDAVConfig() {
                 <div className="flex items-center gap-2 mt-3 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-md inline-flex">
                   <Info className="h-4 w-4" />
                   GLM-4.7-Flash 未配置（可选，豆包已免费提供）
+                </div>
+              )}
+              {hasApi52Key && (
+                <div className="flex items-center gap-2 mt-3 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-3 py-2 rounded-md inline-flex">
+                  <CheckCircle className="h-4 w-4" />
+                  52api 油价查询已配置
+                </div>
+              )}
+              {!hasApi52Key && (
+                <div className="flex items-center gap-2 mt-3 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-md inline-flex">
+                  <Info className="h-4 w-4" />
+                  52api 未配置（可选，用于油价查询）
                 </div>
               )}
             </div>
@@ -448,6 +467,37 @@ export default function WebDAVConfig() {
                 )}
               />
 
+              <FormField
+                control={form.control}
+                name="api52Key"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabelField>52api API Key（可选）</FormLabelField>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        placeholder="输入 52api API Key"
+                        {...field}
+                      />
+                    </FormControl>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      获取 API Key：<a
+                        href="https://www.52vmy.cn/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline"
+                      >
+                        52api 官网
+                      </a>
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      用于查询当前油价，不配置则使用AI搜索获取油价信息
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               {/* PushPlus 使用说明 */}
               <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
                 <div className="flex items-start gap-2">
@@ -459,6 +509,22 @@ export default function WebDAVConfig() {
                       <li>提前 7天、3天、1天 分别提醒</li>
                       <li>需要配合定时任务（如 cron-job.org）每天调用检查 API</li>
                       <li>检查 API：<code className="bg-gray-200 dark:bg-gray-700 px-1 rounded">/api/check-expiring</code></li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* 油价推送说明 */}
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                <div className="flex items-start gap-2">
+                  <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                  <div className="text-sm text-blue-900 dark:text-blue-100">
+                    <p className="font-medium mb-1">油价推送功能：</p>
+                    <ul className="list-disc list-inside space-y-1 text-blue-800 dark:text-blue-200">
+                      <li>在油价调整日当天8:30推送趋势预测</li>
+                      <li>在油价调整日次日推送油价变化信息</li>
+                      <li>推荐配置 52api 获取准确油价数据</li>
+                      <li>不配置则使用AI搜索获取油价信息</li>
                     </ul>
                   </div>
                 </div>

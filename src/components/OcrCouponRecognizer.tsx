@@ -233,6 +233,60 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
     }
   }
 
+  // 将AI识别结果转换为ExtractedCouponInfo格式
+  const convertAiToExtractedInfo = (coupon: any): ExtractedCouponInfo => {
+    const info: ExtractedCouponInfo = {
+      storeName: coupon.merchant || coupon.storeName,
+      title: (coupon.merchant || coupon.storeName) && coupon.title
+        ? `${coupon.merchant || coupon.storeName} ${coupon.title}`.trim()
+        : coupon.title,
+      description: `${coupon.conditions || coupon.condition} ${coupon.expiryDate || coupon.endDate || ''}`,
+      notes: `AI识别: ChatGPT`,
+    }
+
+    // 解析优惠条件
+    if (coupon.conditions?.includes('满') || coupon.condition?.includes('满')) {
+      const conditions = coupon.conditions || coupon.condition
+      const match = conditions.match(/满(\d+(?:\.\d+)?)减(\d+(?:\.\d+)?)/)
+      if (match) {
+        info.discountType = 'full'
+        info.fullAmount = parseFloat(match[1])
+        info.discountAmount = parseFloat(match[2])
+      }
+    } else if (coupon.conditions?.includes('无门槛') || coupon.condition?.includes('无门槛')) {
+      const title = coupon.title || ''
+      const amountMatch = title.match(/(\d+(?:\.\d+)?)元/)
+      if (amountMatch) {
+        info.discountType = 'amount'
+        info.discountAmount = parseFloat(amountMatch[1])
+      }
+    }
+
+    // 解析到期时间
+    const endDate = coupon.expiryDate || coupon.endDate
+    if (endDate) {
+      const dateMatch = endDate.match(/(\d{4})[-年](\d+)[-月](\d+)日?(?:\s+(\d+):(\d+))?/)
+      if (!dateMatch) {
+        const altDateMatch = endDate.match(/(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/)
+        if (altDateMatch) {
+          info.endDate = `${altDateMatch[1]}-${altDateMatch[2]}-${altDateMatch[3]}`
+          if (altDateMatch[4]) {
+            info.endHour = parseInt(altDateMatch[4])
+            info.endMinute = parseInt(altDateMatch[5])
+          }
+        }
+      } else {
+        info.endDate = `${dateMatch[1]}-${dateMatch[2].padStart(2, '0')}-${dateMatch[3].padStart(2, '0')}`
+        if (dateMatch[4]) {
+          info.endHour = parseInt(dateMatch[4])
+          info.endMinute = parseInt(dateMatch[5])
+        }
+      }
+    }
+
+    return info
+  }
+
   const recognizeWithAI = async () => {
     if (!image) return
 
@@ -259,54 +313,15 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
       const result = await apiResponse.json()
 
       if (result.success) {
-        setAiResult(result.data)
+        // 处理API返回的数据格式（可能是result.data或result.data.coupons）
+        const coupons = result.data.coupons || result.data
+        setAiResult(coupons)
         console.log('ChatGPT识别结果:', result.data)
 
         // 如果识别到优惠券，自动填充第一张
-        if (result.data.coupons && result.data.coupons.length > 0) {
-          const firstCoupon = result.data.coupons[0]
-          const extractedInfo: ExtractedCouponInfo = {
-            storeName: firstCoupon.storeName,
-            title: firstCoupon.storeName && firstCoupon.title 
-              ? `${firstCoupon.storeName} ${firstCoupon.title}`.trim()
-              : firstCoupon.title,
-            description: `${firstCoupon.condition} ${firstCoupon.endDate}`,
-            notes: `AI识别: ChatGPT`,
-          }
-
-          // 尝试解析优惠条件
-          if (firstCoupon.condition.includes('满')) {
-            const match = firstCoupon.condition.match(/满(\d+(?:\.\d+)?)减(\d+(?:\.\d+)?)/)
-            if (match) {
-              extractedInfo.discountType = 'full'
-              extractedInfo.fullAmount = parseFloat(match[1])
-              extractedInfo.discountAmount = parseFloat(match[2])
-            }
-          } else if (firstCoupon.condition.includes('无门槛')) {
-            // 无门槛，尝试从标题中提取金额
-            const amountMatch = firstCoupon.title.match(/(\d+(?:\.\d+)?)元/)
-            if (amountMatch) {
-              extractedInfo.discountType = 'amount'
-              extractedInfo.discountAmount = parseFloat(amountMatch[1])
-            }
-          }
-
-          // 尝试解析到期时间
-          if (firstCoupon.endDate) {
-            const dateMatch = firstCoupon.endDate.match(/(\d{4})年(\d+)月(\d+)日(?:\s+(\d+):(\d+))?/)
-            if (dateMatch) {
-              const year = parseInt(dateMatch[1])
-              const month = parseInt(dateMatch[2])
-              const day = parseInt(dateMatch[3])
-              extractedInfo.endDate = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
-
-              if (dateMatch[4]) {
-                extractedInfo.endHour = parseInt(dateMatch[4])
-                extractedInfo.endMinute = parseInt(dateMatch[5])
-              }
-            }
-          }
-
+        if (coupons && coupons.length > 0) {
+          const firstCoupon = coupons[0]
+          const extractedInfo = convertAiToExtractedInfo(firstCoupon)
           setExtractedInfo(extractedInfo)
           onExtracted(extractedInfo)
         }
@@ -318,6 +333,24 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
       setError('AI识别失败，请重试')
     } finally {
       setIsRecognizing(false)
+    }
+  }
+
+  // 添加指定的优惠券
+  const handleAddCoupon = (coupon: any) => {
+    const extractedInfo = convertAiToExtractedInfo(coupon)
+    onExtracted(extractedInfo)
+  }
+
+  // 添加所有优惠券
+  const handleAddAllCoupons = () => {
+    if (aiResult && aiResult.length > 0) {
+      aiResult.forEach((coupon: any, index: number) => {
+        // 稍微延迟一下，避免快速连续调用
+        setTimeout(() => {
+          handleAddCoupon(coupon)
+        }, index * 200)
+      })
     }
   }
 
@@ -606,32 +639,48 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
                   {/* 识别结果 */}
                   {aiResult && aiResult.length > 0 && (
                     <div className="space-y-3">
-                      <div className="text-sm font-medium">识别结果：</div>
+                      <div className="flex justify-between items-center">
+                        <div className="text-sm font-medium">识别结果：</div>
+                        {aiResult.length > 1 && (
+                          <Button onClick={handleAddAllCoupons} size="sm" variant="outline" className="gap-2">
+                            <Check className="h-4 w-4" />
+                            全部添加（{aiResult.length}张）
+                          </Button>
+                        )}
+                      </div>
                       <div className="space-y-2">
                         {aiResult.map((coupon: any, index: number) => (
                           <div
                             key={index}
-                            className="border rounded-lg p-3 bg-muted/50"
+                            className="border rounded-lg p-3 bg-muted/50 hover:bg-muted/70 transition-colors"
                           >
-                            <div className="space-y-1">
+                            <div className="space-y-2">
                               <div className="flex justify-between items-start">
-                                <span className="font-medium">{coupon.merchant}</span>
+                                <span className="font-medium">{coupon.merchant || coupon.storeName}</span>
                                 <Badge variant={getCouponTypeBadge(coupon.discountType)}>
                                   {getDiscountTypeLabel(coupon.discountType)}
                                 </Badge>
                               </div>
                               <div className="text-sm">{coupon.title}</div>
                               <div className="text-xs text-muted-foreground">
-                                {coupon.conditions}
+                                {coupon.conditions || coupon.condition}
                               </div>
                               <div className="flex justify-between items-center">
-                                <span className={`text-xs font-medium ${getExpiryColor(coupon.expiryDate)}`}>
-                                  {formatExpiryDate(coupon.expiryDate)}
+                                <span className={`text-xs font-medium ${getExpiryColor(coupon.expiryDate || coupon.endDate)}`}>
+                                  {formatExpiryDate(coupon.expiryDate || coupon.endDate)}
                                 </span>
                                 <span className="text-xs text-muted-foreground">
-                                  剩余 {getDaysRemaining(coupon.expiryDate)} 天
+                                  剩余 {getDaysRemaining(coupon.expiryDate || coupon.endDate)} 天
                                 </span>
                               </div>
+                              <Button
+                                onClick={() => handleAddCoupon(coupon)}
+                                size="sm"
+                                className="w-full gap-2"
+                              >
+                                <Check className="h-4 w-4" />
+                                添加这张优惠券
+                              </Button>
                             </div>
                           </div>
                         ))}

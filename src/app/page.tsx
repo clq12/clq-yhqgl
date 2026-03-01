@@ -104,27 +104,26 @@ export default function Home() {
   }
 
   // 数据清洗函数：确保所有优惠券数据都有必需的字段
-  const normalizeCoupon = (coupon: any): any => {
-    return {
-      ...coupon,
-      id: coupon.id || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      title: coupon.title || '未命名优惠券',
-      discountType: coupon.discountType || 'amount',
-      discountAmount: coupon.discountAmount ?? 0,
-      fullAmount: coupon.fullAmount,
-      endDate: normalizeDate(coupon.endDate),
-      endHour: coupon.endHour ?? 23,
-      endMinute: coupon.endMinute ?? 59,
-      storeName: coupon.storeName || '未知商家',
-      description: coupon.description || '',
-      notes: coupon.notes || '',
-      isUsed: coupon.isUsed ?? false,
-      isReminded: coupon.isReminded ?? false,
-      remindedDays: coupon.remindedDays || [],
-      createdAt: coupon.createdAt || new Date().toISOString(),
-      updatedAt: coupon.updatedAt || new Date().toISOString(),
-    }
-  }
+  const normalizeCoupon = (coupon: any): any => ({
+    id: coupon.id ?? `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    storeName: coupon.storeName ?? '',
+    title: coupon.title ?? '未命名优惠券',
+    description: coupon.description ?? '',
+    condition: coupon.condition ?? '',
+    discountType: coupon.discountType ?? 'amount',
+    discountAmount: coupon.discountAmount ?? 0,
+    fullAmount: coupon.fullAmount ?? 0,
+    startDate: coupon.startDate ?? new Date().toISOString().split('T')[0],
+    endDate: normalizeDate(coupon.endDate),
+    endHour: coupon.endHour ?? 23,
+    endMinute: coupon.endMinute ?? 59,
+    isReminded: coupon.isReminded ?? false,
+    remindedDays: coupon.remindedDays ?? [],
+    isUsed: coupon.isUsed ?? false,
+    notes: coupon.notes ?? '',
+    createdAt: coupon.createdAt ?? new Date().toISOString(),
+    updatedAt: coupon.updatedAt ?? new Date().toISOString(),
+  })
 
   // 检查 WebDAV 配置
   const checkWebDAVConfig = async () => {

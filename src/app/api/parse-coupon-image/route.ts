@@ -218,5 +218,19 @@ return NextResponse.json({
     aiModel: 'chatgpt'
   }
 })
+  } catch (error: any) {
+    console.error('ChatGPT识别失败:', error)
 
+    if (error?.status === 401) {
+      return NextResponse.json({
+        success: false,
+        error: 'ChatGPT API Key 无效或已过期'
+      }, { status: 401 })
+    }
+
+    return NextResponse.json({
+      success: false,
+      error: 'ChatGPT识别失败'
+    }, { status: 500 })
+  }
 }

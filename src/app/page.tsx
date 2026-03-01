@@ -83,6 +83,26 @@ export default function Home() {
   const [isPushing, setIsPushing] = useState(false)  // 推送状态
   const [pushMessage, setPushMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
+  // 日期格式化函数：将中文日期格式转换为标准格式
+  const normalizeDate = (dateStr: string): string => {
+    if (!dateStr) return new Date().toISOString().split('T')[0]
+
+    // 将中文日期格式（"2026年3月8日"）转换为标准格式（"2026-03-08"）
+    const formatted = dateStr
+      .replace(/(\d{4})年(\d{1,2})月(\d{1,2})日/, '$1-$2-$3')
+      .replace(/\s+/g, '')
+
+    // 验证日期是否有效
+    const parsedDate = new Date(formatted)
+    if (isNaN(parsedDate.getTime())) {
+      console.error(`无效的日期格式: ${dateStr} -> ${formatted}`)
+      return new Date().toISOString().split('T')[0]
+    }
+
+    // 返回标准格式的日期
+    return parsedDate.toISOString().split('T')[0]
+  }
+
   // 数据清洗函数：确保所有优惠券数据都有必需的字段
   const normalizeCoupon = (coupon: any): any => {
     return {
@@ -92,7 +112,7 @@ export default function Home() {
       discountType: coupon.discountType || 'amount',
       discountAmount: coupon.discountAmount ?? 0,
       fullAmount: coupon.fullAmount,
-      endDate: coupon.endDate || new Date().toISOString().split('T')[0],
+      endDate: normalizeDate(coupon.endDate),
       endHour: coupon.endHour ?? 23,
       endMinute: coupon.endMinute ?? 59,
       storeName: coupon.storeName || '未知商家',
@@ -158,7 +178,7 @@ export default function Home() {
       discountType: info.discountType || 'amount',
       discountAmount: info.discountAmount || 0,
       fullAmount: info.fullAmount,
-      endDate: info.endDate || new Date().toISOString().split('T')[0],
+      endDate: normalizeDate(info.endDate || new Date().toISOString().split('T')[0]),
       endHour: info.endHour !== undefined ? info.endHour : 23,
       endMinute: info.endMinute !== undefined ? info.endMinute : 59,
       storeName: info.storeName || '未知商家',
@@ -553,7 +573,14 @@ export default function Home() {
     
     // 解析截止日期
     let endDate: Date
-    
+
+    // 验证日期格式是否有效
+    const testDate = new Date(coupon.endDate)
+    if (isNaN(testDate.getTime())) {
+      console.error(`无效的截止日期格式: ${coupon.endDate}`)
+      return 0
+    }
+
     // 检查日期是否已经包含时间部分（完整的ISO格式）
     if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
       // 完整ISO格式，需要检查是否有时区信息
@@ -619,7 +646,14 @@ export default function Home() {
     
     // 解析截止日期
     let endDate: Date
-    
+
+    // 验证日期格式是否有效
+    const testDate = new Date(coupon.endDate)
+    if (isNaN(testDate.getTime())) {
+      console.error(`无效的截止日期格式: ${coupon.endDate}`)
+      return 0
+    }
+
     // 检查日期是否已经包含时间部分（完整的ISO格式）
     if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
       // 完整ISO格式，需要检查是否有时区信息
@@ -685,7 +719,14 @@ export default function Home() {
     
     // 解析截止日期
     let endDate: Date
-    
+
+    // 验证日期格式是否有效
+    const testDate = new Date(coupon.endDate)
+    if (isNaN(testDate.getTime())) {
+      console.error(`无效的截止日期格式: ${coupon.endDate}`)
+      return 0
+    }
+
     // 检查日期是否已经包含时间部分（完整的ISO格式）
     if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
       // 完整ISO格式，需要检查是否有时区信息

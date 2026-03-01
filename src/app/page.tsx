@@ -83,6 +83,29 @@ export default function Home() {
   const [isPushing, setIsPushing] = useState(false)  // 推送状态
   const [pushMessage, setPushMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
+  // 数据清洗函数：确保所有优惠券数据都有必需的字段
+  const normalizeCoupon = (coupon: any): any => {
+    return {
+      ...coupon,
+      id: coupon.id || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      title: coupon.title || '未命名优惠券',
+      discountType: coupon.discountType || 'amount',
+      discountAmount: coupon.discountAmount ?? 0,
+      fullAmount: coupon.fullAmount,
+      endDate: coupon.endDate || new Date().toISOString().split('T')[0],
+      endHour: coupon.endHour ?? 23,
+      endMinute: coupon.endMinute ?? 59,
+      storeName: coupon.storeName || '未知商家',
+      description: coupon.description || '',
+      notes: coupon.notes || '',
+      isUsed: coupon.isUsed ?? false,
+      isReminded: coupon.isReminded ?? false,
+      remindedDays: coupon.remindedDays || [],
+      createdAt: coupon.createdAt || new Date().toISOString(),
+      updatedAt: coupon.updatedAt || new Date().toISOString(),
+    }
+  }
+
   // 检查 WebDAV 配置
   const checkWebDAVConfig = async () => {
     try {
@@ -232,7 +255,9 @@ export default function Home() {
       const response = await fetch("/api/coupons")
       const result = await response.json()
       if (result.success) {
-        setCoupons(result.data)
+        // 数据清洗：确保所有优惠券都有必需的字段
+        const normalizedCoupons = result.data.map(normalizeCoupon)
+        setCoupons(normalizedCoupons)
       } else {
         // 如果是因为未配置 WebDAV，清空列表
         if (result.error === "请先配置 WebDAV") {
@@ -1451,18 +1476,21 @@ export default function Home() {
 
               // 计算准确的截止日期文本（考虑时区）
               let endDateText: string
-              const endHour = (coupon as any).endHour
+              const endHour = (coupon as any).endHour ?? 23
               const endMinute = (coupon as any).endMinute ?? 59
 
-              if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
+              // 防御性检查：确保endDate存在
+              if (!coupon.endDate) {
+                endDateText = "未设置截止日期"
+              } else if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
                 // 完整ISO格式，直接格式化
                 const endDate = new Date(coupon.endDate)
                 // 如果是UTC时间，需要转换为北京时间
                 const beijingTime = new Date(endDate.getTime() + 8 * 60 * 60 * 1000)
-                endDateText = `${beijingTime.toLocaleDateString("zh-CN")} ${beijingTime.getHours().toString().padStart(2, '0')}:${beijingTime.getMinutes().toString().padStart(2, '0')}`
+                endDateText = `${beijingTime.toLocaleDateString("zh-CN")} ${String(beijingTime.getHours()).padStart(2, '0')}:${String(beijingTime.getMinutes()).padStart(2, '0')}`
               } else {
                 // 纯日期格式，使用endHour和endMinute
-                endDateText = `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${endHour}:${endMinute.toString().padStart(2, '0')}`
+                endDateText = `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}`
               }
 
               const discountText = getDiscountText(coupon)
@@ -1650,18 +1678,21 @@ export default function Home() {
                     {coupons.filter((c) => (c as any).isUsed).map((coupon) => {
                       // 计算准确的截止日期文本（考虑时区）
                       let endDateText: string
-                      const endHour = (coupon as any).endHour
+                      const endHour = (coupon as any).endHour ?? 23
                       const endMinute = (coupon as any).endMinute ?? 59
 
-                      if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
+                      // 防御性检查：确保endDate存在
+                      if (!coupon.endDate) {
+                        endDateText = "未设置截止日期"
+                      } else if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
                         // 完整ISO格式，直接格式化
                         const endDate = new Date(coupon.endDate)
                         // 如果是UTC时间，需要转换为北京时间
                         const beijingTime = new Date(endDate.getTime() + 8 * 60 * 60 * 1000)
-                        endDateText = `${beijingTime.toLocaleDateString("zh-CN")} ${beijingTime.getHours().toString().padStart(2, '0')}:${beijingTime.getMinutes().toString().padStart(2, '0')}`
+                        endDateText = `${beijingTime.toLocaleDateString("zh-CN")} ${String(beijingTime.getHours()).padStart(2, '0')}:${String(beijingTime.getMinutes()).padStart(2, '0')}`
                       } else {
                         // 纯日期格式，使用endHour和endMinute
-                        endDateText = `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${endHour}:${endMinute.toString().padStart(2, '0')}`
+                        endDateText = `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}`
                       }
 
                       const discountText = getDiscountText(coupon)

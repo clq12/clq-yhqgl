@@ -67,42 +67,88 @@ async function extractWithChatGPT(imageDataUrl: string): Promise<NextResponse> {
       baseURL: 'https://free.v36.cm/v1/',
     })
 
-    const prompt = `你是一个专业的优惠券页面结构化提取助手。
+const prompt = `你是一个优惠券OCR结构化提取助手。
 
-当前图片"优惠券/订单列表"截图，
-页面通常包含：
-- 商家名称（在顶部或卡片左上）
-- 优惠金额（如 ¥18）
-- 优惠类型（立减金 / 满减券 / 商品券 / 套餐券 等）
-- 使用门槛（如 满18.01可用 / 满50减10）
-- 有效期（如 有效期至2026/03/10 23:59）
+任务：
+识别图片中的所有优惠券信息，并返回严格JSON格式数据。
 
-你的任务：
-提取图片中所有可见优惠券或订单信息。
+⚠️ 重要规则：
 
-必须提取字段：
-1. 商家名称
-2. 优惠名称（若无明确名称，用"立减金/满减券"等类型代替）
-3. 优惠条件（如 满18减18；无门槛则写 无门槛）
-4. 到期时间（统一转为：YYYY年M月D日 或 YYYY年M月D日 HH:MM）
+1. 只返回 JSON
+2. 不要输出解释
+3. 不要输出代码块
+4. 不要添加任何额外文字
+5. 所有字段必须存在
+6. 不允许缺失字段
 
-时间处理规则：
-- "有效期至2026/03/10 23:59" → 2026年3月10日 23:59
-- "有效期至2026-03-08" → 2026年3月8日
-- 只写截止时间，不写"有效期至"
+返回格式必须严格为：
 
-输出规则：
-- 每行一条
-- 不加编号
-- 不加解释
-- 不输出多余文字
-- 不合并多条
-- 如果同一商家有多张券，分别输出
+{
+  "coupons": [
+    {
+      "title": string,
+      "description": string,
+      "discountType": "amount" | "full" | null,
+      "discountAmount": number | null,
+      "fullAmount": number | null,
+      "startDate": string,
+      "endDate": string,
+      "endHour": number,
+      "notes": string | null,
+      "storeName": string | null
+    }
+  ]
+}
 
-标准输出格式：
-商家 优惠名称 优惠条件 到期时间
+字段规则：
 
-开始处理图片。`
+【title】
+优惠券名称，例如：
+- 建设银行立减金
+- 古茗20元代金券
+- 蜜雪冰城奶茶券
+
+【description】
+图片中相关文字的简要摘要，没有则 ""
+
+【discountType】
+- 无门槛 / 立减 → "amount"
+- 满50减10 → "full"
+- 无法判断 → null
+
+【discountAmount】
+- 立减金额
+- 满减中的减免金额
+- 无法识别则 null
+
+【fullAmount】
+- 满减门槛金额
+- 非满减则 null
+
+【startDate】
+- 如果未明确给出，使用今天日期
+- 格式必须为 YYYY-MM-DD
+
+【endDate】
+- 必须转换为 YYYY-MM-DD
+- 支持：
+  2026年3月8日
+  2026/03/08
+  2026-03-08
+  3月8日（默认当前年份）
+
+【endHour】
+- 默认 23
+
+【storeName】
+- 商家名称
+- 无法识别则 null
+
+【notes】
+- 额外信息
+- 无则 null
+
+现在开始识别图片。`
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -128,124 +174,49 @@ async function extractWithChatGPT(imageDataUrl: string): Promise<NextResponse> {
 
     console.log('ChatGPT API响应成功')
 
-    const extractedText = response.choices[0]?.message?.content?.trim() || ''
+const raw = response.choices[0]?.message?.content?.trim() || ''
 
-    console.log('ChatGPT图片识别结果:', extractedText)
+let coupons: any[] = []
 
-    // 解析提取的文本
-    const coupons = parseExtractedText(extractedText)
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        rawText: extractedText,
-        coupons: coupons,
-        aiModel: 'chatgpt'
-      }
-    })
-  } catch (error: any) {
-    console.error('ChatGPT识别失败:', error)
-
-    // 检查是否是API Key错误
-    if (error?.status === 401) {
-      return NextResponse.json({
-        success: false,
-        error: 'ChatGPT API Key 无效或已过期',
-        details: {
-          errorCode: 'invalid_api_key',
-          suggestion: '请访问 https://free.v36.cm/github 重新获取免费API Key，并在环境变量中配置 CHATGPT_API_KEY'
-        }
-      }, { status: 401 })
-    }
-
-    throw error
-  }
+try {
+  const parsed = JSON.parse(raw)
+  coupons = parsed.coupons || []
+} catch (err) {
+  console.error('JSON解析失败:', raw)
+  return NextResponse.json({
+    success: false,
+    error: 'AI返回格式错误'
+  }, { status: 500 })
 }
 
-/**
- * 解析提取的文本为优惠券数组
- */
-function parseExtractedText(text: string): Array<{
-  storeName: string
-  title: string
-  condition: string
-  endDate: string
-}> {
-  const coupons: Array<{
-    storeName: string
-    title: string
-    condition: string
-    endDate: string
-  }> = []
+// 可选：做一次安全补字段
+const today = new Date().toISOString().split('T')[0]
 
-  // 按行分割
-  const lines = text.split('\n').map(line => line.trim()).filter(line => line)
+const normalized = coupons.map((c: any) => ({
+  id: crypto.randomUUID(),
+  title: c.title ?? "",
+  description: c.description ?? "",
+  discountType: c.discountType ?? null,
+  discountAmount: c.discountAmount ?? null,
+  fullAmount: c.fullAmount ?? null,
+  startDate: c.startDate ?? today,
+  endDate: c.endDate ?? today,
+  endHour: c.endHour ?? 23,
+  notes: c.notes ?? null,
+  storeName: c.storeName ?? null,
+  isReminded: false,
+  remindedDays: [],
+  isUsed: false,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+}))
 
-  for (const line of lines) {
-    // 尝试解析格式：商家 优惠名称 优惠条件 到期时间
-    // 日期时间正则：匹配 YYYY年M月D日 或 YYYY年M月D日 HH:MM
-    const datePattern = /(\d{4}年\d{1,2}月\d{1,2}日(?:\s+\d{1,2}:\d{1,2})?)/
-    const dateMatch = line.match(datePattern)
-
-    if (dateMatch) {
-      const endDate = dateMatch[0]
-      const remainingText = line.replace(datePattern, '').trim()
-
-      // 按空格分割剩余文本
-      const parts = remainingText.split(/\s+/).filter(p => p)
-
-      if (parts.length >= 3) {
-        // 商家 优惠名称 优惠条件
-        coupons.push({
-          storeName: parts[0],
-          title: parts[1],
-          condition: parts.slice(2).join(' '),
-          endDate: endDate
-        })
-      } else if (parts.length === 2) {
-        // 商家 优惠名称（无优惠条件）
-        coupons.push({
-          storeName: parts[0],
-          title: parts[1],
-          condition: '',
-          endDate: endDate
-        })
-      } else if (parts.length === 1) {
-        // 只有商家
-        coupons.push({
-          storeName: parts[0],
-          title: '',
-          condition: '',
-          endDate: endDate
-        })
-      }
-    } else {
-      // 没有找到日期，尝试简单分割
-      const parts = line.split(/\s+/).filter(p => p)
-      if (parts.length >= 3) {
-        coupons.push({
-          storeName: parts[0],
-          title: parts[1],
-          condition: parts.slice(2).join(' '),
-          endDate: ''
-        })
-      } else if (parts.length >= 2) {
-        coupons.push({
-          storeName: parts[0],
-          title: parts.slice(1).join(' '),
-          condition: '',
-          endDate: ''
-        })
-      } else if (parts.length === 1) {
-        coupons.push({
-          storeName: parts[0],
-          title: '',
-          condition: '',
-          endDate: ''
-        })
-      }
-    }
+return NextResponse.json({
+  success: true,
+  data: {
+    coupons: normalized,
+    aiModel: 'chatgpt'
   }
+})
 
-  return coupons
 }

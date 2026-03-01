@@ -127,6 +127,40 @@ export default function Home() {
     setIsFormDialogOpen(true)
   }
 
+  // 直接添加提取的优惠券（用于批量添加）
+  const handleAddExtractedCoupon = async (info: ExtractedCouponInfo) => {
+    // 将ExtractedCouponInfo转换为优惠券数据格式
+    const couponData: any = {
+      title: info.title || '优惠券',
+      discountType: info.discountType || 'amount',
+      discountAmount: info.discountAmount || 0,
+      fullAmount: info.fullAmount,
+      endDate: info.endDate || new Date().toISOString().split('T')[0],
+      endHour: info.endHour !== undefined ? info.endHour : 23,
+      endMinute: info.endMinute !== undefined ? info.endMinute : 59,
+      storeName: info.storeName || '未知商家',
+      description: info.description,
+      notes: info.notes,
+      isUsed: false,
+    }
+
+    try {
+      const response = await fetch("/api/coupons", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(couponData),
+      })
+      const result = await response.json()
+      if (result.success) {
+        fetchCoupons()
+      } else {
+        console.error("添加优惠券失败:", result.error)
+      }
+    } catch (error) {
+      console.error("添加优惠券失败:", error)
+    }
+  }
+
   // 导出优惠券
   const handleExportCoupons = async (filter: 'all' | 'used' | 'unused' | 'expired') => {
     try {
@@ -961,6 +995,7 @@ export default function Home() {
               <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
                 <OcrCouponRecognizer
                   onExtracted={handleOcrExtracted}
+                  onAddCoupon={handleAddExtractedCoupon}
                   onCancel={() => setIsOcrDialogOpen(false)}
                 />
               </DialogContent>

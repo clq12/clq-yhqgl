@@ -36,6 +36,7 @@ export interface ExtractedCouponInfo {
 
 interface OcrCouponRecognizerProps {
   onExtracted: (info: ExtractedCouponInfo) => void
+  onAddCoupon?: (info: ExtractedCouponInfo) => void
   onCancel?: () => void
 }
 
@@ -141,7 +142,7 @@ function getCouponTypeBadge(type?: string): 'default' | 'secondary' | 'destructi
   }
 }
 
-export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCouponRecognizerProps) {
+export default function OcrCouponRecognizer({ onExtracted, onAddCoupon, onCancel }: OcrCouponRecognizerProps) {
   const [mode, setMode] = useState<'ocr' | 'ai' | 'text'>('ai') // 'ocr' 或 'ai' 或 'text'
   const [image, setImage] = useState<string | null>(null)
   const [isRecognizing, setIsRecognizing] = useState(false)
@@ -353,20 +354,26 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
   }
 
   // 添加指定的优惠券
-  const handleAddCoupon = (coupon: any) => {
+  const handleAddCoupon = async (coupon: any) => {
     const extractedInfo = convertAiToExtractedInfo(coupon)
-    onExtracted(extractedInfo)
+
+    // 如果提供了onAddCoupon回调，直接添加优惠券
+    if (onAddCoupon) {
+      await onAddCoupon(extractedInfo)
+    } else {
+      // 否则回退到填充表单
+      onExtracted(extractedInfo)
+    }
   }
 
   // 添加所有优惠券
-  const handleAddAllCoupons = () => {
+  const handleAddAllCoupons = async () => {
     if (aiResult && aiResult.length > 0) {
-      aiResult.forEach((coupon: any, index: number) => {
+      for (const coupon of aiResult) {
+        await handleAddCoupon(coupon)
         // 稍微延迟一下，避免快速连续调用
-        setTimeout(() => {
-          handleAddCoupon(coupon)
-        }, index * 200)
-      })
+        await new Promise(resolve => setTimeout(resolve, 200))
+      }
     }
   }
 

@@ -596,11 +596,17 @@ export default function Home() {
     } else {
       // 纯日期格式，添加时间部分
       endDate = new Date(coupon.endDate + 'T00:00:00Z')
-      
+
+      // 验证日期解析是否成功（在调用setUTCHours之前）
+      if (isNaN(endDate.getTime())) {
+        console.error(`无法解析截止日期: ${coupon.endDate}`)
+        return 0
+      }
+
       // 获取截止时间的小时和分钟（只对纯日期格式添加）
       const endHour = (coupon as any).endHour ?? 23
       const endMinute = (coupon as any).endMinute ?? 59
-      
+
       // 设置截止时间（UTC时间）
       // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
       let utcHour = endHour - 8
@@ -610,10 +616,10 @@ export default function Home() {
       }
       endDate.setUTCHours(utcHour, endMinute, 0, 0)
     }
-    
-    // 验证日期解析是否成功
+
+    // 验证最终日期是否有效
     if (isNaN(endDate.getTime())) {
-      console.error(`无效的截止日期: ${coupon.endDate}`)
+      console.error(`无效的截止日期（最终）: ${coupon.endDate}`)
       return 0
     }
     
@@ -669,11 +675,17 @@ export default function Home() {
     } else {
       // 纯日期格式，添加时间部分
       endDate = new Date(coupon.endDate + 'T00:00:00Z')
-      
+
+      // 验证日期解析是否成功（在调用setUTCHours之前）
+      if (isNaN(endDate.getTime())) {
+        console.error(`无法解析截止日期: ${coupon.endDate}`)
+        return 0
+      }
+
       // 获取截止时间的小时和分钟（只对纯日期格式添加）
       const endHour = (coupon as any).endHour ?? 23
       const endMinute = (coupon as any).endMinute ?? 59
-      
+
       // 设置截止时间（UTC时间）
       // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
       let utcHour = endHour - 8
@@ -683,10 +695,10 @@ export default function Home() {
       }
       endDate.setUTCHours(utcHour, endMinute, 0, 0)
     }
-    
-    // 验证日期解析是否成功
+
+    // 验证最终日期是否有效
     if (isNaN(endDate.getTime())) {
-      console.error(`无效的截止日期: ${coupon.endDate}`)
+      console.error(`无效的截止日期（最终）: ${coupon.endDate}`)
       return 0
     }
     
@@ -1004,7 +1016,15 @@ export default function Home() {
                           <div className="flex-1">
                             <h4 className="font-semibold mb-1">{status.title}</h4>
                             <div className="text-sm text-gray-500 space-y-1">
-                              <div>到期时间：{new Date(status.endDate).toLocaleDateString('zh-CN')}</div>
+                              <div>
+                                到期时间：
+                                {(() => {
+                                  const date = new Date(status.endDate)
+                                  return isNaN(date.getTime())
+                                    ? "日期格式错误"
+                                    : date.toLocaleDateString('zh-CN')
+                                })()}
+                              </div>
                               <div>剩余天数：<span className={status.daysRemaining <= 3 ? 'text-orange-600 font-medium' : ''}>{status.daysRemaining}天</span></div>
                               {status.remindedDays.length > 0 && (
                                 <div>已提醒：<span className="text-blue-600">{status.remindedDays.join('天、')}天</span></div>
@@ -1526,12 +1546,30 @@ export default function Home() {
               } else if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
                 // 完整ISO格式，直接格式化
                 const endDate = new Date(coupon.endDate)
-                // 如果是UTC时间，需要转换为北京时间
-                const beijingTime = new Date(endDate.getTime() + 8 * 60 * 60 * 1000)
-                endDateText = `${beijingTime.toLocaleDateString("zh-CN")} ${String(beijingTime.getHours()).padStart(2, '0')}:${String(beijingTime.getMinutes()).padStart(2, '0')}`
+
+                // 验证日期是否有效
+                if (isNaN(endDate.getTime())) {
+                  console.error(`无效的截止日期格式: ${coupon.endDate}`)
+                  endDateText = "日期格式错误"
+                } else {
+                  // 如果是UTC时间，需要转换为北京时间
+                  const beijingTime = new Date(endDate.getTime() + 8 * 60 * 60 * 1000)
+
+                  // 验证beijingTime是否有效
+                  if (isNaN(beijingTime.getTime())) {
+                    endDateText = "日期计算错误"
+                  } else {
+                    endDateText = `${beijingTime.toLocaleDateString("zh-CN")} ${String(beijingTime.getHours()).padStart(2, '0')}:${String(beijingTime.getMinutes()).padStart(2, '0')}`
+                  }
+                }
               } else {
                 // 纯日期格式，使用endHour和endMinute
-                endDateText = `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}`
+                const parsedDate = new Date(coupon.endDate)
+                if (isNaN(parsedDate.getTime())) {
+                  endDateText = "日期格式错误"
+                } else {
+                  endDateText = `${parsedDate.toLocaleDateString("zh-CN")} ${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}`
+                }
               }
 
               const discountText = getDiscountText(coupon)
@@ -1728,12 +1766,30 @@ export default function Home() {
                       } else if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
                         // 完整ISO格式，直接格式化
                         const endDate = new Date(coupon.endDate)
-                        // 如果是UTC时间，需要转换为北京时间
-                        const beijingTime = new Date(endDate.getTime() + 8 * 60 * 60 * 1000)
-                        endDateText = `${beijingTime.toLocaleDateString("zh-CN")} ${String(beijingTime.getHours()).padStart(2, '0')}:${String(beijingTime.getMinutes()).padStart(2, '0')}`
+
+                        // 验证日期是否有效
+                        if (isNaN(endDate.getTime())) {
+                          console.error(`无效的截止日期格式: ${coupon.endDate}`)
+                          endDateText = "日期格式错误"
+                        } else {
+                          // 如果是UTC时间，需要转换为北京时间
+                          const beijingTime = new Date(endDate.getTime() + 8 * 60 * 60 * 1000)
+
+                          // 验证beijingTime是否有效
+                          if (isNaN(beijingTime.getTime())) {
+                            endDateText = "日期计算错误"
+                          } else {
+                            endDateText = `${beijingTime.toLocaleDateString("zh-CN")} ${String(beijingTime.getHours()).padStart(2, '0')}:${String(beijingTime.getMinutes()).padStart(2, '0')}`
+                          }
+                        }
                       } else {
                         // 纯日期格式，使用endHour和endMinute
-                        endDateText = `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}`
+                        const parsedDate = new Date(coupon.endDate)
+                        if (isNaN(parsedDate.getTime())) {
+                          endDateText = "日期格式错误"
+                        } else {
+                          endDateText = `${parsedDate.toLocaleDateString("zh-CN")} ${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}`
+                        }
                       }
 
                       const discountText = getDiscountText(coupon)
@@ -1962,7 +2018,15 @@ export default function Home() {
                       <div className="flex-1">
                         <h4 className="font-semibold mb-1">{status.title}</h4>
                         <div className="text-sm text-gray-500 space-y-1">
-                          <div>到期时间：{new Date(status.endDate).toLocaleDateString('zh-CN')}</div>
+                          <div>
+                            到期时间：
+                            {(() => {
+                              const date = new Date(status.endDate)
+                              return isNaN(date.getTime())
+                                ? "日期格式错误"
+                                : date.toLocaleDateString('zh-CN')
+                            })()}
+                          </div>
                           <div>剩余：<span className={status.daysRemaining <= 3 ? 'text-orange-600 font-medium' : ''}>{status.remainingTimeText}</span></div>
                           {status.remindedDays.length > 0 && (
                             <div>已提醒：<span className="text-blue-600">{status.remindedDays.join('天、')}天</span></div>

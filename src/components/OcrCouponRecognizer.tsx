@@ -26,6 +26,7 @@ export interface ExtractedCouponInfo {
   discountAmount?: number
   discountType?: 'amount' | 'percentage' | 'full'
   fullAmount?: number
+  startDate?: string
   endDate?: string
   endHour?: number
   endMinute?: number
@@ -266,45 +267,17 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
         if (result.data.coupons && result.data.coupons.length > 0) {
           const firstCoupon = result.data.coupons[0]
           const extractedInfo: ExtractedCouponInfo = {
-            storeName: firstCoupon.storeName,
-            title: firstCoupon.storeName && firstCoupon.title 
-              ? `${firstCoupon.storeName} ${firstCoupon.title}`.trim()
-              : firstCoupon.title,
-            description: `${firstCoupon.condition} ${firstCoupon.endDate}`,
-            notes: `AI识别: ChatGPT`,
-          }
-
-          // 尝试解析优惠条件
-          if (firstCoupon.condition.includes('满')) {
-            const match = firstCoupon.condition.match(/满(\d+(?:\.\d+)?)减(\d+(?:\.\d+)?)/)
-            if (match) {
-              extractedInfo.discountType = 'full'
-              extractedInfo.fullAmount = parseFloat(match[1])
-              extractedInfo.discountAmount = parseFloat(match[2])
-            }
-          } else if (firstCoupon.condition.includes('无门槛')) {
-            // 无门槛，尝试从标题中提取金额
-            const amountMatch = firstCoupon.title.match(/(\d+(?:\.\d+)?)元/)
-            if (amountMatch) {
-              extractedInfo.discountType = 'amount'
-              extractedInfo.discountAmount = parseFloat(amountMatch[1])
-            }
-          }
-
-          // 尝试解析到期时间
-          if (firstCoupon.endDate) {
-            const dateMatch = firstCoupon.endDate.match(/(\d{4})年(\d+)月(\d+)日(?:\s+(\d+):(\d+))?/)
-            if (dateMatch) {
-              const year = parseInt(dateMatch[1])
-              const month = parseInt(dateMatch[2])
-              const day = parseInt(dateMatch[3])
-              extractedInfo.endDate = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
-
-              if (dateMatch[4]) {
-                extractedInfo.endHour = parseInt(dateMatch[4])
-                extractedInfo.endMinute = parseInt(dateMatch[5])
-              }
-            }
+            storeName: firstCoupon.storeName || '',
+            title: firstCoupon.title || '',
+            description: firstCoupon.description || '',
+            discountType: firstCoupon.discountType,
+            discountAmount: firstCoupon.discountAmount,
+            fullAmount: firstCoupon.fullAmount,
+            startDate: firstCoupon.startDate,
+            endDate: firstCoupon.endDate,
+            endHour: firstCoupon.endHour || 23,
+            endMinute: 59,
+            notes: firstCoupon.notes ? `AI识别: ChatGPT, ${firstCoupon.notes}` : `AI识别: ChatGPT`,
           }
 
           setExtractedInfo(extractedInfo)

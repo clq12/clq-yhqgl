@@ -263,26 +263,7 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
         setAiResult(result.data)
         console.log('ChatGPT识别结果:', result.data)
 
-        // 如果识别到优惠券，自动填充第一张
-        if (result.data.coupons && result.data.coupons.length > 0) {
-          const firstCoupon = result.data.coupons[0]
-          const extractedInfo: ExtractedCouponInfo = {
-            storeName: firstCoupon.storeName || '',
-            title: firstCoupon.title || '',
-            description: firstCoupon.description || '',
-            discountType: firstCoupon.discountType,
-            discountAmount: firstCoupon.discountAmount,
-            fullAmount: firstCoupon.fullAmount,
-            startDate: firstCoupon.startDate,
-            endDate: firstCoupon.endDate,
-            endHour: firstCoupon.endHour || 23,
-            endMinute: 59,
-            notes: firstCoupon.notes ? `AI识别: ChatGPT, ${firstCoupon.notes}` : `AI识别: ChatGPT`,
-          }
-
-          setExtractedInfo(extractedInfo)
-          onExtracted(extractedInfo)
-        }
+        // 注意：不再自动添加第一张，而是让用户从列表中选择
       } else {
         setError(result.error || 'AI识别失败')
       }
@@ -292,6 +273,34 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
     } finally {
       setIsRecognizing(false)
     }
+  }
+
+  const handleAddCoupon = (coupon: any) => {
+    const extractedInfo: ExtractedCouponInfo = {
+      storeName: coupon.storeName || '',
+      title: coupon.title || '',
+      description: coupon.description || '',
+      discountType: coupon.discountType,
+      discountAmount: coupon.discountAmount,
+      fullAmount: coupon.fullAmount,
+      startDate: coupon.startDate,
+      endDate: coupon.endDate,
+      endHour: coupon.endHour || 23,
+      endMinute: 59,
+      notes: coupon.notes ? `AI识别: ChatGPT, ${coupon.notes}` : `AI识别: ChatGPT`,
+    }
+
+    setExtractedInfo(extractedInfo)
+    onExtracted(extractedInfo)
+  }
+
+  const handleAddAllCoupons = () => {
+    if (!aiResult?.coupons || aiResult.coupons.length === 0) return
+
+    // 添加第一张，其他张需要逐个添加
+    // 这里我们只添加第一张，其他的让用户看到后可以重复操作
+    const firstCoupon = aiResult.coupons[0]
+    handleAddCoupon(firstCoupon)
   }
 
   const extractCouponInfo = async () => {
@@ -577,36 +586,85 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
                   </div>
 
                   {/* 识别结果 */}
-                  {aiResult && aiResult.length > 0 && (
+                  {aiResult?.coupons && aiResult.coupons.length > 0 && (
                     <div className="space-y-3">
-                      <div className="text-sm font-medium">识别结果：</div>
-                      <div className="space-y-2">
-                        {aiResult.map((coupon: any, index: number) => (
-                          <div
-                            key={index}
-                            className="border rounded-lg p-3 bg-muted/50"
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-medium">
+                          识别结果：共 {aiResult.coupons.length} 张优惠券
+                        </div>
+                        {aiResult.coupons.length > 1 && (
+                          <Button
+                            size="sm"
+                            onClick={handleAddAllCoupons}
+                            className="gap-2"
                           >
-                            <div className="space-y-1">
+                            <Check className="h-4 w-4" />
+                            全部添加
+                          </Button>
+                        )}
+                      </div>
+                      <div className="space-y-3">
+                        {aiResult.coupons.map((coupon: any, index: number) => (
+                          <Card key={index} className="border">
+                            <CardContent className="p-4 space-y-3">
+                              {/* 商家和标题 */}
                               <div className="flex justify-between items-start">
-                                <span className="font-medium">{coupon.merchant}</span>
+                                <div className="space-y-1">
+                                  <div className="font-medium text-lg">
+                                    {coupon.storeName || '未知商家'}
+                                  </div>
+                                  <div className="text-sm text-muted-foreground">
+                                    {coupon.title || '未知优惠券'}
+                                  </div>
+                                </div>
                                 <Badge variant={getCouponTypeBadge(coupon.discountType)}>
                                   {getDiscountTypeLabel(coupon.discountType)}
                                 </Badge>
                               </div>
-                              <div className="text-sm">{coupon.title}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {coupon.conditions}
-                              </div>
-                              <div className="flex justify-between items-center">
-                                <span className={`text-xs font-medium ${getExpiryColor(coupon.expiryDate)}`}>
-                                  {formatExpiryDate(coupon.expiryDate)}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  剩余 {getDaysRemaining(coupon.expiryDate)} 天
-                                </span>
-                              </div>
-                            </div>
-                          </div>
+
+                              {/* 优惠详情 */}
+                              {coupon.discountAmount && (
+                                <div className="text-sm">
+                                  {coupon.discountType === 'full' ? (
+                                    <span>满 <strong>{coupon.fullAmount}</strong> 减 <strong className="text-primary">{coupon.discountAmount}</strong> 元</span>
+                                  ) : coupon.discountType === 'percentage' ? (
+                                    <span>折扣 <strong className="text-primary">{coupon.discountAmount}</strong> 折</span>
+                                  ) : (
+                                    <span>立减 <strong className="text-primary">{coupon.discountAmount}</strong> 元</span>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* 到期时间 */}
+                              {coupon.endDate && (
+                                <div className="flex items-center gap-2 text-sm">
+                                  <span className={`font-medium ${getExpiryColor(coupon.endDate)}`}>
+                                    {formatExpiryDate(coupon.endDate)}
+                                  </span>
+                                  <span className="text-muted-foreground">
+                                    剩余 {getDaysRemaining(coupon.endDate)} 天
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* 备注 */}
+                              {coupon.description && (
+                                <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                                  {coupon.description}
+                                </div>
+                              )}
+
+                              {/* 添加按钮 */}
+                              <Button
+                                size="sm"
+                                onClick={() => handleAddCoupon(coupon)}
+                                className="w-full gap-2"
+                              >
+                                <Check className="h-4 w-4" />
+                                添加此优惠券
+                              </Button>
+                            </CardContent>
+                          </Card>
                         ))}
                       </div>
                       {error && (

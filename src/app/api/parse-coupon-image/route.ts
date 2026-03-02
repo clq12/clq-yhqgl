@@ -167,37 +167,56 @@ async function extractWithChatGPT(imageDataUrl: string): Promise<NextResponse> {
 
     console.log('ChatGPT API响应成功')
 
-    const extractedText = response.choices[0]?.message?.content?.trim() || ''
+    const raw = response.choices[0]?.message?.content?.trim() || ''
 
-    console.log('ChatGPT图片识别结果:', extractedText)
+    console.log('ChatGPT图片识别结果:', raw)
 
     // 解析提取的JSON
-    const coupons = parseExtractedJSON(extractedText)
+    let coupons = parseExtractedJSON(raw)
 
-    return NextResponse.json({
-      success: true,
-      data: {
-        rawText: extractedText,
-        coupons: coupons,
-        aiModel: 'chatgpt'
-      }
-    })
+    // 安全补字段：确保所有字段都有默认值
+    const today = new Date().toISOString().split('T')[0]
+
+    const normalized = coupons.map((c: any) => ({
+  id: crypto.randomUUID(),
+  title: c.title ?? "",
+  description: c.description ?? "",
+  discountType: c.discountType ?? null,
+  discountAmount: c.discountAmount ?? null,
+  fullAmount: c.fullAmount ?? null,
+  startDate: c.startDate ?? today,
+  endDate: c.endDate ?? today,
+  endHour: c.endHour ?? 23,
+  notes: c.notes ?? null,
+  storeName: c.storeName ?? null,
+  isReminded: false,
+  remindedDays: [],
+  isUsed: false,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+}))
+
+return NextResponse.json({
+  success: true,
+  data: {
+    coupons: normalized,
+    aiModel: 'chatgpt'
+  }
+})
   } catch (error: any) {
     console.error('ChatGPT识别失败:', error)
 
-    // 检查是否是API Key错误
     if (error?.status === 401) {
       return NextResponse.json({
         success: false,
-        error: 'ChatGPT API Key 无效或已过期',
-        details: {
-          errorCode: 'invalid_api_key',
-          suggestion: '请访问 https://free.v36.cm/github 重新获取免费API Key，并在环境变量中配置 CHATGPT_API_KEY'
-        }
+        error: 'ChatGPT API Key 无效或已过期'
       }, { status: 401 })
     }
 
-    throw error
+    return NextResponse.json({
+      success: false,
+      error: 'ChatGPT识别失败'
+    }, { status: 500 })
   }
 }
 

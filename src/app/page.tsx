@@ -127,6 +127,56 @@ export default function Home() {
     setIsFormDialogOpen(true)
   }
 
+  // 直接添加OCR识别的优惠券（不打开表单）
+  const handleOcrDirectAdd = async (infos: ExtractedCouponInfo[]) => {
+    try {
+      for (const info of infos) {
+        // 构造API期望的数据格式
+        const couponData = {
+          title: info.title || '',
+          description: info.description || '',
+          discountAmount: info.discountAmount,
+          discountType: info.discountType || null,
+          fullAmount: info.fullAmount || null,
+          startDate: info.startDate ? new Date(info.startDate) : new Date(),
+          endDate: info.endDate ? new Date(info.endDate) : new Date(),
+          endHour: info.endHour ?? 23,
+          endMinute: info.endMinute ?? 59,
+          notes: info.notes || '',
+          isUsed: false,
+          isReminded: false,
+          remindedDays: [],
+          // 将商家名称合并到标题中
+          ...(info.storeName && !info.title?.includes(info.storeName) && {
+            title: `${info.storeName} ${info.title || ''}`.trim()
+          })
+        }
+
+        const response = await fetch("/api/coupons", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(couponData),
+        })
+
+        const result = await response.json()
+        if (!result.success) {
+          throw new Error(`添加优惠券失败: ${result.error}`)
+        }
+      }
+
+      // 刷新列表
+      await fetchCoupons()
+
+      // 关闭OCR对话框
+      setIsOcrDialogOpen(false)
+
+      console.log(`成功添加 ${infos.length} 张优惠券`)
+    } catch (error) {
+      console.error("直接添加优惠券失败:", error)
+      throw error
+    }
+  }
+
   // 导出优惠券
   const handleExportCoupons = async (filter: 'all' | 'used' | 'unused' | 'expired') => {
     try {
@@ -961,6 +1011,7 @@ export default function Home() {
               <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
                 <OcrCouponRecognizer
                   onExtracted={handleOcrExtracted}
+                  onDirectAdd={handleOcrDirectAdd}
                   onCancel={() => setIsOcrDialogOpen(false)}
                 />
               </DialogContent>

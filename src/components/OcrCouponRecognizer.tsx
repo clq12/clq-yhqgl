@@ -36,7 +36,8 @@ export interface ExtractedCouponInfo {
 }
 
 interface OcrCouponRecognizerProps {
-  onExtracted: (info: ExtractedCouponInfo) => void
+  onExtracted?: (info: ExtractedCouponInfo) => void
+  onDirectAdd?: (coupons: ExtractedCouponInfo[]) => Promise<void>
   onCancel?: () => void
 }
 
@@ -138,10 +139,11 @@ function getCouponTypeBadge(type?: string): 'default' | 'secondary' | 'destructi
   }
 }
 
-export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCouponRecognizerProps) {
+export default function OcrCouponRecognizer({ onExtracted, onDirectAdd, onCancel }: OcrCouponRecognizerProps) {
   const [mode, setMode] = useState<'ocr' | 'ai' | 'text'>('ai') // 'ocr' 或 'ai' 或 'text'
   const [image, setImage] = useState<string | null>(null)
   const [isRecognizing, setIsRecognizing] = useState(false)
+  const [addingCoupon, setAddingCoupon] = useState(false)
   const [progress, setProgress] = useState(0)
   const [ocrResult, setOcrResult] = useState<OcrResult | null>(null)
   const [aiResult, setAiResult] = useState<any>(null)
@@ -275,32 +277,72 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
     }
   }
 
-  const handleAddCoupon = (coupon: any) => {
-    const extractedInfo: ExtractedCouponInfo = {
-      storeName: coupon.storeName || '',
-      title: coupon.title || '',
-      description: coupon.description || '',
-      discountType: coupon.discountType,
-      discountAmount: coupon.discountAmount,
-      fullAmount: coupon.fullAmount,
-      startDate: coupon.startDate,
-      endDate: coupon.endDate,
-      endHour: coupon.endHour || 23,
-      endMinute: 59,
-      notes: coupon.notes ? `AI识别: ChatGPT, ${coupon.notes}` : `AI识别: ChatGPT`,
+  const handleAddCoupon = async (coupon: any) => {
+    if (!onDirectAdd) {
+      console.warn('onDirectAdd callback not provided')
+      return
     }
 
-    setExtractedInfo(extractedInfo)
-    onExtracted(extractedInfo)
+    setAddingCoupon(true)
+
+    try {
+      const extractedInfo: ExtractedCouponInfo = {
+        storeName: coupon.storeName || '',
+        title: coupon.title || '',
+        description: coupon.description || '',
+        discountType: coupon.discountType,
+        discountAmount: coupon.discountAmount,
+        fullAmount: coupon.fullAmount,
+        startDate: coupon.startDate,
+        endDate: coupon.endDate,
+        endHour: coupon.endHour !== undefined ? coupon.endHour : 23,
+        endMinute: coupon.endMinute !== undefined ? coupon.endMinute : 59,
+        notes: coupon.notes ? `AI识别: ChatGPT, ${coupon.notes}` : `AI识别: ChatGPT`,
+      }
+
+      // 直接添加优惠券
+      await onDirectAdd([extractedInfo])
+    } catch (error) {
+      console.error('添加优惠券失败:', error)
+      setError('添加优惠券失败，请重试')
+    } finally {
+      setAddingCoupon(false)
+    }
   }
 
-  const handleAddAllCoupons = () => {
+  const handleAddAllCoupons = async () => {
     if (!aiResult?.coupons || aiResult.coupons.length === 0) return
+    if (!onDirectAdd) {
+      console.warn('onDirectAdd callback not provided')
+      return
+    }
 
-    // 添加第一张，其他张需要逐个添加
-    // 这里我们只添加第一张，其他的让用户看到后可以重复操作
-    const firstCoupon = aiResult.coupons[0]
-    handleAddCoupon(firstCoupon)
+    setAddingCoupon(true)
+
+    try {
+      // 将所有优惠券转换为ExtractedCouponInfo格式
+      const extractedInfos: ExtractedCouponInfo[] = aiResult.coupons.map((coupon: any) => ({
+        storeName: coupon.storeName || '',
+        title: coupon.title || '',
+        description: coupon.description || '',
+        discountType: coupon.discountType,
+        discountAmount: coupon.discountAmount,
+        fullAmount: coupon.fullAmount,
+        startDate: coupon.startDate,
+        endDate: coupon.endDate,
+        endHour: coupon.endHour !== undefined ? coupon.endHour : 23,
+        endMinute: coupon.endMinute !== undefined ? coupon.endMinute : 59,
+        notes: coupon.notes ? `AI识别: ChatGPT, ${coupon.notes}` : `AI识别: ChatGPT`,
+      }))
+
+      // 批量添加所有优惠券
+      await onDirectAdd(extractedInfos)
+    } catch (error) {
+      console.error('批量添加优惠券失败:', error)
+      setError('批量添加优惠券失败，请重试')
+    } finally {
+      setAddingCoupon(false)
+    }
   }
 
   const extractCouponInfo = async () => {
@@ -321,7 +363,7 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
       if (result.success) {
         setExtractedInfo(result.data)
         // 自动填充到表单
-        onExtracted(result.data)
+        onExtracted?.(result.data)
       } else {
         setError(result.error || '解析失败')
       }
@@ -363,7 +405,7 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
       if (result.success) {
         setExtractedInfo(result.data)
         // 自动填充到表单
-        onExtracted(result.data)
+        onExtracted?.(result.data)
       } else {
         setError(result.error || '解析失败')
       }
@@ -596,10 +638,20 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
                           <Button
                             size="sm"
                             onClick={handleAddAllCoupons}
+                            disabled={addingCoupon}
                             className="gap-2"
                           >
-                            <Check className="h-4 w-4" />
-                            全部添加
+                            {addingCoupon ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                添加中...
+                              </>
+                            ) : (
+                              <>
+                                <Check className="h-4 w-4" />
+                                全部添加
+                              </>
+                            )}
                           </Button>
                         )}
                       </div>
@@ -658,10 +710,20 @@ export default function OcrCouponRecognizer({ onExtracted, onCancel }: OcrCoupon
                               <Button
                                 size="sm"
                                 onClick={() => handleAddCoupon(coupon)}
+                                disabled={addingCoupon}
                                 className="w-full gap-2"
                               >
-                                <Check className="h-4 w-4" />
-                                添加此优惠券
+                                {addingCoupon ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    添加中...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="h-4 w-4" />
+                                    添加此优惠券
+                                  </>
+                                )}
                               </Button>
                             </CardContent>
                           </Card>

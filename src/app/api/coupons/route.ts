@@ -91,9 +91,16 @@ export async function POST(request: NextRequest) {
       const endHour = body.endHour ?? 23
       const endMinute = body.endMinute ?? 59
 
-      // 创建新的Date对象，使用endHour和endMinute
-      finalEndDate = new Date(finalEndDate)
-      finalEndDate.setHours(endHour, endMinute, 59, 999) // 设置到秒和毫秒
+      // 创建新的Date对象，使用年月日和指定的时分秒
+      finalEndDate = new Date(
+        finalEndDate.getFullYear(),
+        finalEndDate.getMonth(),
+        finalEndDate.getDate(),
+        endHour,
+        endMinute,
+        59,  // 秒
+        999  // 毫秒
+      )
     }
 
     // 创建优惠券对象

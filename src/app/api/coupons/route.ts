@@ -6,6 +6,7 @@ import {
   addCoupon,
 } from "@/lib/webdav-storage"
 import { insertCouponSchema } from "@/storage/database/shared/schema"
+import { safeCreateDate, setLocalTime } from "@/lib/datetime-utils"
 
 /**
  * 从环境变量获取配置（用于定时任务）
@@ -82,33 +83,23 @@ export async function POST(request: NextRequest) {
     // 验证数据
     const validated = insertCouponSchema.parse(body)
 
-    // 处理endDate和endHour/endMinute
+    // 处理endDate和endHour/endMinute（使用北京时间）
+    const endHour = body.endHour ?? 23
+    const endMinute = body.endMinute ?? 59
+
     let finalEndDate = validated.endDate
 
-    // 如果endDate是Date对象，根据endHour和endMinute设置时间
+    // 如果endDate是Date对象，使用北京时间设置时间
     if (finalEndDate instanceof Date) {
-      // 使用endHour和endMinute设置时间
-      const endHour = body.endHour ?? 23
-      const endMinute = body.endMinute ?? 59
-
-      // 创建新的Date对象，使用年月日和指定的时分秒
-      finalEndDate = new Date(
-        finalEndDate.getFullYear(),
-        finalEndDate.getMonth(),
-        finalEndDate.getDate(),
-        endHour,
-        endMinute,
-        59,  // 秒
-        999  // 毫秒
-      )
+      finalEndDate = setLocalTime(finalEndDate, endHour, endMinute, 59, 999)
     }
 
     // 创建优惠券对象
     const coupon = {
       ...validated,
       endDate: finalEndDate,
-      endHour: body.endHour ?? 23, // 默认23点
-      endMinute: body.endMinute ?? 59, // 默认59分
+      endHour: endHour, // 默认23点
+      endMinute: endMinute, // 默认59分
       discountType: body.discountType || null,
       fullAmount: body.fullAmount || null,
       id: crypto.randomUUID(),

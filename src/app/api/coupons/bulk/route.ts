@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getWebDAVConfigFromRequest, WebDAVConfig } from "@/lib/config"
 import { initWebDAVClient } from "@/lib/webdav-client"
 import { getAllCoupons, saveCoupons } from "@/lib/webdav-storage"
+import { safeCreateDate, setLocalTime } from "@/lib/datetime-utils"
 
 /**
  * 从环境变量获取配置（用于定时任务）
@@ -64,6 +65,17 @@ export async function POST(request: NextRequest) {
 
     // 为新优惠券生成ID并添加到列表
     const newCoupons: any[] = coupons.map((coupon: any) => {
+      // 获取或使用默认的结束时间（北京时间）
+      const endHour = coupon.endHour ?? 23
+      const endMinute = coupon.endMinute ?? 59
+
+      // 使用safeCreateDate创建本地时间的Date对象
+      const startDate = safeCreateDate(coupon.startDate) || safeCreateDate(new Date().toISOString().split('T')[0])!
+      const endDate = safeCreateDate(coupon.endDate) || safeCreateDate(new Date().toISOString().split('T')[0])!
+
+      // 使用setLocalTime设置结束时间（北京时间）
+      const finalEndDate = setLocalTime(endDate, endHour, endMinute, 59, 999)
+
       // 清理数据，只保留需要的字段
       const cleanedCoupon = {
         id: crypto.randomUUID(),
@@ -72,9 +84,10 @@ export async function POST(request: NextRequest) {
         discountType: coupon.discountType || 'amount',
         discountAmount: coupon.discountAmount || null,
         fullAmount: coupon.fullAmount, // 满减金额，用于满减类型
-        startDate: coupon.startDate ? new Date(coupon.startDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        endDate: coupon.endDate ? new Date(coupon.endDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        endHour: coupon.endHour ?? 23,
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: finalEndDate.toISOString(), // 保存完整的时间（包含时分秒）
+        endHour: endHour,
+        endMinute: endMinute,
         notes: coupon.notes || null,
         storeName: coupon.storeName || null,
         createdAt: new Date().toISOString(),

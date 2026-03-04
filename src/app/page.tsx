@@ -38,6 +38,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { Coupon } from "@/lib/webdav-storage"
+import { safeCreateDate } from "@/lib/datetime-utils"
 
 interface RemindStatusItem {
   id: string
@@ -131,19 +132,6 @@ export default function Home() {
   const handleOcrDirectAdd = async (infos: ExtractedCouponInfo[]) => {
     try {
       for (const info of infos) {
-        // 辅助函数：安全地创建Date对象（使用本地时间）
-        const safeCreateDate = (dateStr: string | undefined) => {
-          if (!dateStr) return new Date()
-
-          // 如果日期格式是 YYYY-MM-DD，添加时间部分确保解析为本地时间
-          if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-            const [year, month, day] = dateStr.split('-').map(Number)
-            return new Date(year, month - 1, day)
-          }
-
-          return new Date(dateStr)
-        }
-
         // 构造API期望的数据格式
         const couponData = {
           title: info.title || '',
@@ -151,8 +139,8 @@ export default function Home() {
           discountAmount: info.discountAmount,
           discountType: info.discountType || null,
           fullAmount: info.fullAmount || null,
-          startDate: safeCreateDate(info.startDate),
-          endDate: safeCreateDate(info.endDate),
+          startDate: safeCreateDate(info.startDate) || safeCreateDate(new Date().toISOString().split('T')[0]),
+          endDate: safeCreateDate(info.endDate) || safeCreateDate(new Date().toISOString().split('T')[0]),
           endHour: info.endHour ?? 23,
           endMinute: info.endMinute ?? 59,
           notes: info.notes || '',

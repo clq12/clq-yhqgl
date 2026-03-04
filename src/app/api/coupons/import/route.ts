@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getWebDAVConfigFromRequest, WebDAVConfig } from "@/lib/config"
 import { initWebDAVClient } from "@/lib/webdav-client"
 import { getAllCoupons, saveCoupons } from "@/lib/webdav-storage"
+import { safeCreateDate, setLocalTime } from "@/lib/datetime-utils"
 
 /**
  * 从环境变量获取配置（用于定时任务）
@@ -71,13 +72,27 @@ export async function POST(request: NextRequest) {
         // 跳过重复的
         importedCoupons = coupons
           .filter((c: any) => !existingTitles.has(c.title))
-          .map((c: any) => ({
-            ...c,
-            id: c.id || crypto.randomUUID(),
-            createdAt: c.createdAt || new Date().toISOString(),
-            isReminded: false,
-            isUsed: c.isUsed ?? false,
-          }))
+          .map((c: any) => {
+            // 处理日期（使用北京时间）
+            const endHour = c.endHour ?? 23
+            const endMinute = c.endMinute ?? 59
+            const startDate = safeCreateDate(c.startDate) || safeCreateDate(new Date().toISOString().split('T')[0])!
+            const endDate = safeCreateDate(c.endDate) || safeCreateDate(new Date().toISOString().split('T')[0])!
+            const finalEndDate = setLocalTime(endDate, endHour, endMinute, 59, 999)
+
+            return {
+              ...c,
+              id: c.id || crypto.randomUUID(),
+              startDate: startDate.toISOString().split('T')[0],
+              endDate: finalEndDate.toISOString(),
+              endHour: endHour,
+              endMinute: endMinute,
+              createdAt: c.createdAt || new Date().toISOString(),
+              isReminded: false,
+              remindedDays: c.remindedDays || [],
+              isUsed: c.isUsed ?? false,
+            }
+          })
         skippedCoupons = coupons.filter((c: any) => existingTitles.has(c.title))
         break
 
@@ -86,13 +101,27 @@ export async function POST(request: NextRequest) {
         const titles = new Set(coupons.map((c: any) => c.title))
         const nonOverwritten = existingCoupons.filter(c => !titles.has(c.title))
 
-        importedCoupons = coupons.map((c: any) => ({
-          ...c,
-          id: c.id || crypto.randomUUID(),
-          createdAt: c.createdAt || new Date().toISOString(),
-          isReminded: false,
-          isUsed: c.isUsed ?? false,
-        }))
+        importedCoupons = coupons.map((c: any) => {
+          // 处理日期（使用北京时间）
+          const endHour = c.endHour ?? 23
+          const endMinute = c.endMinute ?? 59
+          const startDate = safeCreateDate(c.startDate) || safeCreateDate(new Date().toISOString().split('T')[0])!
+          const endDate = safeCreateDate(c.endDate) || safeCreateDate(new Date().toISOString().split('T')[0])!
+          const finalEndDate = setLocalTime(endDate, endHour, endMinute, 59, 999)
+
+          return {
+            ...c,
+            id: c.id || crypto.randomUUID(),
+            startDate: startDate.toISOString().split('T')[0],
+            endDate: finalEndDate.toISOString(),
+            endHour: endHour,
+            endMinute: endMinute,
+            createdAt: c.createdAt || new Date().toISOString(),
+            isReminded: false,
+            remindedDays: c.remindedDays || [],
+            isUsed: c.isUsed ?? false,
+          }
+        })
         overwrittenCoupons = existingCoupons.filter(c => titles.has(c.title))
 
         await saveCoupons([...nonOverwritten, ...importedCoupons])
@@ -110,13 +139,27 @@ export async function POST(request: NextRequest) {
       case 'merge':
       default:
         // 合并模式：导入所有，包括重复的
-        importedCoupons = coupons.map((c: any) => ({
-          ...c,
-          id: crypto.randomUUID(), // 总是生成新ID
-          createdAt: new Date().toISOString(),
-          isReminded: false,
-          isUsed: c.isUsed ?? false,
-        }))
+        importedCoupons = coupons.map((c: any) => {
+          // 处理日期（使用北京时间）
+          const endHour = c.endHour ?? 23
+          const endMinute = c.endMinute ?? 59
+          const startDate = safeCreateDate(c.startDate) || safeCreateDate(new Date().toISOString().split('T')[0])!
+          const endDate = safeCreateDate(c.endDate) || safeCreateDate(new Date().toISOString().split('T')[0])!
+          const finalEndDate = setLocalTime(endDate, endHour, endMinute, 59, 999)
+
+          return {
+            ...c,
+            id: crypto.randomUUID(), // 总是生成新ID
+            startDate: startDate.toISOString().split('T')[0],
+            endDate: finalEndDate.toISOString(),
+            endHour: endHour,
+            endMinute: endMinute,
+            createdAt: new Date().toISOString(),
+            isReminded: false,
+            remindedDays: c.remindedDays || [],
+            isUsed: c.isUsed ?? false,
+          }
+        })
         break
     }
 

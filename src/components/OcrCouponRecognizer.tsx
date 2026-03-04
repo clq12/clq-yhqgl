@@ -1,13 +1,14 @@
 "use client"
 
 import { useState, useRef } from "react"
-import { Upload, X, Loader2, ScanText, Check, AlertCircle, FileText, Image as ImageIcon, Sparkles } from "lucide-react"
+import { Upload, X, Loader2, ScanText, Check, AlertCircle, FileText, Image as ImageIcon, Sparkles, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select,
   SelectContent,
@@ -151,6 +152,7 @@ export default function OcrCouponRecognizer({ onExtracted, onDirectAdd, onCancel
   const [extractedInfo, setExtractedInfo] = useState<ExtractedCouponInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [pastedText, setPastedText] = useState('')
+  const [selectedCoupons, setSelectedCoupons] = useState<Set<number>>(new Set())
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileSelect = (file: File) => {
@@ -265,7 +267,12 @@ export default function OcrCouponRecognizer({ onExtracted, onDirectAdd, onCancel
         setAiResult(result.data)
         console.log('ChatGPT识别结果:', result.data)
 
-        // 注意：不再自动添加第一张，而是让用户从列表中选择
+        // 重置选中状态，默认全选
+        if (result.data.coupons && result.data.coupons.length > 0) {
+          setSelectedCoupons(new Set(result.data.coupons.map((_: any, index: number) => index)))
+        } else {
+          setSelectedCoupons(new Set())
+        }
       } else {
         setError(result.error || 'AI识别失败')
       }
@@ -277,34 +284,69 @@ export default function OcrCouponRecognizer({ onExtracted, onDirectAdd, onCancel
     }
   }
 
-  const handleAddCoupon = async (coupon: any) => {
+  const handleToggleCoupon = (index: number) => {
+    setSelectedCoupons(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(index)) {
+        newSet.delete(index)
+      } else {
+        newSet.add(index)
+      }
+      return newSet
+    })
+  }
+
+  const handleToggleSelectAll = () => {
+    if (!aiResult?.coupons) return
+
+    if (selectedCoupons.size === aiResult.coupons.length) {
+      // 如果全部选中，则取消全选
+      setSelectedCoupons(new Set())
+    } else {
+      // 否则全选
+      setSelectedCoupons(new Set(aiResult.coupons.map((_: any, index: number) => index)))
+    }
+  }
+
+  const handleAddSelectedCoupons = async () => {
+    if (!aiResult?.coupons || aiResult.coupons.length === 0) return
     if (!onDirectAdd) {
       console.warn('onDirectAdd callback not provided')
+      return
+    }
+
+    if (selectedCoupons.size === 0) {
+      setError('请先选择要添加的优惠券')
       return
     }
 
     setAddingCoupon(true)
 
     try {
-      const extractedInfo: ExtractedCouponInfo = {
-        storeName: coupon.storeName || '',
-        title: coupon.title || '',
-        description: coupon.description || '',
-        discountType: coupon.discountType,
-        discountAmount: coupon.discountAmount,
-        fullAmount: coupon.fullAmount,
-        startDate: coupon.startDate,
-        endDate: coupon.endDate,
-        endHour: coupon.endHour !== undefined ? coupon.endHour : 23,
-        endMinute: coupon.endMinute !== undefined ? coupon.endMinute : 59,
-        notes: coupon.notes ? `AI识别: ChatGPT, ${coupon.notes}` : `AI识别: ChatGPT`,
-      }
+      // 将选中的优惠券转换为ExtractedCouponInfo格式
+      const extractedInfos: ExtractedCouponInfo[] = []
+      selectedCoupons.forEach(index => {
+        const coupon = aiResult.coupons[index]
+        extractedInfos.push({
+          storeName: coupon.storeName || '',
+          title: coupon.title || '',
+          description: coupon.description || '',
+          discountType: coupon.discountType,
+          discountAmount: coupon.discountAmount,
+          fullAmount: coupon.fullAmount,
+          startDate: coupon.startDate,
+          endDate: coupon.endDate,
+          endHour: coupon.endHour !== undefined ? coupon.endHour : 23,
+          endMinute: coupon.endMinute !== undefined ? coupon.endMinute : 59,
+          notes: coupon.notes ? `AI识别: ChatGPT, ${coupon.notes}` : `AI识别: ChatGPT`,
+        })
+      })
 
-      // 直接添加优惠券
-      await onDirectAdd([extractedInfo])
+      // 批量添加选中的优惠券
+      await onDirectAdd(extractedInfos)
     } catch (error) {
-      console.error('添加优惠券失败:', error)
-      setError('添加优惠券失败，请重试')
+      console.error('批量添加优惠券失败:', error)
+      setError('批量添加优惠券失败，请重试')
     } finally {
       setAddingCoupon(false)
     }
@@ -380,6 +422,7 @@ export default function OcrCouponRecognizer({ onExtracted, onDirectAdd, onCancel
     setOcrResult(null)
     setAiResult(null)
     setExtractedInfo(null)
+    setSelectedCoupons(new Set())
     setError(null)
     setProgress(0)
     if (fileInputRef.current) {
@@ -631,14 +674,56 @@ export default function OcrCouponRecognizer({ onExtracted, onDirectAdd, onCancel
                   {aiResult?.coupons && aiResult.coupons.length > 0 && (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <div className="text-sm font-medium">
-                          识别结果：共 {aiResult.coupons.length} 张优惠券
+                        <div className="flex items-center gap-3">
+                          <div className="text-sm font-medium">
+                            识别结果：共 {aiResult.coupons.length} 张优惠券
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id="select-all"
+                              checked={selectedCoupons.size === aiResult.coupons.length && aiResult.coupons.length > 0}
+                              onCheckedChange={handleToggleSelectAll}
+                            />
+                            <label
+                              htmlFor="select-all"
+                              className="text-sm text-muted-foreground cursor-pointer select-none"
+                            >
+                              全选
+                            </label>
+                            {selectedCoupons.size > 0 && (
+                              <span className="text-xs text-primary">
+                                已选 {selectedCoupons.size} 张
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        {aiResult.coupons.length > 1 && (
+                        <div className="flex items-center gap-2">
+                          {selectedCoupons.size > 0 && (
+                            <Button
+                              size="sm"
+                              onClick={handleAddSelectedCoupons}
+                              disabled={addingCoupon}
+                              variant="default"
+                              className="gap-2"
+                            >
+                              {addingCoupon ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  添加中...
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle2 className="h-4 w-4" />
+                                  添加选中的 ({selectedCoupons.size})
+                                </>
+                              )}
+                            </Button>
+                          )}
                           <Button
                             size="sm"
                             onClick={handleAddAllCoupons}
                             disabled={addingCoupon}
+                            variant="outline"
                             className="gap-2"
                           >
                             {addingCoupon ? (
@@ -653,78 +738,82 @@ export default function OcrCouponRecognizer({ onExtracted, onDirectAdd, onCancel
                               </>
                             )}
                           </Button>
-                        )}
+                        </div>
                       </div>
                       <div className="space-y-3">
                         {aiResult.coupons.map((coupon: any, index: number) => (
-                          <Card key={index} className="border">
-                            <CardContent className="p-4 space-y-3">
-                              {/* 商家和标题 */}
-                              <div className="flex justify-between items-start">
-                                <div className="space-y-1">
-                                  <div className="font-medium text-lg">
-                                    {coupon.storeName || '未知商家'}
-                                  </div>
-                                  <div className="text-sm text-muted-foreground">
-                                    {coupon.title || '未知优惠券'}
-                                  </div>
+                          <Card
+                            key={index}
+                            className={`border cursor-pointer transition-colors ${
+                              selectedCoupons.has(index) ? 'bg-primary/5 border-primary' : ''
+                            }`}
+                            onClick={(e) => {
+                              // 避免点击复选框时触发两次
+                              if (!(e.target as HTMLElement).closest('input[type="checkbox"]')) {
+                                handleToggleCoupon(index)
+                              }
+                            }}
+                          >
+                            <CardContent className="p-4">
+                              <div className="flex gap-3">
+                                {/* 复选框 */}
+                                <div className="pt-1">
+                                  <Checkbox
+                                    checked={selectedCoupons.has(index)}
+                                    onCheckedChange={() => handleToggleCoupon(index)}
+                                  />
                                 </div>
-                                <Badge variant={getCouponTypeBadge(coupon.discountType)}>
-                                  {getDiscountTypeLabel(coupon.discountType)}
-                                </Badge>
-                              </div>
 
-                              {/* 优惠详情 */}
-                              {coupon.discountAmount && (
-                                <div className="text-sm">
-                                  {coupon.discountType === 'full' ? (
-                                    <span>满 <strong>{coupon.fullAmount}</strong> 减 <strong className="text-primary">{coupon.discountAmount}</strong> 元</span>
-                                  ) : coupon.discountType === 'percentage' ? (
-                                    <span>折扣 <strong className="text-primary">{coupon.discountAmount}</strong> 折</span>
-                                  ) : (
-                                    <span>立减 <strong className="text-primary">{coupon.discountAmount}</strong> 元</span>
+                                {/* 优惠券内容 */}
+                                <div className="flex-1 space-y-3">
+                                  {/* 商家和标题 */}
+                                  <div className="flex justify-between items-start">
+                                    <div className="space-y-1">
+                                      <div className="font-medium text-lg">
+                                        {coupon.storeName || '未知商家'}
+                                      </div>
+                                      <div className="text-sm text-muted-foreground">
+                                        {coupon.title || '未知优惠券'}
+                                      </div>
+                                    </div>
+                                    <Badge variant={getCouponTypeBadge(coupon.discountType)}>
+                                      {getDiscountTypeLabel(coupon.discountType)}
+                                    </Badge>
+                                  </div>
+
+                                  {/* 优惠详情 */}
+                                  {coupon.discountAmount && (
+                                    <div className="text-sm">
+                                      {coupon.discountType === 'full' ? (
+                                        <span>满 <strong>{coupon.fullAmount}</strong> 减 <strong className="text-primary">{coupon.discountAmount}</strong> 元</span>
+                                      ) : coupon.discountType === 'percentage' ? (
+                                        <span>折扣 <strong className="text-primary">{coupon.discountAmount}</strong> 折</span>
+                                      ) : (
+                                        <span>立减 <strong className="text-primary">{coupon.discountAmount}</strong> 元</span>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {/* 到期时间 */}
+                                  {coupon.endDate && (
+                                    <div className="flex items-center gap-2 text-sm">
+                                      <span className={`font-medium ${getExpiryColor(coupon.endDate)}`}>
+                                        {formatExpiryDate(coupon.endDate)}
+                                      </span>
+                                      <span className="text-muted-foreground">
+                                        剩余 {getDaysRemaining(coupon.endDate)} 天
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {/* 备注 */}
+                                  {coupon.description && (
+                                    <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
+                                      {coupon.description}
+                                    </div>
                                   )}
                                 </div>
-                              )}
-
-                              {/* 到期时间 */}
-                              {coupon.endDate && (
-                                <div className="flex items-center gap-2 text-sm">
-                                  <span className={`font-medium ${getExpiryColor(coupon.endDate)}`}>
-                                    {formatExpiryDate(coupon.endDate)}
-                                  </span>
-                                  <span className="text-muted-foreground">
-                                    剩余 {getDaysRemaining(coupon.endDate)} 天
-                                  </span>
-                                </div>
-                              )}
-
-                              {/* 备注 */}
-                              {coupon.description && (
-                                <div className="text-xs text-muted-foreground bg-muted/50 p-2 rounded">
-                                  {coupon.description}
-                                </div>
-                              )}
-
-                              {/* 添加按钮 */}
-                              <Button
-                                size="sm"
-                                onClick={() => handleAddCoupon(coupon)}
-                                disabled={addingCoupon}
-                                className="w-full gap-2"
-                              >
-                                {addingCoupon ? (
-                                  <>
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                    添加中...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Check className="h-4 w-4" />
-                                    添加此优惠券
-                                  </>
-                                )}
-                              </Button>
+                              </div>
                             </CardContent>
                           </Card>
                         ))}

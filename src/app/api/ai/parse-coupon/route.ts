@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
       },
       {
         role: 'user',
-        content: `【字段说明】\n- title: 优惠券名称\n- type: 满减 | 折扣 | 直减 | 其他\n- threshold: number | null\n- amountOff: number | null\n- discountRate: number | null\n- validFrom: string | null\n- validTo: string | null\n- platform: string | null\n- notes: string | null\n\n【规则】\n- 文本中没有的信息必须返回 null\n- 不允许猜测或补全\n- 必须严格输出 JSON 对象\n- 不要包含多余字段\n\n【优惠券文本】\n${text}`
+        content: `【字段说明】\n- title: 优惠券名称\n- type: 满减 | 折扣 | 直减 | 其他\n- threshold: number | null\n- amountOff: number | null\n- discountRate: number | null\n- validFrom: string | null（北京时间 YYYY-MM-DD 格式）\n- validTo: string | null（北京时间 YYYY-MM-DD 格式）\n- platform: string | null\n- notes: string | null\n\n【规则】\n- 文本中没有的信息必须返回 null\n- 不允许猜测或补全\n- 必须严格输出 JSON 对象\n- 不要包含多余字段\n- ⚠️ 所有日期时间格式必须使用北京时间（UTC+8）\n- ⚠️ validFrom 和 validTo 必须使用 YYYY-MM-DD 格式，按北京时间处理\n\n【优惠券文本】\n${text}`
       }
     ];
 

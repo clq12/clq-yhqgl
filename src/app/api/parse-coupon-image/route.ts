@@ -77,6 +77,7 @@ async function extractWithChatGPT(imageDataUrl: string): Promise<NextResponse> {
 4. 不要添加任何额外文字
 5. 所有字段必须存在
 6. 不允许缺失字段
+7. ⚠️ 所有时间格式必须使用北京时间（UTC+8）
 
 返回格式必须严格为：
 {
@@ -90,6 +91,7 @@ async function extractWithChatGPT(imageDataUrl: string): Promise<NextResponse> {
       "startDate": string,
       "endDate": string,
       "endHour": number,
+      "endMinute": number,
       "notes": string | null,
       "storeName": string | null
     }
@@ -124,14 +126,20 @@ async function extractWithChatGPT(imageDataUrl: string): Promise<NextResponse> {
 
 【startDate】
 - 如果未明确给出，使用今天日期
-- 格式必须为 YYYY-MM-DD
+- 格式必须为 YYYY-MM-DD（北京时间）
 
 【endDate】
-- 必须转换为 YYYY-MM-DD
+- 必须转换为 YYYY-MM-DD（北京时间）
 - 支持：2026年3月8日、2026/03/08、2026-03-08、3月8日（默认当前年份）
+- ⚠️ 所有日期必须按北京时间（UTC+8）处理
 
 【endHour】
 - 默认 23
+- ⚠️ 使用北京时间（24小时制，0-23）
+
+【endMinute】
+- 默认 59
+- ⚠️ 使用北京时间（0-59）
 
 【storeName】
 - 商家名称
@@ -187,6 +195,7 @@ async function extractWithChatGPT(imageDataUrl: string): Promise<NextResponse> {
   startDate: c.startDate ?? today,
   endDate: c.endDate ?? today,
   endHour: c.endHour ?? 23,
+  endMinute: c.endMinute ?? 59,
   notes: c.notes ?? null,
   storeName: c.storeName ?? null,
   isReminded: false,
@@ -233,6 +242,7 @@ function parseExtractedJSON(jsonText: string): Array<{
   startDate: string
   endDate: string
   endHour: number
+  endMinute: number
   notes: string | null
 }> {
   try {
@@ -260,6 +270,7 @@ function parseExtractedJSON(jsonText: string): Array<{
       startDate: coupon.startDate || new Date().toISOString().split('T')[0],
       endDate: coupon.endDate || '',
       endHour: coupon.endHour || 23,
+      endMinute: coupon.endMinute || 59,
       notes: coupon.notes || null
     }))
   } catch (error) {

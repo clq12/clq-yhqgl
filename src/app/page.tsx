@@ -1472,11 +1472,11 @@ export default function Home() {
               const endMinute = (coupon as any).endMinute ?? 59
 
               if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
-                // 完整ISO格式，直接格式化
+                // 完整ISO格式
+                // 如果是UTC时间（以Z结尾），浏览器会自动转换为本地时区显示
+                // 如果是本地时间（不带Z），直接显示即可
                 const endDate = new Date(coupon.endDate)
-                // 如果是UTC时间，需要转换为北京时间
-                const beijingTime = new Date(endDate.getTime() + 8 * 60 * 60 * 1000)
-                endDateText = `${beijingTime.toLocaleDateString("zh-CN")} ${beijingTime.getHours().toString().padStart(2, '0')}:${beijingTime.getMinutes().toString().padStart(2, '0')}`
+                endDateText = `${endDate.toLocaleDateString("zh-CN")} ${endDate.getHours().toString().padStart(2, '0')}:${endDate.getMinutes().toString().padStart(2, '0')}`
               } else {
                 // 纯日期格式，使用endHour和endMinute
                 endDateText = `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${endHour}:${endMinute.toString().padStart(2, '0')}`

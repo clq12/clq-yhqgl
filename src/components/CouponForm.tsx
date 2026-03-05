@@ -23,6 +23,7 @@ import { format } from "date-fns"
 import { cn } from "@/lib/utils"
 import type { Coupon } from "@/lib/webdav-storage"
 import type { ExtractedCouponInfo } from "./OcrCouponRecognizer"
+import { safeCreateDate } from "@/lib/datetime-utils"
 
 const couponSchema = z.object({
   title: z.string().min(1, "标题不能为空").max(255, "标题不能超过255个字符"),
@@ -65,6 +66,21 @@ interface CouponFormProps {
 export default function CouponForm({ coupon, ocrExtractedInfo, onSubmit, onCancel }: CouponFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // 辅助函数：安全地获取日期（用于表单初始化）
+  const getFormDate = (dateStr: string | undefined): Date => {
+    if (!dateStr) return new Date()
+
+    // 如果是纯日期格式，使用safeCreateDate
+    if (!dateStr.includes('T') && !dateStr.includes(' ')) {
+      return safeCreateDate(dateStr)
+    }
+
+    // 如果是完整的ISO时间，解析后只取年月日部分，创建本地时间Date对象
+    const utcDate = new Date(dateStr)
+    // 使用年月日创建本地时间Date对象（忽略时间部分，因为时间由endHour和endMinute控制）
+    return new Date(utcDate.getFullYear(), utcDate.getMonth(), utcDate.getDate())
+  }
+
   const form = useForm<CouponFormData>({
     resolver: zodResolver(couponSchema),
     defaultValues: coupon
@@ -74,8 +90,8 @@ export default function CouponForm({ coupon, ocrExtractedInfo, onSubmit, onCance
           discountType: (coupon as any).discountType || null,
           discountAmount: coupon.discountAmount || undefined,
           fullAmount: (coupon as any).fullAmount || undefined,
-          startDate: new Date(coupon.startDate),
-          endDate: new Date(coupon.endDate),
+          startDate: getFormDate(coupon.startDate),
+          endDate: getFormDate(coupon.endDate),
           endHour: (coupon as any).endHour ?? 23, // 默认23点
           endMinute: (coupon as any).endMinute ?? 59, // 默认59分
           notes: coupon.notes || "",
@@ -113,7 +129,7 @@ export default function CouponForm({ coupon, ocrExtractedInfo, onSubmit, onCance
       if (ocrExtractedInfo.discountType) form.setValue('discountType', ocrExtractedInfo.discountType)
       if (ocrExtractedInfo.discountAmount !== undefined) form.setValue('discountAmount', ocrExtractedInfo.discountAmount)
       if (ocrExtractedInfo.fullAmount !== undefined) form.setValue('fullAmount', ocrExtractedInfo.fullAmount)
-      if (ocrExtractedInfo.endDate) form.setValue('endDate', new Date(ocrExtractedInfo.endDate))
+      if (ocrExtractedInfo.endDate) form.setValue('endDate', getFormDate(ocrExtractedInfo.endDate))
       if (ocrExtractedInfo.endHour !== undefined) form.setValue('endHour', ocrExtractedInfo.endHour)
       if (ocrExtractedInfo.endMinute !== undefined) form.setValue('endMinute', ocrExtractedInfo.endMinute)
       if (ocrExtractedInfo.notes) form.setValue('notes', ocrExtractedInfo.notes)

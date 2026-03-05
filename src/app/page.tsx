@@ -537,15 +537,15 @@ export default function Home() {
   // 计算剩余天数和小时数（考虑endHour和endMinute，使用北京时间 UTC+8）
   const getDaysRemaining = (coupon: Coupon) => {
     const now = new Date()
-    
+
     // 验证截止日期是否存在
     if (!coupon.endDate) {
       return 0
     }
-    
+
     // 解析截止日期
     let endDate: Date
-    
+
     // 检查日期是否已经包含时间部分（完整的ISO格式）
     if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
       // 完整ISO格式，需要检查是否有时区信息
@@ -553,19 +553,18 @@ export default function Home() {
         // 有时区信息（UTC），直接使用
         endDate = new Date(coupon.endDate)
       } else {
-        // 没有时区信息，假设是北京时间，转换为UTC
-        const beijingDate = new Date(coupon.endDate)
-        // 北京时间 = UTC + 8，所以 UTC = 北京时间 - 8小时
-        endDate = new Date(beijingDate.getTime() - 8 * 60 * 60 * 1000)
+        // 没有时区信息，new Date() 已经按本地时间（北京时间）解析了，不需要再转换
+        // 直接使用即可，它会自动转换为UTC时间戳进行比较
+        endDate = new Date(coupon.endDate)
       }
     } else {
       // 纯日期格式，添加时间部分
       endDate = new Date(coupon.endDate + 'T00:00:00Z')
-      
+
       // 获取截止时间的小时和分钟（只对纯日期格式添加）
       const endHour = (coupon as any).endHour ?? 23
       const endMinute = (coupon as any).endMinute ?? 59
-      
+
       // 设置截止时间（UTC时间）
       // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
       let utcHour = endHour - 8
@@ -575,19 +574,19 @@ export default function Home() {
       }
       endDate.setUTCHours(utcHour, endMinute, 0, 0)
     }
-    
+
     // 验证日期解析是否成功
     if (isNaN(endDate.getTime())) {
       console.error(`无效的截止日期: ${coupon.endDate}`)
       return 0
     }
-    
+
     // 当前时间（UTC）
     const nowUTC = now.getTime()
-    
+
     // 截止时间（UTC）
     const endTimeUTC = endDate.getTime()
-    
+
     const diff = endTimeUTC - nowUTC
 
     // 验证计算结果是否有效
@@ -602,16 +601,16 @@ export default function Home() {
   // 获取剩余小时数（用于更精确的排序，使用北京时间 UTC+8）
   const getRemainingHours = (coupon: Coupon) => {
     const now = new Date()
-    
+
     // 验证截止日期是否存在
     if (!coupon.endDate) {
       console.error(`优惠券 "${coupon.title}" 没有截止日期`)
       return 0
     }
-    
+
     // 解析截止日期
     let endDate: Date
-    
+
     // 检查日期是否已经包含时间部分（完整的ISO格式）
     if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
       // 完整ISO格式，需要检查是否有时区信息
@@ -619,19 +618,18 @@ export default function Home() {
         // 有时区信息（UTC），直接使用
         endDate = new Date(coupon.endDate)
       } else {
-        // 没有时区信息，假设是北京时间，转换为UTC
-        const beijingDate = new Date(coupon.endDate)
-        // 北京时间 = UTC + 8，所以 UTC = 北京时间 - 8小时
-        endDate = new Date(beijingDate.getTime() - 8 * 60 * 60 * 1000)
+        // 没有时区信息，new Date() 已经按本地时间（北京时间）解析了，不需要再转换
+        // 直接使用即可，它会自动转换为UTC时间戳进行比较
+        endDate = new Date(coupon.endDate)
       }
     } else {
       // 纯日期格式，添加时间部分
       endDate = new Date(coupon.endDate + 'T00:00:00Z')
-      
+
       // 获取截止时间的小时和分钟（只对纯日期格式添加）
       const endHour = (coupon as any).endHour ?? 23
       const endMinute = (coupon as any).endMinute ?? 59
-      
+
       // 设置截止时间（UTC时间）
       // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
       let utcHour = endHour - 8
@@ -641,27 +639,27 @@ export default function Home() {
       }
       endDate.setUTCHours(utcHour, endMinute, 0, 0)
     }
-    
+
     // 验证日期解析是否成功
     if (isNaN(endDate.getTime())) {
       console.error(`无效的截止日期: ${coupon.endDate}`)
       return 0
     }
-    
+
     // 当前时间（UTC）
     const nowUTC = now.getTime()
-    
+
     // 截止时间（UTC）
     const endTimeUTC = endDate.getTime()
-    
+
     const diff = endTimeUTC - nowUTC
-    
+
     // 验证计算结果是否有效
     if (isNaN(diff) || !isFinite(diff)) {
       console.error(`无效的时间差: diff=${diff}`)
       return 0
     }
-    
+
     const diffHours = diff / (1000 * 60 * 60)
     return Math.max(0, diffHours) // 返回小时数，最小为0
   }
@@ -669,15 +667,15 @@ export default function Home() {
   // 获取精确到小时的剩余时间文本（使用北京时间 UTC+8）
   const getRemainingTimeText = (coupon: Coupon) => {
     const now = new Date()
-    
+
     // 验证截止日期是否存在
     if (!coupon.endDate) {
       return "截止日期无效"
     }
-    
+
     // 解析截止日期
     let endDate: Date
-    
+
     // 检查日期是否已经包含时间部分（完整的ISO格式）
     if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
       // 完整ISO格式，需要检查是否有时区信息
@@ -685,10 +683,9 @@ export default function Home() {
         // 有时区信息（UTC），直接使用
         endDate = new Date(coupon.endDate)
       } else {
-        // 没有时区信息，假设是北京时间，转换为UTC
-        const beijingDate = new Date(coupon.endDate)
-        // 北京时间 = UTC + 8，所以 UTC = 北京时间 - 8小时
-        endDate = new Date(beijingDate.getTime() - 8 * 60 * 60 * 1000)
+        // 没有时区信息，new Date() 已经按本地时间（北京时间）解析了，不需要再转换
+        // 直接使用即可，它会自动转换为UTC时间戳进行比较
+        endDate = new Date(coupon.endDate)
       }
     } else {
       // 纯日期格式，添加时间部分
@@ -707,13 +704,13 @@ export default function Home() {
       }
       endDate.setUTCHours(utcHour, endMinute, 0, 0)
     }
-    
+
     // 当前时间（UTC）
     const nowUTC = now.getTime()
-    
+
     // 截止时间（UTC）
     const endTimeUTC = endDate.getTime()
-    
+
     // 验证时间戳是否有效
     if (isNaN(nowUTC) || isNaN(endTimeUTC)) {
       console.error(`无效的时间戳: nowUTC=${nowUTC}, endTimeUTC=${endTimeUTC}`)

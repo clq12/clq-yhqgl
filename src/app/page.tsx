@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Plus, Bell, Calendar, Trash2, Edit, CheckCircle, XCircle, AlertCircle, Info, Settings, Check, BarChart3, CheckSquare, XSquare, Clock, Trash, ChevronDown, ScanText, Download, Upload as ImportIcon, Loader2, Filter } from "lucide-react"
+import { Plus, Bell, Calendar, Trash2, Edit, CheckCircle, XCircle, AlertCircle, Settings, Check, BarChart3, CheckSquare, XSquare, Clock, Trash, ChevronDown, ScanText, Download, Upload as ImportIcon, Loader2, Filter } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
@@ -1676,11 +1676,9 @@ export default function Home() {
                       const endMinute = (coupon as any).endMinute ?? 59
 
                       if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
-                        // 完整ISO格式，直接格式化
+                        // 完整ISO格式，Date 会自动处理时区偏移（如 +08:00 或 Z）并按本地时间展示
                         const endDate = new Date(coupon.endDate)
-                        // 如果是UTC时间，需要转换为北京时间
-                        const beijingTime = new Date(endDate.getTime() + 8 * 60 * 60 * 1000)
-                        endDateText = `${beijingTime.toLocaleDateString("zh-CN")} ${beijingTime.getHours().toString().padStart(2, '0')}:${beijingTime.getMinutes().toString().padStart(2, '0')}`
+                        endDateText = `${endDate.toLocaleDateString("zh-CN")} ${endDate.getHours().toString().padStart(2, '0')}:${endDate.getMinutes().toString().padStart(2, '0')}`
                       } else {
                         // 纯日期格式，使用endHour和endMinute
                         endDateText = `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${endHour}:${endMinute.toString().padStart(2, '0')}`
@@ -1881,63 +1879,6 @@ export default function Home() {
         </DialogContent>
       </Dialog>
 
-      {/* 测试提醒对话框 */}
-      <Dialog open={isRemindStatusOpen} onOpenChange={setIsRemindStatusOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>提醒状态</DialogTitle>
-            <DialogDescription>
-              查看所有优惠券的推送提醒状态
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* 提醒状态列表 */}
-          <div>
-            <h4 className="font-semibold mb-3 flex items-center gap-2">
-              <Info className="h-4 w-4" />
-              优惠券提醒状态
-            </h4>
-            {loadingRemindStatus ? (
-              <div className="text-center py-8">加载中...</div>
-            ) : remindStatus.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">暂无优惠券</div>
-            ) : (
-              <div className="space-y-3">
-                {remindStatus.map((status) => (
-                  <div
-                    key={status.id}
-                    className="border rounded-lg p-4"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <h4 className="font-semibold mb-1">{status.title}</h4>
-                        <div className="text-sm text-gray-500 space-y-1">
-                          <div>到期时间：{new Date(status.endDate).toLocaleDateString('zh-CN')}</div>
-                          <div>剩余：<span className={status.daysRemaining <= 3 ? 'text-orange-600 font-medium' : ''}>{status.remainingTimeText}</span></div>
-                          {status.remindedDays.length > 0 && (
-                            <div>已提醒：<span className="text-blue-600">{status.remindedDays.join('天、')}天</span></div>
-                          )}
-                        </div>
-                      </div>
-                      <div>
-                        {status.willRemind ? (
-                          <Badge className="bg-green-500">
-                            将提醒（{status.remindDays.join('、')}天）
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-gray-500">
-                            {status.reason}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

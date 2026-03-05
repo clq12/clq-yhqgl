@@ -6,7 +6,7 @@ import {
   addCoupon,
 } from "@/lib/webdav-storage"
 import { insertCouponSchema } from "@/storage/database/shared/schema"
-import { safeCreateDate, setLocalTime } from "@/lib/datetime-utils"
+import { safeCreateDate, setLocalTime, toLocalISOString } from "@/lib/datetime-utils"
 
 /**
  * 从环境变量获取配置（用于定时任务）
@@ -47,7 +47,6 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // 初始化 WebDAV 客户端
     initWebDAVClient(config)
 
     const coupons = await getAllCoupons()
@@ -80,40 +79,34 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
 
-    // 验证数据
     const validated = insertCouponSchema.parse(body)
 
-    // 处理endDate和endHour/endMinute（使用北京时间）
     const endHour = body.endHour ?? 23
     const endMinute = body.endMinute ?? 59
 
     let finalEndDate = validated.endDate
 
-    // 如果endDate是Date对象，使用北京时间设置时间
     if (finalEndDate instanceof Date) {
       finalEndDate = setLocalTime(finalEndDate, endHour, endMinute, 59, 999)
     }
 
-    // 创建优惠券对象
     const coupon = {
       ...validated,
       endDate: finalEndDate,
-      endHour: endHour, // 默认23点
-      endMinute: endMinute, // 默认59分
+      endHour: endHour,
+      endMinute: endMinute,
       discountType: body.discountType || null,
       fullAmount: body.fullAmount || null,
       id: crypto.randomUUID(),
       isReminded: false,
-      isUsed: false, // 默认未使用
-      remindedDays: [], // 初始化提醒天数数组
-      createdAt: new Date().toISOString(),
+      isUsed: false,
+      remindedDays: [],
+      createdAt: toLocalISOString(new Date()), // ✅ 修复
       updatedAt: null,
     }
 
-    // 初始化 WebDAV 客户端
     initWebDAVClient(config)
 
-    // 保存到 WebDAV
     await addCoupon(coupon as any)
 
     return NextResponse.json({ success: true, data: coupon }, { status: 201 })

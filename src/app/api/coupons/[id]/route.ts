@@ -7,7 +7,7 @@ import {
   deleteCoupon,
 } from "@/lib/webdav-storage"
 import { updateCouponSchema } from "@/storage/database/shared/schema"
-import { setLocalTime } from "@/lib/datetime-utils"
+import { setLocalTime, toLocalISOString } from "@/lib/datetime-utils"
 
 // 获取单个优惠券
 export async function GET(
@@ -86,7 +86,7 @@ export async function PUT(
       ...(body.discountType !== undefined && { discountType: body.discountType || null }),
       ...(body.fullAmount !== undefined && { fullAmount: body.fullAmount || null }),
       ...(body.isUsed !== undefined && { isUsed: body.isUsed }),
-      updatedAt: new Date().toISOString(),
+      updatedAt: toLocalISOString(new Date()),
     }
 
     initWebDAVClient(config)

@@ -38,7 +38,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { Coupon } from "@/lib/webdav-storage"
-import { safeCreateDate } from "@/lib/datetime-utils"
+import { safeCreateDate, formatLocalDate } from "@/lib/datetime-utils"
 
 interface RemindStatusItem {
   id: string
@@ -139,8 +139,8 @@ export default function Home() {
           discountAmount: info.discountAmount,
           discountType: info.discountType || null,
           fullAmount: info.fullAmount || null,
-          startDate: safeCreateDate(info.startDate) || safeCreateDate(new Date().toISOString().split('T')[0]),
-          endDate: safeCreateDate(info.endDate) || safeCreateDate(new Date().toISOString().split('T')[0]),
+          startDate: safeCreateDate(info.startDate) || safeCreateDate(formatLocalDate(new Date())),
+          endDate: safeCreateDate(info.endDate) || safeCreateDate(formatLocalDate(new Date())),
           endHour: info.endHour ?? 23,
           endMinute: info.endMinute ?? 59,
           notes: info.notes || '',

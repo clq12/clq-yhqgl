@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getWebDAVConfigFromRequest, WebDAVConfig } from "@/lib/config"
 import { initWebDAVClient } from "@/lib/webdav-client"
 import { getAllCoupons, saveCoupons } from "@/lib/webdav-storage"
-import { safeCreateDate, setLocalTime } from "@/lib/datetime-utils"
+import { safeCreateDate, setLocalTime, toLocalISOString, formatLocalDate } from "@/lib/datetime-utils"
 
 /**
  * 从环境变量获取配置（用于定时任务）
@@ -76,18 +76,18 @@ export async function POST(request: NextRequest) {
             // 处理日期（使用北京时间）
             const endHour = c.endHour ?? 23
             const endMinute = c.endMinute ?? 59
-            const startDate = safeCreateDate(c.startDate) || safeCreateDate(new Date().toISOString().split('T')[0])!
-            const endDate = safeCreateDate(c.endDate) || safeCreateDate(new Date().toISOString().split('T')[0])!
+            const startDate = safeCreateDate(c.startDate) || safeCreateDate(formatLocalDate(new Date()))!
+            const endDate = safeCreateDate(c.endDate) || safeCreateDate(formatLocalDate(new Date()))!
             const finalEndDate = setLocalTime(endDate, endHour, endMinute, 59, 999)
 
             return {
               ...c,
               id: c.id || crypto.randomUUID(),
-              startDate: startDate.toISOString().split('T')[0],
-              endDate: finalEndDate.toISOString(),
+              startDate: formatLocalDate(startDate),
+              endDate: toLocalISOString(finalEndDate),
               endHour: endHour,
               endMinute: endMinute,
-              createdAt: c.createdAt || new Date().toISOString(),
+              createdAt: c.createdAt || toLocalISOString(new Date()),
               isReminded: false,
               remindedDays: c.remindedDays || [],
               isUsed: c.isUsed ?? false,
@@ -105,18 +105,18 @@ export async function POST(request: NextRequest) {
           // 处理日期（使用北京时间）
           const endHour = c.endHour ?? 23
           const endMinute = c.endMinute ?? 59
-          const startDate = safeCreateDate(c.startDate) || safeCreateDate(new Date().toISOString().split('T')[0])!
-          const endDate = safeCreateDate(c.endDate) || safeCreateDate(new Date().toISOString().split('T')[0])!
+          const startDate = safeCreateDate(c.startDate) || safeCreateDate(formatLocalDate(new Date()))!
+          const endDate = safeCreateDate(c.endDate) || safeCreateDate(formatLocalDate(new Date()))!
           const finalEndDate = setLocalTime(endDate, endHour, endMinute, 59, 999)
 
           return {
             ...c,
             id: c.id || crypto.randomUUID(),
-            startDate: startDate.toISOString().split('T')[0],
-            endDate: finalEndDate.toISOString(),
+            startDate: formatLocalDate(startDate),
+            endDate: toLocalISOString(finalEndDate),
             endHour: endHour,
             endMinute: endMinute,
-            createdAt: c.createdAt || new Date().toISOString(),
+            createdAt: c.createdAt || toLocalISOString(new Date()),
             isReminded: false,
             remindedDays: c.remindedDays || [],
             isUsed: c.isUsed ?? false,
@@ -143,18 +143,18 @@ export async function POST(request: NextRequest) {
           // 处理日期（使用北京时间）
           const endHour = c.endHour ?? 23
           const endMinute = c.endMinute ?? 59
-          const startDate = safeCreateDate(c.startDate) || safeCreateDate(new Date().toISOString().split('T')[0])!
-          const endDate = safeCreateDate(c.endDate) || safeCreateDate(new Date().toISOString().split('T')[0])!
+          const startDate = safeCreateDate(c.startDate) || safeCreateDate(formatLocalDate(new Date()))!
+          const endDate = safeCreateDate(c.endDate) || safeCreateDate(formatLocalDate(new Date()))!
           const finalEndDate = setLocalTime(endDate, endHour, endMinute, 59, 999)
 
           return {
             ...c,
             id: crypto.randomUUID(), // 总是生成新ID
-            startDate: startDate.toISOString().split('T')[0],
-            endDate: finalEndDate.toISOString(),
+            startDate: formatLocalDate(startDate),
+            endDate: toLocalISOString(finalEndDate),
             endHour: endHour,
             endMinute: endMinute,
-            createdAt: new Date().toISOString(),
+            createdAt: toLocalISOString(new Date()),
             isReminded: false,
             remindedDays: c.remindedDays || [],
             isUsed: c.isUsed ?? false,

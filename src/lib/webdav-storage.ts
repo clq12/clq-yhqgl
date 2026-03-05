@@ -4,6 +4,7 @@ import {
   fileExists,
   createDirectory,
 } from "./webdav-client"
+import { toLocalISOString } from "./datetime-utils"
 
 const COUPONS_FILE = "/coupons/data.json"
 const BACKUP_DIR = "/coupons/backups"
@@ -56,7 +57,7 @@ export async function initStorage(): Promise<void> {
     if (!fileExistsResult) {
       const initialData: CouponData = {
         coupons: [],
-        lastModified: new Date().toISOString(),
+        lastModified: toLocalISOString(new Date()),
       }
       await writeFile(COUPONS_FILE, JSON.stringify(initialData, null, 2))
     }
@@ -93,7 +94,7 @@ export async function saveCoupons(coupons: Coupon[]): Promise<void> {
 
     const data: CouponData = {
       coupons,
-      lastModified: new Date().toISOString(),
+      lastModified: toLocalISOString(new Date()),
     }
     await writeFile(COUPONS_FILE, JSON.stringify(data, null, 2))
   } catch (error) {
@@ -134,7 +135,7 @@ export async function updateCoupon(id: string, updates: Partial<Coupon>): Promis
   coupons[index] = {
     ...coupons[index],
     ...updates,
-    updatedAt: new Date().toISOString(),
+    updatedAt: toLocalISOString(new Date()),
   }
 
   await saveCoupons(coupons)

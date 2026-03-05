@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import OpenAI from 'openai'
+import { toLocalISOString, formatLocalDate } from "@/lib/datetime-utils"
 
 /**
  * 使用ChatGPT视觉能力从图片中提取优惠券信息
@@ -183,7 +184,7 @@ async function extractWithChatGPT(imageDataUrl: string): Promise<NextResponse> {
     let coupons = parseExtractedJSON(raw)
 
     // 安全补字段：确保所有字段都有默认值
-    const today = new Date().toISOString().split('T')[0]
+    const today = formatLocalDate(new Date())
 
     const normalized = coupons.map((c: any) => ({
   id: crypto.randomUUID(),
@@ -201,8 +202,8 @@ async function extractWithChatGPT(imageDataUrl: string): Promise<NextResponse> {
   isReminded: false,
   remindedDays: [],
   isUsed: false,
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
+  createdAt: toLocalISOString(new Date()),
+  updatedAt: toLocalISOString(new Date()),
 }))
 
 return NextResponse.json({
@@ -267,7 +268,7 @@ function parseExtractedJSON(jsonText: string): Array<{
       discountType: coupon.discountType || null,
       discountAmount: coupon.discountAmount || null,
       fullAmount: coupon.fullAmount || null,
-      startDate: coupon.startDate || new Date().toISOString().split('T')[0],
+      startDate: coupon.startDate || formatLocalDate(new Date()),
       endDate: coupon.endDate || '',
       endHour: coupon.endHour || 23,
       endMinute: coupon.endMinute || 59,

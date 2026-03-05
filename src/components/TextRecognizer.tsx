@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import CouponPreviewDialog, { type PreviewCoupon } from "@/components/CouponPreviewDialog"
+import { toLocalISOString } from "@/lib/datetime-utils"
 
 export interface ExtractedCouponInfo {
   title?: string
@@ -205,7 +206,7 @@ export default function TextRecognizer({ onExtracted, onCancel, batchMode = fals
         discountAmount: info.discountAmount || 0,
         discountType: info.discountType || 'amount',
         fullAmount: info.fullAmount,
-        endDate: info.endDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        endDate: info.endDate || toLocalISOString(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
         endHour: info.endHour,
         endMinute: info.endMinute,
         storeName: info.storeName || '',

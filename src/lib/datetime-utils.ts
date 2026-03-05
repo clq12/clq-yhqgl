@@ -1,111 +1,129 @@
 /**
- * 日期时间工具函数（基于北京时间 UTC+8）
+ * datetime-utils.ts
+ * 全项目统一时间工具（固定为北京时间 UTC+8）
  */
 
+const BEIJING_OFFSET_MINUTES = 8 * 60
+const BEIJING_OFFSET_MS = BEIJING_OFFSET_MINUTES * 60 * 1000
+
 /**
- * 安全地创建Date对象（使用本地时间，避免时区问题）
- * @param dateStr 日期字符串或undefined
- * @returns Date对象
+ * 获取当前北京时间 Date 对象
  */
-export function safeCreateDate(dateStr: string | undefined): Date {
-  if (!dateStr) {
-    return new Date()
+export function getBeijingNow(): Date {
+  const now = new Date()
+  const offset = now.getTimezoneOffset() * 60 * 1000
+  return new Date(now.getTime() + offset + BEIJING_OFFSET_MS)
+}
+
+/**
+ * 将任意 Date 转换为北京时间 Date
+ */
+export function toBeijingDate(date: Date): Date {
+  const offset = date.getTimezoneOffset() * 60 * 1000
+  return new Date(date.getTime() + offset + BEIJING_OFFSET_MS)
+}
+
+/**
+ * 安全创建 Date
+ */
+export function safeCreateDate(input: any): Date | null {
+  if (!input) return null
+
+  if (input instanceof Date) {
+    return toBeijingDate(input)
   }
 
-  // 如果日期格式是 YYYY-MM-DD，使用本地时间解析（避免UTC时区问题）
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    const [year, month, day] = dateStr.split('-').map(Number)
-    return new Date(year, month - 1, day)
-  }
+  const d = new Date(input)
 
-  return new Date(dateStr)
+  if (isNaN(d.getTime())) return null
+
+  return toBeijingDate(d)
 }
 
 /**
- * 根据年月日时分秒创建Date对象（基于本地时间）
- * @param year 年
- * @param month 月（1-12）
- * @param day 日
- * @param hour 小时（0-23）
- * @param minute 分钟（0-59）
- * @param second 秒（0-59）
- * @param millisecond 毫秒（0-999）
- * @returns Date对象
- */
-export function createLocalDate(
-  year: number,
-  month: number,
-  day: number,
-  hour: number = 0,
-  minute: number = 0,
-  second: number = 0,
-  millisecond: number = 0
-): Date {
-  return new Date(year, month - 1, day, hour, minute, second, millisecond)
-}
-
-/**
- * 根据Date对象和指定的时分创建新的Date对象（基于本地时间）
- * @param date 原始Date对象
- * @param hour 小时（0-23）
- * @param minute 分钟（0-59）
- * @param second 秒（0-59）
- * @param millisecond 毫秒（0-999）
- * @returns 新的Date对象
- */
-export function setLocalTime(
-  date: Date,
-  hour: number = 0,
-  minute: number = 0,
-  second: number = 0,
-  millisecond: number = 0
-): Date {
-  return new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    date.getDate(),
-    hour,
-    minute,
-    second,
-    millisecond
-  )
-}
-
-/**
- * 将Date对象转换为ISO字符串（YYYY-MM-DDTHH:mm:ss.sssZ）
- * 使用本地时间，不转换为UTC
- * @param date Date对象
- * @returns ISO格式字符串
+ * 生成北京时间 ISO 字符串
+ * 格式: YYYY-MM-DDTHH:mm:ss.SSS+08:00
  */
 export function toLocalISOString(date: Date): string {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  const seconds = String(date.getSeconds()).padStart(2, '0')
-  const milliseconds = String(date.getMilliseconds()).padStart(3, '0')
+  const bj = toBeijingDate(date)
 
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${milliseconds}+08:00`
+  const year = bj.getFullYear()
+  const month = String(bj.getMonth() + 1).padStart(2, "0")
+  const day = String(bj.getDate()).padStart(2, "0")
+
+  const hours = String(bj.getHours()).padStart(2, "0")
+  const minutes = String(bj.getMinutes()).padStart(2, "0")
+  const seconds = String(bj.getSeconds()).padStart(2, "0")
+  const ms = String(bj.getMilliseconds()).padStart(3, "0")
+
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${ms}+08:00`
 }
 
 /**
- * 格式化日期为 YYYY-MM-DD 格式（基于本地时间）
- * @param date Date对象或日期字符串
- * @returns YYYY-MM-DD格式字符串
+ * 生成 YYYY-MM-DD
  */
-export function formatLocalDate(date: Date | string): string {
-  const d = typeof date === 'string' ? safeCreateDate(date) : date
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
+export function formatLocalDate(date: Date): string {
+  const bj = toBeijingDate(date)
+
+  const year = bj.getFullYear()
+  const month = String(bj.getMonth() + 1).padStart(2, "0")
+  const day = String(bj.getDate()).padStart(2, "0")
+
   return `${year}-${month}-${day}`
 }
 
 /**
- * 北京时间现在是几点
- * @returns 当前北京时间Date对象
+ * 设置日期时间（保持北京时间）
  */
-export function getBeijingTime(): Date {
-  return new Date()
+export function setLocalTime(
+  date: Date,
+  hour: number,
+  minute: number,
+  second: number = 0,
+  ms: number = 0
+): Date {
+  const bj = toBeijingDate(date)
+
+  bj.setHours(hour)
+  bj.setMinutes(minute)
+  bj.setSeconds(second)
+  bj.setMilliseconds(ms)
+
+  return bj
+}
+
+/**
+ * 计算两个日期相差天数
+ */
+export function diffDays(date1: Date, date2: Date): number {
+  const bj1 = toBeijingDate(date1)
+  const bj2 = toBeijingDate(date2)
+
+  const d1 = new Date(bj1.getFullYear(), bj1.getMonth(), bj1.getDate())
+  const d2 = new Date(bj2.getFullYear(), bj2.getMonth(), bj2.getDate())
+
+  const diff = d2.getTime() - d1.getTime()
+
+  return Math.floor(diff / (24 * 60 * 60 * 1000))
+}
+
+/**
+ * 是否同一天
+ */
+export function isSameDay(date1: Date, date2: Date): boolean {
+  const bj1 = toBeijingDate(date1)
+  const bj2 = toBeijingDate(date2)
+
+  return (
+    bj1.getFullYear() === bj2.getFullYear() &&
+    bj1.getMonth() === bj2.getMonth() &&
+    bj1.getDate() === bj2.getDate()
+  )
+}
+
+/**
+ * 今天 YYYY-MM-DD
+ */
+export function today(): string {
+  return formatLocalDate(getBeijingNow())
 }

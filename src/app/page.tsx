@@ -1468,15 +1468,23 @@ export default function Home() {
               const endHour = (coupon as any).endHour
               const endMinute = (coupon as any).endMinute ?? 59
 
-              if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
-                // 完整ISO格式
-                // 如果是UTC时间（以Z结尾），浏览器会自动转换为本地时区显示
-                // 如果是本地时间（不带Z），直接显示即可
-                const endDate = new Date(coupon.endDate)
-                endDateText = `${endDate.toLocaleDateString("zh-CN")} ${endDate.getHours().toString().padStart(2, '0')}:${endDate.getMinutes().toString().padStart(2, '0')}`
-              } else {
+              if (!coupon.endDate.includes('T') && !coupon.endDate.includes(' ')) {
                 // 纯日期格式，使用endHour和endMinute
-                endDateText = `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${endHour}:${endMinute.toString().padStart(2, '0')}`
+                const date = new Date(coupon.endDate)
+                endDateText = `${date.toLocaleDateString("zh-CN")} ${endHour}:${endMinute.toString().padStart(2, '0')}`
+              } else if (coupon.endDate.endsWith('Z')) {
+                // UTC时间（带Z后缀），转换为本地时间
+                const date = new Date(coupon.endDate)
+                endDateText = `${date.toLocaleDateString("zh-CN")} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+              } else {
+                // 带时区偏移的时间（如 +08:00），直接提取日期时间
+                const date = new Date(coupon.endDate)
+                const year = date.getFullYear()
+                const month = date.getMonth() + 1
+                const day = date.getDate()
+                const hours = date.getHours()
+                const minutes = date.getMinutes()
+                endDateText = `${year}/${month}/${day} ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
               }
 
               const discountText = getDiscountText(coupon)

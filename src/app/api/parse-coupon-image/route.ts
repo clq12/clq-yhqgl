@@ -186,30 +186,47 @@ async function extractWithChatGPT(imageDataUrl: string): Promise<NextResponse> {
     // 安全补字段：确保所有字段都有默认值
     const today = formatLocalDate(new Date())
 
-    const normalized = coupons.map((c: any) => ({
-  id: crypto.randomUUID(),
-  title: c.title ?? "",
-  description: c.description ?? "",
-  discountType: c.discountType ?? null,
-  discountAmount: c.discountAmount ?? null,
-  fullAmount: c.fullAmount ?? null,
-  startDate: c.startDate ?? today,
-  endDate: c.endDate ?? today,
-  endHour: c.endHour ?? 23,
-  endMinute: c.endMinute ?? 59,
-  notes: c.notes ?? null,
-  storeName: c.storeName ?? null,
-  isReminded: false,
-  remindedDays: [],
-  isUsed: false,
-  createdAt: toLocalISOString(new Date()),
-  updatedAt: toLocalISOString(new Date()),
-}))
+    const normalized = coupons.map((c: any) => {
+      // 处理startDate和endDate，移除Z后缀（如果是UTC时间）
+      let processedStartDate = c.startDate ?? today
+      let processedEndDate = c.endDate ?? today
 
-return NextResponse.json({
-  success: true,
-  data: {
-    coupons: normalized,
+      // 如果时间字符串带Z后缀（UTC时间），转换为北京时间格式
+      if (processedStartDate && processedStartDate.endsWith('Z')) {
+        const utcDate = new Date(processedStartDate)
+        processedStartDate = toLocalISOString(utcDate)
+      }
+
+      if (processedEndDate && processedEndDate.endsWith('Z')) {
+        const utcDate = new Date(processedEndDate)
+        processedEndDate = toLocalISOString(utcDate)
+      }
+
+      return {
+        id: crypto.randomUUID(),
+        title: c.title ?? "",
+        description: c.description ?? "",
+        discountType: c.discountType ?? null,
+        discountAmount: c.discountAmount ?? null,
+        fullAmount: c.fullAmount ?? null,
+        startDate: processedStartDate,
+        endDate: processedEndDate,
+        endHour: c.endHour ?? 23,
+        endMinute: c.endMinute ?? 59,
+        notes: c.notes ?? null,
+        storeName: c.storeName ?? null,
+        isReminded: false,
+        remindedDays: [],
+        isUsed: false,
+        createdAt: toLocalISOString(new Date()),
+        updatedAt: toLocalISOString(new Date()),
+      }
+    })
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        coupons: normalized,
     aiModel: 'chatgpt'
   }
 })

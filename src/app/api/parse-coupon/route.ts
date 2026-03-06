@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { LLMClient, Config } from 'coze-coding-dev-sdk'
+import { toLocalISOString } from "@/lib/datetime-utils"
 
 export interface ExtractedCouponInfo {
   title?: string
@@ -737,11 +738,13 @@ async function extractCouponInfoWithDoubao(text: string): Promise<ExtractedCoupo
 
 - startDate：
   - 文本中明确出现才填写
+  - 格式：YYYY-MM-DD（北京时间，不要带Z后缀）
   - 否则 null
 
 - endDate：
   - 到期或有效期描述
   - 相对时间（如 明天 / 后天12点）原样输出
+  - 格式：YYYY-MM-DD（北京时间，不要带Z后缀）
 
 - endHour：
   - 仅当文本中明确出现小时信息时填写
@@ -774,6 +777,20 @@ async function extractCouponInfoWithDoubao(text: string): Promise<ExtractedCoupo
     if (jsonMatch) {
       const parsedData = JSON.parse(jsonMatch[0])
 
+      // 处理时间格式，移除Z后缀（如果是UTC时间）
+      let processedEndDate = parsedData.endDate
+      let processedStartDate = parsedData.startDate
+
+      if (processedStartDate && processedStartDate.endsWith('Z')) {
+        const utcDate = new Date(processedStartDate)
+        processedStartDate = toLocalISOString(utcDate)
+      }
+
+      if (processedEndDate && processedEndDate.endsWith('Z')) {
+        const utcDate = new Date(processedEndDate)
+        processedEndDate = toLocalISOString(utcDate)
+      }
+
       // 验证和转换数据
       const result: ExtractedCouponInfo = {}
 
@@ -782,7 +799,8 @@ async function extractCouponInfoWithDoubao(text: string): Promise<ExtractedCoupo
       if (parsedData.description) result.description = parsedData.description
       if (parsedData.discountAmount) result.discountAmount = Number(parsedData.discountAmount)
       if (parsedData.fullAmount) result.fullAmount = Number(parsedData.fullAmount)
-      if (parsedData.endDate) result.endDate = parsedData.endDate
+      if (processedStartDate) result.startDate = processedStartDate
+      if (processedEndDate) result.endDate = processedEndDate
       if (parsedData.endHour) result.endHour = Number(parsedData.endHour)
       if (parsedData.endMinute) result.endMinute = Number(parsedData.endMinute)
 
@@ -907,11 +925,13 @@ async function extractCouponsWithDoubaoBatch(text: string): Promise<ExtractedCou
 
 - startDate：
   - 文本中明确出现才填写
+  - 格式：YYYY-MM-DD（北京时间，不要带Z后缀）
   - 否则 null
 
 - endDate：
   - 到期或有效期描述
   - 相对时间（如 明天 / 后天12点）原样输出
+  - 格式：YYYY-MM-DD（北京时间，不要带Z后缀）
 
 - endHour：
   - 仅当文本中明确出现小时信息时填写
@@ -974,6 +994,20 @@ async function extractCouponsWithDoubaoBatch(text: string): Promise<ExtractedCou
     // 转换为系统内部格式
     const results: ExtractedCouponInfo[] = []
     for (const item of parsedData) {
+      // 处理startDate和endDate，移除Z后缀（如果是UTC时间）
+      let processedStartDate = item.startDate
+      let processedEndDate = item.endDate
+
+      if (processedStartDate && processedStartDate.endsWith('Z')) {
+        const utcDate = new Date(processedStartDate)
+        processedStartDate = toLocalISOString(utcDate)
+      }
+
+      if (processedEndDate && processedEndDate.endsWith('Z')) {
+        const utcDate = new Date(processedEndDate)
+        processedEndDate = toLocalISOString(utcDate)
+      }
+
       const result: ExtractedCouponInfo = {
         aiModel: 'doubao',
         rawResponse: JSON.stringify(item),
@@ -984,8 +1018,8 @@ async function extractCouponsWithDoubaoBatch(text: string): Promise<ExtractedCou
       if (item.description) result.description = item.description
       if (item.notes) result.notes = item.notes
       if (item.storeName) result.storeName = item.storeName
-      if (item.startDate) result.startDate = item.startDate
-      if (item.endDate) result.endDate = item.endDate
+      if (processedStartDate) result.startDate = processedStartDate
+      if (processedEndDate) result.endDate = processedEndDate
 
       // 映射折扣类型
       if (item.discountType) {
@@ -1058,8 +1092,8 @@ async function extractCouponInfoWithChatGPT(text: string, apiKey?: string): Prom
 - discountType: "amount" | "percentage" | "full" | null - 折扣类型（满减/full，折扣/percentage，减免/amount）
 - discountAmount: number | null - 优惠金额（满减中的减金额、减免金额）
 - fullAmount: number | null - 满减中的满金额
-- startDate: string | null - 开始日期，格式YYYY-MM-DD
-- endDate: string | null - 到期日期，格式YYYY-MM-DD
+- startDate: string | null - 开始日期，格式YYYY-MM-DD（北京时间，不要带Z后缀）
+- endDate: string | null - 到期日期，格式YYYY-MM-DD（北京时间，不要带Z后缀）
 - endHour: number | null - 截止小时，0-23
 - endMinute: number | null - 截止分钟，0-59
 - storeName: string | null - 商家或平台名称（需要单独提取，不要只从title中取）
@@ -1134,6 +1168,20 @@ async function extractCouponInfoWithChatGPT(text: string, apiKey?: string): Prom
       }
     }
 
+    // 处理时间格式，移除Z后缀（如果是UTC时间）
+    let processedStartDate = parsedData.startDate
+    let processedEndDate = parsedData.endDate
+
+    if (processedStartDate && processedStartDate.endsWith('Z')) {
+      const utcDate = new Date(processedStartDate)
+      processedStartDate = toLocalISOString(utcDate)
+    }
+
+    if (processedEndDate && processedEndDate.endsWith('Z')) {
+      const utcDate = new Date(processedEndDate)
+      processedEndDate = toLocalISOString(utcDate)
+    }
+
     // 直接映射到结果
     const result: ExtractedCouponInfo = {
       title: parsedData.title,
@@ -1141,8 +1189,8 @@ async function extractCouponInfoWithChatGPT(text: string, apiKey?: string): Prom
       discountType: parsedData.discountType,
       discountAmount: parsedData.discountAmount,
       fullAmount: parsedData.fullAmount,
-      startDate: parsedData.startDate,
-      endDate: parsedData.endDate,
+      startDate: processedStartDate,
+      endDate: processedEndDate,
       endHour: parsedData.endHour,
       endMinute: parsedData.endMinute,
       storeName: parsedData.storeName,
@@ -1211,8 +1259,8 @@ async function extractCouponsWithChatGPTBatch(text: string, apiKey?: string): Pr
 - discountType: "amount" | "percentage" | "full" | null - 折扣类型（满减/full，折扣/percentage，减免/amount）
 - discountAmount: number | null - 优惠金额（满减中的减金额、减免金额）
 - fullAmount: number | null - 满减中的满金额
-- startDate: string | null - 开始日期，格式YYYY-MM-DD
-- endDate: string | null - 到期日期，格式YYYY-MM-DD
+- startDate: string | null - 开始日期，格式YYYY-MM-DD（北京时间，不要带Z后缀）
+- endDate: string | null - 到期日期，格式YYYY-MM-DD（北京时间，不要带Z后缀）
 - endHour: number | null - 截止小时，0-23
 - endMinute: number | null - 截止分钟，0-59
 - storeName: string | null - 商家或平台名称（需要单独提取，不要只从title中取）
@@ -1284,21 +1332,38 @@ async function extractCouponsWithChatGPTBatch(text: string, apiKey?: string): Pr
     }
 
     // 转换为系统格式
-    const results: ExtractedCouponInfo[] = parsedArray.map((item: any) => ({
-      title: item.title,
-      description: item.description,
-      discountType: item.discountType,
-      discountAmount: item.discountAmount,
-      fullAmount: item.fullAmount,
-      startDate: item.startDate,
-      endDate: item.endDate,
-      endHour: item.endHour,
-      endMinute: item.endMinute,
-      storeName: item.storeName,
-      notes: item.notes,
-      aiModel: 'chatgpt' as const,
-      rawResponse: JSON.stringify(item),
-    }))
+    const results: ExtractedCouponInfo[] = parsedArray.map((item: any) => {
+      // 处理startDate和endDate，移除Z后缀（如果是UTC时间）
+      let processedStartDate = item.startDate
+      let processedEndDate = item.endDate
+
+      // 如果时间字符串带Z后缀（UTC时间），转换为北京时间格式
+      if (processedStartDate && processedStartDate.endsWith('Z')) {
+        const utcDate = new Date(processedStartDate)
+        processedStartDate = toLocalISOString(utcDate)
+      }
+
+      if (processedEndDate && processedEndDate.endsWith('Z')) {
+        const utcDate = new Date(processedEndDate)
+        processedEndDate = toLocalISOString(utcDate)
+      }
+
+      return {
+        title: item.title,
+        description: item.description,
+        discountType: item.discountType,
+        discountAmount: item.discountAmount,
+        fullAmount: item.fullAmount,
+        startDate: processedStartDate,
+        endDate: processedEndDate,
+        endHour: item.endHour,
+        endMinute: item.endMinute,
+        storeName: item.storeName,
+        notes: item.notes,
+        aiModel: 'chatgpt' as const,
+        rawResponse: JSON.stringify(item),
+      }
+    })
 
     console.log('【ChatGPT批量识别】解析结果:', results)
 

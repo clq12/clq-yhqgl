@@ -1477,13 +1477,14 @@ export default function Home() {
                 const date = new Date(coupon.endDate)
                 endDateText = `${date.toLocaleDateString("zh-CN")} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
               } else {
-                // 带时区偏移的时间（如 +08:00），直接提取日期时间
+                // 带时区偏移的时间（如 2026-03-10T23:59:00.000+08:00），使用UTC方法获取原始时间
+                // 这样可以避免浏览器时区设置的影响
                 const date = new Date(coupon.endDate)
-                const year = date.getFullYear()
-                const month = date.getMonth() + 1
-                const day = date.getDate()
-                const hours = date.getHours()
-                const minutes = date.getMinutes()
+                const year = date.getUTCFullYear()
+                const month = date.getUTCMonth() + 1
+                const day = date.getUTCDate()
+                const hours = date.getUTCHours()
+                const minutes = date.getUTCMinutes()
                 endDateText = `${year}/${month}/${day} ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
               }
 
@@ -1675,15 +1676,24 @@ export default function Home() {
                       const endHour = (coupon as any).endHour
                       const endMinute = (coupon as any).endMinute ?? 59
 
-                      if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
-                        // 完整ISO格式，直接格式化
-                        const endDate = new Date(coupon.endDate)
-                        // 如果是UTC时间，需要转换为北京时间
-                        const beijingTime = new Date(endDate.getTime() + 8 * 60 * 60 * 1000)
-                        endDateText = `${beijingTime.toLocaleDateString("zh-CN")} ${beijingTime.getHours().toString().padStart(2, '0')}:${beijingTime.getMinutes().toString().padStart(2, '0')}`
-                      } else {
+                      if (!coupon.endDate.includes('T') && !coupon.endDate.includes(' ')) {
                         // 纯日期格式，使用endHour和endMinute
-                        endDateText = `${new Date(coupon.endDate).toLocaleDateString("zh-CN")} ${endHour}:${endMinute.toString().padStart(2, '0')}`
+                        const date = new Date(coupon.endDate)
+                        endDateText = `${date.toLocaleDateString("zh-CN")} ${endHour}:${endMinute.toString().padStart(2, '0')}`
+                      } else if (coupon.endDate.endsWith('Z')) {
+                        // UTC时间（带Z后缀），转换为本地时间
+                        const date = new Date(coupon.endDate)
+                        endDateText = `${date.toLocaleDateString("zh-CN")} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+                      } else {
+                        // 带时区偏移的时间（如 2026-03-10T23:59:00.000+08:00），使用UTC方法获取原始时间
+                        // 这样可以避免浏览器时区设置的影响
+                        const date = new Date(coupon.endDate)
+                        const year = date.getUTCFullYear()
+                        const month = date.getUTCMonth() + 1
+                        const day = date.getUTCDate()
+                        const hours = date.getUTCHours()
+                        const minutes = date.getUTCMinutes()
+                        endDateText = `${year}/${month}/${day} ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
                       }
 
                       const discountText = getDiscountText(coupon)

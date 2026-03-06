@@ -534,18 +534,12 @@ export default function Home() {
     }
   }
 
-  // 计算剩余天数和小时数（使用北京时间 UTC+8）
+  // 计算剩余天数（使用北京时间 UTC+8）
   const getDaysRemaining = (coupon: Coupon) => {
     // 验证截止日期是否存在
     if (!coupon.endDate) {
       return 0
     }
-
-    // 获取当前北京时间
-    const beijingNow = new Date()
-    const timezoneOffset = beijingNow.getTimezoneOffset() // 本地时区偏移（分钟）
-    const beijingTime = new Date(beijingNow.getTime() + timezoneOffset * 60 * 1000 + 8 * 60 * 60 * 1000)
-    const beijingNowTimestamp = beijingTime.getTime()
 
     // 解析截止日期（北京时间）
     let beijingEndTime: Date
@@ -553,13 +547,13 @@ export default function Home() {
     if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
       // 完整ISO格式
       if (coupon.endDate.endsWith('Z')) {
-        // UTC时间，转换为北京时间
+        // UTC时间，转换为北京时间（+8小时）
         const utcTime = new Date(coupon.endDate)
         beijingEndTime = new Date(utcTime.getTime() + 8 * 60 * 60 * 1000)
       } else if (coupon.endDate.includes('+')) {
-        // 带时区偏移的时间，直接解析为Date对象，然后获取原始时间（不需要转换）
-        const parsed = new Date(coupon.endDate)
+        // 带时区偏移的时间（如 2026-03-11T23:59:00.000+08:00）
         // 使用UTC方法获取原始时间，构建北京时间Date对象
+        const parsed = new Date(coupon.endDate)
         beijingEndTime = new Date(
           Date.UTC(
             parsed.getUTCFullYear(),
@@ -574,6 +568,7 @@ export default function Home() {
       } else {
         // 没有时区信息，假设是本地时间，转换为北京时间
         beijingEndTime = new Date(coupon.endDate)
+        const timezoneOffset = beijingEndTime.getTimezoneOffset()
         beijingEndTime = new Date(beijingEndTime.getTime() + timezoneOffset * 60 * 1000 + 8 * 60 * 60 * 1000)
       }
     } else {
@@ -596,8 +591,15 @@ export default function Home() {
       return 0
     }
 
-    // 计算时间差（毫秒）
-    const diff = beijingEndTimestamp - beijingNowTimestamp
+    // 添加调试信息
+    console.log(`[getDaysRemaining] 优惠券: ${coupon.title}`)
+    console.log(`  截止日期字符串: ${coupon.endDate}`)
+    console.log(`  截止时间(北京时间): ${beijingEndTime.toISOString()}, 时间戳: ${beijingEndTimestamp}`)
+    console.log(`  当前时间(UTC): ${new Date().toISOString()}, 时间戳: ${Date.now()}`)
+
+    // 计算时间差（毫秒）：截止时间戳 - 当前UTC时间戳 - 8小时偏移
+    // 因为截止时间戳是北京时间，当前时间是UTC时间，所以需要减去8小时的偏移
+    const diff = beijingEndTimestamp - (Date.now() + 8 * 60 * 60 * 1000)
 
     // 验证计算结果是否有效
     if (isNaN(diff) || !isFinite(diff)) {
@@ -605,6 +607,7 @@ export default function Home() {
     }
 
     const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+    console.log(`  时间差(ms): ${diff}, 天数: ${days}`)
     return days
   }
 
@@ -615,25 +618,19 @@ export default function Home() {
       return 0
     }
 
-    // 获取当前北京时间
-    const beijingNow = new Date()
-    const timezoneOffset = beijingNow.getTimezoneOffset() // 本地时区偏移（分钟）
-    const beijingTime = new Date(beijingNow.getTime() + timezoneOffset * 60 * 1000 + 8 * 60 * 60 * 1000)
-    const beijingNowTimestamp = beijingTime.getTime()
-
     // 解析截止日期（北京时间）
     let beijingEndTime: Date
 
     if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
       // 完整ISO格式
       if (coupon.endDate.endsWith('Z')) {
-        // UTC时间，转换为北京时间
+        // UTC时间，转换为北京时间（+8小时）
         const utcTime = new Date(coupon.endDate)
         beijingEndTime = new Date(utcTime.getTime() + 8 * 60 * 60 * 1000)
       } else if (coupon.endDate.includes('+')) {
-        // 带时区偏移的时间，直接解析为Date对象，然后获取原始时间（不需要转换）
-        const parsed = new Date(coupon.endDate)
+        // 带时区偏移的时间（如 2026-03-11T23:59:00.000+08:00）
         // 使用UTC方法获取原始时间，构建北京时间Date对象
+        const parsed = new Date(coupon.endDate)
         beijingEndTime = new Date(
           Date.UTC(
             parsed.getUTCFullYear(),
@@ -648,6 +645,7 @@ export default function Home() {
       } else {
         // 没有时区信息，假设是本地时间，转换为北京时间
         beijingEndTime = new Date(coupon.endDate)
+        const timezoneOffset = beijingEndTime.getTimezoneOffset()
         beijingEndTime = new Date(beijingEndTime.getTime() + timezoneOffset * 60 * 1000 + 8 * 60 * 60 * 1000)
       }
     } else {
@@ -670,8 +668,8 @@ export default function Home() {
       return 0
     }
 
-    // 计算时间差（毫秒）
-    const diff = beijingEndTimestamp - beijingNowTimestamp
+    // 计算时间差（毫秒）：截止时间戳 - 当前UTC时间戳 - 8小时偏移
+    const diff = beijingEndTimestamp - (Date.now() + 8 * 60 * 60 * 1000)
 
     // 验证计算结果是否有效
     if (isNaN(diff) || !isFinite(diff)) {
@@ -690,25 +688,19 @@ export default function Home() {
       return "截止日期无效"
     }
 
-    // 获取当前北京时间
-    const beijingNow = new Date()
-    const timezoneOffset = beijingNow.getTimezoneOffset() // 本地时区偏移（分钟）
-    const beijingTime = new Date(beijingNow.getTime() + timezoneOffset * 60 * 1000 + 8 * 60 * 60 * 1000)
-    const beijingNowTimestamp = beijingTime.getTime()
-
     // 解析截止日期（北京时间）
     let beijingEndTime: Date
 
     if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
       // 完整ISO格式
       if (coupon.endDate.endsWith('Z')) {
-        // UTC时间，转换为北京时间
+        // UTC时间，转换为北京时间（+8小时）
         const utcTime = new Date(coupon.endDate)
         beijingEndTime = new Date(utcTime.getTime() + 8 * 60 * 60 * 1000)
       } else if (coupon.endDate.includes('+')) {
-        // 带时区偏移的时间，直接解析为Date对象，然后获取原始时间（不需要转换）
-        const parsed = new Date(coupon.endDate)
+        // 带时区偏移的时间（如 2026-03-11T23:59:00.000+08:00）
         // 使用UTC方法获取原始时间，构建北京时间Date对象
+        const parsed = new Date(coupon.endDate)
         beijingEndTime = new Date(
           Date.UTC(
             parsed.getUTCFullYear(),
@@ -723,6 +715,7 @@ export default function Home() {
       } else {
         // 没有时区信息，假设是本地时间，转换为北京时间
         beijingEndTime = new Date(coupon.endDate)
+        const timezoneOffset = beijingEndTime.getTimezoneOffset()
         beijingEndTime = new Date(beijingEndTime.getTime() + timezoneOffset * 60 * 1000 + 8 * 60 * 60 * 1000)
       }
     } else {
@@ -740,12 +733,13 @@ export default function Home() {
     const beijingEndTimestamp = beijingEndTime.getTime()
 
     // 验证时间戳是否有效
-    if (isNaN(beijingEndTimestamp) || isNaN(beijingNowTimestamp)) {
-      console.error(`无效的时间戳: beijingNowTimestamp=${beijingNowTimestamp}, beijingEndTimestamp=${beijingEndTimestamp}`)
+    if (isNaN(beijingEndTimestamp)) {
+      console.error(`无效的时间戳: beijingEndTimestamp=${beijingEndTimestamp}`)
       return "时间计算错误"
     }
 
-    const diff = beijingEndTimestamp - beijingNowTimestamp
+    // 计算时间差（毫秒）：截止时间戳 - 当前UTC时间戳 - 8小时偏移
+    const diff = beijingEndTimestamp - (Date.now() + 8 * 60 * 60 * 1000)
     const totalHours = diff / (1000 * 60 * 60)
 
     // 验证计算结果是否有效

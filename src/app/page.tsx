@@ -1479,28 +1479,31 @@ export default function Home() {
               const expiringSoon = isExpiringSoon(coupon) && !expired
 
               // 计算准确的截止日期文本（考虑时区）
-              let endDateText: string
-              const endHour = (coupon as any).endHour
-              const endMinute = (coupon as any).endMinute ?? 59
+              let endDateText: string = "无截止日期"
 
-              if (!coupon.endDate.includes('T') && !coupon.endDate.includes(' ')) {
-                // 纯日期格式，使用endHour和endMinute
-                const date = new Date(coupon.endDate)
-                endDateText = `${date.toLocaleDateString("zh-CN")} ${endHour}:${endMinute.toString().padStart(2, '0')}`
-              } else if (coupon.endDate.endsWith('Z')) {
-                // UTC时间（带Z后缀），转换为本地时间
-                const date = new Date(coupon.endDate)
-                endDateText = `${date.toLocaleDateString("zh-CN")} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
-              } else {
-                // 带时区偏移的时间（如 2026-03-10T23:59:00.000+08:00），使用UTC方法获取原始时间
-                // 这样可以避免浏览器时区设置的影响
-                const date = new Date(coupon.endDate)
-                const year = date.getUTCFullYear()
-                const month = date.getUTCMonth() + 1
-                const day = date.getUTCDate()
-                const hours = date.getUTCHours()
-                const minutes = date.getUTCMinutes()
-                endDateText = `${year}/${month}/${day} ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+              if (coupon.endDate) {
+                const endHour = (coupon as any).endHour
+                const endMinute = (coupon as any).endMinute ?? 59
+
+                if (!coupon.endDate.includes('T') && !coupon.endDate.includes(' ')) {
+                  // 纯日期格式，使用endHour和endMinute
+                  const date = new Date(coupon.endDate)
+                  endDateText = `${date.toLocaleDateString("zh-CN")} ${endHour}:${endMinute.toString().padStart(2, '0')}`
+                } else if (coupon.endDate.endsWith('Z')) {
+                  // UTC时间（带Z后缀），转换为本地时间
+                  const date = new Date(coupon.endDate)
+                  endDateText = `${date.toLocaleDateString("zh-CN")} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+                } else {
+                  // 带时区偏移的时间（如 2026-03-10T23:59:00.000+08:00），使用UTC方法获取原始时间
+                  // 这样可以避免浏览器时区设置的影响
+                  const date = new Date(coupon.endDate)
+                  const year = date.getUTCFullYear()
+                  const month = date.getUTCMonth() + 1
+                  const day = date.getUTCDate()
+                  const hours = date.getUTCHours()
+                  const minutes = date.getUTCMinutes()
+                  endDateText = `${year}/${month}/${day} ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+                }
               }
 
               const discountText = getDiscountText(coupon)
@@ -1687,28 +1690,31 @@ export default function Home() {
                   <div className="space-y-4">
                     {coupons.filter((c) => (c as any).isUsed).map((coupon) => {
                       // 计算准确的截止日期文本（考虑时区）
-                      let endDateText: string
-                      const endHour = (coupon as any).endHour
-                      const endMinute = (coupon as any).endMinute ?? 59
+                      let endDateText: string = "无截止日期"
 
-                      if (!coupon.endDate.includes('T') && !coupon.endDate.includes(' ')) {
-                        // 纯日期格式，使用endHour和endMinute
-                        const date = new Date(coupon.endDate)
-                        endDateText = `${date.toLocaleDateString("zh-CN")} ${endHour}:${endMinute.toString().padStart(2, '0')}`
-                      } else if (coupon.endDate.endsWith('Z')) {
-                        // UTC时间（带Z后缀），转换为本地时间
-                        const date = new Date(coupon.endDate)
-                        endDateText = `${date.toLocaleDateString("zh-CN")} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
-                      } else {
-                        // 带时区偏移的时间（如 2026-03-10T23:59:00.000+08:00），使用UTC方法获取原始时间
-                        // 这样可以避免浏览器时区设置的影响
-                        const date = new Date(coupon.endDate)
-                        const year = date.getUTCFullYear()
-                        const month = date.getUTCMonth() + 1
-                        const day = date.getUTCDate()
-                        const hours = date.getUTCHours()
-                        const minutes = date.getUTCMinutes()
-                        endDateText = `${year}/${month}/${day} ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+                      if (coupon.endDate) {
+                        const endHour = (coupon as any).endHour
+                        const endMinute = (coupon as any).endMinute ?? 59
+
+                        if (!coupon.endDate.includes('T') && !coupon.endDate.includes(' ')) {
+                          // 纯日期格式，使用endHour和endMinute
+                          const date = new Date(coupon.endDate)
+                          endDateText = `${date.toLocaleDateString("zh-CN")} ${endHour}:${endMinute.toString().padStart(2, '0')}`
+                        } else if (coupon.endDate.endsWith('Z')) {
+                          // UTC时间（带Z后缀），转换为本地时间
+                          const date = new Date(coupon.endDate)
+                          endDateText = `${date.toLocaleDateString("zh-CN")} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`
+                        } else {
+                          // 带时区偏移的时间（如 2026-03-10T23:59:00.000+08:00），使用UTC方法获取原始时间
+                          // 这样可以避免浏览器时区设置的影响
+                          const date = new Date(coupon.endDate)
+                          const year = date.getUTCFullYear()
+                          const month = date.getUTCMonth() + 1
+                          const day = date.getUTCDate()
+                          const hours = date.getUTCHours()
+                          const minutes = date.getUTCMinutes()
+                          endDateText = `${year}/${month}/${day} ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
+                        }
                       }
 
                       const discountText = getDiscountText(coupon)

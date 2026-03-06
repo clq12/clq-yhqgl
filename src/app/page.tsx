@@ -591,12 +591,6 @@ export default function Home() {
       return 0
     }
 
-    // 添加调试信息
-    console.log(`[getDaysRemaining] 优惠券: ${coupon.title}`)
-    console.log(`  截止日期字符串: ${coupon.endDate}`)
-    console.log(`  截止时间(北京时间): ${beijingEndTime.toISOString()}, 时间戳: ${beijingEndTimestamp}`)
-    console.log(`  当前时间(UTC): ${new Date().toISOString()}, 时间戳: ${Date.now()}`)
-
     // 计算时间差（毫秒）：截止时间戳 - 当前UTC时间戳 - 8小时偏移
     // 因为截止时间戳是北京时间，当前时间是UTC时间，所以需要减去8小时的偏移
     const diff = beijingEndTimestamp - (Date.now() + 8 * 60 * 60 * 1000)
@@ -607,7 +601,6 @@ export default function Home() {
     }
 
     const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-    console.log(`  时间差(ms): ${diff}, 天数: ${days}`)
     return days
   }
 

@@ -534,60 +534,70 @@ export default function Home() {
     }
   }
 
-  // 计算剩余天数和小时数（考虑endHour和endMinute，使用北京时间 UTC+8）
+  // 计算剩余天数和小时数（使用北京时间 UTC+8）
   const getDaysRemaining = (coupon: Coupon) => {
-    const now = new Date()
-
     // 验证截止日期是否存在
     if (!coupon.endDate) {
       return 0
     }
 
-    // 解析截止日期
-    let endDate: Date
+    // 获取当前北京时间
+    const beijingNow = new Date()
+    const timezoneOffset = beijingNow.getTimezoneOffset() // 本地时区偏移（分钟）
+    const beijingTime = new Date(beijingNow.getTime() + timezoneOffset * 60 * 1000 + 8 * 60 * 60 * 1000)
+    const beijingNowTimestamp = beijingTime.getTime()
 
-    // 检查日期是否已经包含时间部分（完整的ISO格式）
+    // 解析截止日期（北京时间）
+    let beijingEndTime: Date
+
     if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
-      // 完整ISO格式，需要检查是否有时区信息
+      // 完整ISO格式
       if (coupon.endDate.endsWith('Z')) {
-        // 有时区信息（UTC），直接使用
-        endDate = new Date(coupon.endDate)
+        // UTC时间，转换为北京时间
+        const utcTime = new Date(coupon.endDate)
+        beijingEndTime = new Date(utcTime.getTime() + 8 * 60 * 60 * 1000)
+      } else if (coupon.endDate.includes('+')) {
+        // 带时区偏移的时间，直接解析为Date对象，然后获取原始时间（不需要转换）
+        const parsed = new Date(coupon.endDate)
+        // 使用UTC方法获取原始时间，构建北京时间Date对象
+        beijingEndTime = new Date(
+          Date.UTC(
+            parsed.getUTCFullYear(),
+            parsed.getUTCMonth(),
+            parsed.getUTCDate(),
+            parsed.getUTCHours(),
+            parsed.getUTCMinutes(),
+            parsed.getUTCSeconds(),
+            parsed.getUTCMilliseconds()
+          )
+        )
       } else {
-        // 没有时区信息，new Date() 已经按本地时间（北京时间）解析了，不需要再转换
-        // 直接使用即可，它会自动转换为UTC时间戳进行比较
-        endDate = new Date(coupon.endDate)
+        // 没有时区信息，假设是本地时间，转换为北京时间
+        beijingEndTime = new Date(coupon.endDate)
+        beijingEndTime = new Date(beijingEndTime.getTime() + timezoneOffset * 60 * 1000 + 8 * 60 * 60 * 1000)
       }
     } else {
-      // 纯日期格式，添加时间部分
-      endDate = new Date(coupon.endDate + 'T00:00:00Z')
-
-      // 获取截止时间的小时和分钟（只对纯日期格式添加）
+      // 纯日期格式，使用endHour和endMinute
+      const dateParts = coupon.endDate.split(/[-/]/)
+      const year = parseInt(dateParts[0])
+      const month = parseInt(dateParts[1]) - 1
+      const day = parseInt(dateParts[2])
       const endHour = (coupon as any).endHour ?? 23
       const endMinute = (coupon as any).endMinute ?? 59
 
-      // 设置截止时间（UTC时间）
-      // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
-      let utcHour = endHour - 8
-      if (utcHour < 0) {
-        utcHour += 24
-        endDate.setDate(endDate.getDate() - 1)
-      }
-      endDate.setUTCHours(utcHour, endMinute, 0, 0)
+      beijingEndTime = new Date(Date.UTC(year, month, day, endHour, endMinute, 0, 0))
     }
 
+    const beijingEndTimestamp = beijingEndTime.getTime()
+
     // 验证日期解析是否成功
-    if (isNaN(endDate.getTime())) {
+    if (isNaN(beijingEndTime.getTime())) {
       console.error(`无效的截止日期: ${coupon.endDate}`)
       return 0
     }
 
-    // 当前时间（UTC）
-    const nowUTC = now.getTime()
-
-    // 截止时间（UTC）
-    const endTimeUTC = endDate.getTime()
-
-    const diff = endTimeUTC - nowUTC
+    // 计算时间差（毫秒）
+    const diff = beijingEndTimestamp - beijingNowTimestamp
 
     // 验证计算结果是否有效
     if (isNaN(diff) || !isFinite(diff)) {
@@ -598,61 +608,70 @@ export default function Home() {
     return days
   }
 
-  // 获取剩余小时数（用于更精确的排序，使用北京时间 UTC+8）
+  // 获取剩余小时数（使用北京时间 UTC+8）
   const getRemainingHours = (coupon: Coupon) => {
-    const now = new Date()
-
     // 验证截止日期是否存在
     if (!coupon.endDate) {
-      console.error(`优惠券 "${coupon.title}" 没有截止日期`)
       return 0
     }
 
-    // 解析截止日期
-    let endDate: Date
+    // 获取当前北京时间
+    const beijingNow = new Date()
+    const timezoneOffset = beijingNow.getTimezoneOffset() // 本地时区偏移（分钟）
+    const beijingTime = new Date(beijingNow.getTime() + timezoneOffset * 60 * 1000 + 8 * 60 * 60 * 1000)
+    const beijingNowTimestamp = beijingTime.getTime()
 
-    // 检查日期是否已经包含时间部分（完整的ISO格式）
+    // 解析截止日期（北京时间）
+    let beijingEndTime: Date
+
     if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
-      // 完整ISO格式，需要检查是否有时区信息
+      // 完整ISO格式
       if (coupon.endDate.endsWith('Z')) {
-        // 有时区信息（UTC），直接使用
-        endDate = new Date(coupon.endDate)
+        // UTC时间，转换为北京时间
+        const utcTime = new Date(coupon.endDate)
+        beijingEndTime = new Date(utcTime.getTime() + 8 * 60 * 60 * 1000)
+      } else if (coupon.endDate.includes('+')) {
+        // 带时区偏移的时间，直接解析为Date对象，然后获取原始时间（不需要转换）
+        const parsed = new Date(coupon.endDate)
+        // 使用UTC方法获取原始时间，构建北京时间Date对象
+        beijingEndTime = new Date(
+          Date.UTC(
+            parsed.getUTCFullYear(),
+            parsed.getUTCMonth(),
+            parsed.getUTCDate(),
+            parsed.getUTCHours(),
+            parsed.getUTCMinutes(),
+            parsed.getUTCSeconds(),
+            parsed.getUTCMilliseconds()
+          )
+        )
       } else {
-        // 没有时区信息，new Date() 已经按本地时间（北京时间）解析了，不需要再转换
-        // 直接使用即可，它会自动转换为UTC时间戳进行比较
-        endDate = new Date(coupon.endDate)
+        // 没有时区信息，假设是本地时间，转换为北京时间
+        beijingEndTime = new Date(coupon.endDate)
+        beijingEndTime = new Date(beijingEndTime.getTime() + timezoneOffset * 60 * 1000 + 8 * 60 * 60 * 1000)
       }
     } else {
-      // 纯日期格式，添加时间部分
-      endDate = new Date(coupon.endDate + 'T00:00:00Z')
-
-      // 获取截止时间的小时和分钟（只对纯日期格式添加）
+      // 纯日期格式，使用endHour和endMinute
+      const dateParts = coupon.endDate.split(/[-/]/)
+      const year = parseInt(dateParts[0])
+      const month = parseInt(dateParts[1]) - 1
+      const day = parseInt(dateParts[2])
       const endHour = (coupon as any).endHour ?? 23
       const endMinute = (coupon as any).endMinute ?? 59
 
-      // 设置截止时间（UTC时间）
-      // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
-      let utcHour = endHour - 8
-      if (utcHour < 0) {
-        utcHour += 24
-        endDate.setDate(endDate.getDate() - 1)
-      }
-      endDate.setUTCHours(utcHour, endMinute, 0, 0)
+      beijingEndTime = new Date(Date.UTC(year, month, day, endHour, endMinute, 0, 0))
     }
 
+    const beijingEndTimestamp = beijingEndTime.getTime()
+
     // 验证日期解析是否成功
-    if (isNaN(endDate.getTime())) {
+    if (isNaN(beijingEndTime.getTime())) {
       console.error(`无效的截止日期: ${coupon.endDate}`)
       return 0
     }
 
-    // 当前时间（UTC）
-    const nowUTC = now.getTime()
-
-    // 截止时间（UTC）
-    const endTimeUTC = endDate.getTime()
-
-    const diff = endTimeUTC - nowUTC
+    // 计算时间差（毫秒）
+    const diff = beijingEndTimestamp - beijingNowTimestamp
 
     // 验证计算结果是否有效
     if (isNaN(diff) || !isFinite(diff)) {
@@ -666,58 +685,67 @@ export default function Home() {
 
   // 获取精确到小时的剩余时间文本（使用北京时间 UTC+8）
   const getRemainingTimeText = (coupon: Coupon) => {
-    const now = new Date()
-
     // 验证截止日期是否存在
     if (!coupon.endDate) {
       return "截止日期无效"
     }
 
-    // 解析截止日期
-    let endDate: Date
+    // 获取当前北京时间
+    const beijingNow = new Date()
+    const timezoneOffset = beijingNow.getTimezoneOffset() // 本地时区偏移（分钟）
+    const beijingTime = new Date(beijingNow.getTime() + timezoneOffset * 60 * 1000 + 8 * 60 * 60 * 1000)
+    const beijingNowTimestamp = beijingTime.getTime()
 
-    // 检查日期是否已经包含时间部分（完整的ISO格式）
+    // 解析截止日期（北京时间）
+    let beijingEndTime: Date
+
     if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
-      // 完整ISO格式，需要检查是否有时区信息
+      // 完整ISO格式
       if (coupon.endDate.endsWith('Z')) {
-        // 有时区信息（UTC），直接使用
-        endDate = new Date(coupon.endDate)
+        // UTC时间，转换为北京时间
+        const utcTime = new Date(coupon.endDate)
+        beijingEndTime = new Date(utcTime.getTime() + 8 * 60 * 60 * 1000)
+      } else if (coupon.endDate.includes('+')) {
+        // 带时区偏移的时间，直接解析为Date对象，然后获取原始时间（不需要转换）
+        const parsed = new Date(coupon.endDate)
+        // 使用UTC方法获取原始时间，构建北京时间Date对象
+        beijingEndTime = new Date(
+          Date.UTC(
+            parsed.getUTCFullYear(),
+            parsed.getUTCMonth(),
+            parsed.getUTCDate(),
+            parsed.getUTCHours(),
+            parsed.getUTCMinutes(),
+            parsed.getUTCSeconds(),
+            parsed.getUTCMilliseconds()
+          )
+        )
       } else {
-        // 没有时区信息，new Date() 已经按本地时间（北京时间）解析了，不需要再转换
-        // 直接使用即可，它会自动转换为UTC时间戳进行比较
-        endDate = new Date(coupon.endDate)
+        // 没有时区信息，假设是本地时间，转换为北京时间
+        beijingEndTime = new Date(coupon.endDate)
+        beijingEndTime = new Date(beijingEndTime.getTime() + timezoneOffset * 60 * 1000 + 8 * 60 * 60 * 1000)
       }
     } else {
-      // 纯日期格式，添加时间部分
-      endDate = new Date(coupon.endDate + 'T00:00:00Z')
-
-      // 获取截止时间的小时和分钟
-      const endHour = (coupon as any).endHour
+      // 纯日期格式，使用endHour和endMinute
+      const dateParts = coupon.endDate.split(/[-/]/)
+      const year = parseInt(dateParts[0])
+      const month = parseInt(dateParts[1]) - 1
+      const day = parseInt(dateParts[2])
+      const endHour = (coupon as any).endHour ?? 23
       const endMinute = (coupon as any).endMinute ?? 59
 
-      // 设置截止时间（UTC时间）
-      // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
-      let utcHour = (endHour ?? 23) - 8
-      if (utcHour < 0) {
-        utcHour += 24
-        endDate.setDate(endDate.getDate() - 1)
-      }
-      endDate.setUTCHours(utcHour, endMinute, 0, 0)
+      beijingEndTime = new Date(Date.UTC(year, month, day, endHour, endMinute, 0, 0))
     }
 
-    // 当前时间（UTC）
-    const nowUTC = now.getTime()
-
-    // 截止时间（UTC）
-    const endTimeUTC = endDate.getTime()
+    const beijingEndTimestamp = beijingEndTime.getTime()
 
     // 验证时间戳是否有效
-    if (isNaN(nowUTC) || isNaN(endTimeUTC)) {
-      console.error(`无效的时间戳: nowUTC=${nowUTC}, endTimeUTC=${endTimeUTC}`)
+    if (isNaN(beijingEndTimestamp) || isNaN(beijingNowTimestamp)) {
+      console.error(`无效的时间戳: beijingNowTimestamp=${beijingNowTimestamp}, beijingEndTimestamp=${beijingEndTimestamp}`)
       return "时间计算错误"
     }
-    
-    const diff = endTimeUTC - nowUTC
+
+    const diff = beijingEndTimestamp - beijingNowTimestamp
     const totalHours = diff / (1000 * 60 * 60)
 
     // 验证计算结果是否有效

@@ -44,14 +44,24 @@ function extractDatePart(dateStr: string | undefined): string {
   return dateStr
 }
 
-// 辅助函数：从ISO字符串中提取小时和分钟
+// 辅助函数：从ISO字符串中提取小时和分钟（转换为北京时间）
 function extractTimeParts(dateStr: string | undefined): { hour: number, minute: number } {
   if (!dateStr || !dateStr.includes('T')) {
     return { hour: 23, minute: 59 }
   }
   
   try {
-    // 提取时间部分，例如：2026-03-31T23:59:00.000+08:00
+    // 如果是UTC时间（带Z后缀），需要转换为北京时间
+    if (dateStr.endsWith('Z')) {
+      const utcDate = new Date(dateStr)
+      // UTC时间 + 8小时 = 北京时间
+      const beijingHour = (utcDate.getUTCHours() + 8) % 24
+      const beijingMinute = utcDate.getUTCMinutes()
+      return { hour: beijingHour, minute: beijingMinute }
+    }
+    
+    // 带时区偏移的时间（如 +08:00），提取原始时间（已经是北京时间）
+    // 例如：2026-03-31T23:59:00.000+08:00
     const timePart = dateStr.split('T')[1] // 23:59:00.000+08:00
     const timeWithoutOffset = timePart.split(/[+-]/)[0] // 23:59:00.000
     const timeWithoutMs = timeWithoutOffset.split('.')[0] // 23:59:00
@@ -90,9 +100,20 @@ export default function CouponPreviewDialog({
       const endDatePart = extractDatePart(coupon.endDate)
       const { hour, minute } = extractTimeParts(coupon.endDate)
       
+      console.log(`[${index}] extractTimeParts结果:`, { hour, minute, endDate: coupon.endDate })
+      
       // 如果AI没有提供endHour/endMinute，使用从ISO字符串中提取的值
       const endHour = coupon.endHour !== undefined ? coupon.endHour : hour
       const endMinute = coupon.endMinute !== undefined ? coupon.endMinute : minute
+      
+      console.log(`[${index}] 最终时间值:`, { 
+        couponEndHour: coupon.endHour, 
+        couponEndMinute: coupon.endMinute, 
+        extractedHour: hour, 
+        extractedMinute: minute, 
+        finalEndHour: endHour, 
+        finalEndMinute: endMinute 
+      })
       
       // 处理startDate
       const startDatePart = extractDatePart(coupon.startDate)

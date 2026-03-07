@@ -183,6 +183,9 @@ async function extractWithChatGPT(imageDataUrl: string): Promise<NextResponse> {
     // 解析提取的JSON
     let coupons = parseExtractedJSON(raw)
 
+    // 打印原始数据，方便调试
+    console.log('ChatGPT返回的原始优惠券数据:', JSON.stringify(coupons, null, 2))
+
     // 安全补字段：确保所有字段都有默认值
     const today = formatLocalDate(new Date())
 
@@ -191,16 +194,28 @@ async function extractWithChatGPT(imageDataUrl: string): Promise<NextResponse> {
       let processedStartDate = c.startDate ?? today
       let processedEndDate = c.endDate ?? today
 
+      console.log(`处理前 - startDate: ${c.startDate}, endDate: ${c.endDate}`)
+
       // 如果时间字符串带Z后缀（UTC时间），转换为北京时间格式
       if (processedStartDate && processedStartDate.endsWith('Z')) {
         const utcDate = new Date(processedStartDate)
         processedStartDate = toLocalISOString(utcDate)
+        console.log(`startDate带Z，转换后: ${processedStartDate}`)
       }
 
       if (processedEndDate && processedEndDate.endsWith('Z')) {
         const utcDate = new Date(processedEndDate)
         processedEndDate = toLocalISOString(utcDate)
+        console.log(`endDate带Z，转换后: ${processedEndDate}`)
       }
+
+      // 如果是纯日期格式（YYYY-MM-DD），保持原样，使用endHour和endMinute
+      const isPureDate = (dateStr: string) => /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
+      if (isPureDate(processedEndDate)) {
+        console.log(`endDate是纯日期格式，保持原样: ${processedEndDate}`)
+      }
+
+      console.log(`处理后 - startDate: ${processedStartDate}, endDate: ${processedEndDate}`)
 
       return {
         id: crypto.randomUUID(),

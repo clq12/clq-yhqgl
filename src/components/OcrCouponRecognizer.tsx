@@ -42,6 +42,45 @@ interface OcrCouponRecognizerProps {
   onCancel?: () => void
 }
 
+// 辅助函数：从ISO字符串中提取日期部分（YYYY-MM-DD）
+function extractDatePart(dateStr: string | undefined): string | undefined {
+  if (!dateStr) return undefined
+  
+  // 如果是纯日期格式（YYYY-MM-DD），直接返回
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return dateStr
+  }
+  
+  // 如果是带时间的ISO格式，提取日期部分
+  if (dateStr.includes('T')) {
+    return dateStr.split('T')[0]
+  }
+  
+  return dateStr
+}
+
+// 辅助函数：从ISO字符串中提取小时和分钟
+function extractTimeParts(dateStr: string | undefined): { hour: number | undefined, minute: number | undefined } {
+  if (!dateStr || !dateStr.includes('T')) {
+    return { hour: undefined, minute: undefined }
+  }
+  
+  try {
+    // 提取时间部分，例如：2026-03-31T23:59:00.000+08:00
+    const timePart = dateStr.split('T')[1] // 23:59:00.000+08:00
+    const timeWithoutOffset = timePart.split(/[+-]/)[0] // 23:59:00.000
+    const timeWithoutMs = timeWithoutOffset.split('.')[0] // 23:59:00
+    const [hour, minute] = timeWithoutMs.split(':').map(Number)
+    
+    return { 
+      hour: isNaN(hour) ? undefined : hour, 
+      minute: isNaN(minute) ? undefined : minute 
+    }
+  } catch (e) {
+    return { hour: undefined, minute: undefined }
+  }
+}
+
 // 辅助函数：计算剩余天数（北京时间UTC+8）
 function getDaysRemaining(endDate: string): number {
   let year: number, month: number, day: number
@@ -327,6 +366,12 @@ export default function OcrCouponRecognizer({ onExtracted, onDirectAdd, onCancel
       const extractedInfos: ExtractedCouponInfo[] = []
       selectedCoupons.forEach(index => {
         const coupon = aiResult.coupons[index]
+        
+        // 处理时间格式
+        const endDatePart = extractDatePart(coupon.endDate)
+        const { hour: extractedHour, minute: extractedMinute } = extractTimeParts(coupon.endDate)
+        const startDatePart = extractDatePart(coupon.startDate)
+        
         extractedInfos.push({
           storeName: coupon.storeName || '',
           title: coupon.title || '',
@@ -334,10 +379,10 @@ export default function OcrCouponRecognizer({ onExtracted, onDirectAdd, onCancel
           discountType: coupon.discountType,
           discountAmount: coupon.discountAmount,
           fullAmount: coupon.fullAmount,
-          startDate: coupon.startDate,
-          endDate: coupon.endDate,
-          endHour: coupon.endHour !== undefined ? coupon.endHour : 23,
-          endMinute: coupon.endMinute !== undefined ? coupon.endMinute : 59,
+          startDate: startDatePart,
+          endDate: endDatePart,
+          endHour: coupon.endHour !== undefined ? coupon.endHour : (extractedHour !== undefined ? extractedHour : 23),
+          endMinute: coupon.endMinute !== undefined ? coupon.endMinute : (extractedMinute !== undefined ? extractedMinute : 59),
           notes: coupon.notes ? `AI识别: ChatGPT, ${coupon.notes}` : `AI识别: ChatGPT`,
         })
       })
@@ -363,19 +408,26 @@ export default function OcrCouponRecognizer({ onExtracted, onDirectAdd, onCancel
 
     try {
       // 将所有优惠券转换为ExtractedCouponInfo格式
-      const extractedInfos: ExtractedCouponInfo[] = aiResult.coupons.map((coupon: any) => ({
-        storeName: coupon.storeName || '',
-        title: coupon.title || '',
-        description: coupon.description || '',
-        discountType: coupon.discountType,
-        discountAmount: coupon.discountAmount,
-        fullAmount: coupon.fullAmount,
-        startDate: coupon.startDate,
-        endDate: coupon.endDate,
-        endHour: coupon.endHour !== undefined ? coupon.endHour : 23,
-        endMinute: coupon.endMinute !== undefined ? coupon.endMinute : 59,
-        notes: coupon.notes ? `AI识别: ChatGPT, ${coupon.notes}` : `AI识别: ChatGPT`,
-      }))
+      const extractedInfos: ExtractedCouponInfo[] = aiResult.coupons.map((coupon: any) => {
+        // 处理时间格式
+        const endDatePart = extractDatePart(coupon.endDate)
+        const { hour: extractedHour, minute: extractedMinute } = extractTimeParts(coupon.endDate)
+        const startDatePart = extractDatePart(coupon.startDate)
+        
+        return {
+          storeName: coupon.storeName || '',
+          title: coupon.title || '',
+          description: coupon.description || '',
+          discountType: coupon.discountType,
+          discountAmount: coupon.discountAmount,
+          fullAmount: coupon.fullAmount,
+          startDate: startDatePart,
+          endDate: endDatePart,
+          endHour: coupon.endHour !== undefined ? coupon.endHour : (extractedHour !== undefined ? extractedHour : 23),
+          endMinute: coupon.endMinute !== undefined ? coupon.endMinute : (extractedMinute !== undefined ? extractedMinute : 59),
+          notes: coupon.notes ? `AI识别: ChatGPT, ${coupon.notes}` : `AI识别: ChatGPT`,
+        }
+      })
 
       // 批量添加所有优惠券
       await onDirectAdd(extractedInfos)

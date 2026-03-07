@@ -35,6 +35,7 @@ export interface ExtractedCouponInfo {
   discountAmount?: number
   discountType?: 'amount' | 'percentage' | 'full'
   fullAmount?: number
+  startDate?: string
   endDate?: string
   endHour?: number
   endMinute?: number

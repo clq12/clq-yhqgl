@@ -27,6 +27,42 @@ export interface PreviewCoupon extends ExtractedCouponInfo {
   id: string
 }
 
+// 辅助函数：从ISO字符串中提取日期部分（YYYY-MM-DD）
+function extractDatePart(dateStr: string | undefined): string {
+  if (!dateStr) return ''
+  
+  // 如果是纯日期格式（YYYY-MM-DD），直接返回
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return dateStr
+  }
+  
+  // 如果是带时间的ISO格式，提取日期部分
+  if (dateStr.includes('T')) {
+    return dateStr.split('T')[0]
+  }
+  
+  return dateStr
+}
+
+// 辅助函数：从ISO字符串中提取小时和分钟
+function extractTimeParts(dateStr: string | undefined): { hour: number, minute: number } {
+  if (!dateStr || !dateStr.includes('T')) {
+    return { hour: 23, minute: 59 }
+  }
+  
+  try {
+    // 提取时间部分，例如：2026-03-31T23:59:00.000+08:00
+    const timePart = dateStr.split('T')[1] // 23:59:00.000+08:00
+    const timeWithoutOffset = timePart.split(/[+-]/)[0] // 23:59:00.000
+    const timeWithoutMs = timeWithoutOffset.split('.')[0] // 23:59:00
+    const [hour, minute] = timeWithoutMs.split(':').map(Number)
+    
+    return { hour: isNaN(hour) ? 23 : hour, minute: isNaN(minute) ? 59 : minute }
+  } catch (e) {
+    return { hour: 23, minute: 59 }
+  }
+}
+
 interface CouponPreviewDialogProps {
   isOpen: boolean
   coupons: ExtractedCouponInfo[]
@@ -50,11 +86,27 @@ export default function CouponPreviewDialog({
     console.log('coupons:', JSON.stringify(coupons, null, 2))
 
     const previews = coupons.map((coupon, index) => {
+      // 处理endDate：如果是带时间的ISO格式，提取日期和时间
+      const endDatePart = extractDatePart(coupon.endDate)
+      const { hour, minute } = extractTimeParts(coupon.endDate)
+      
+      // 如果AI没有提供endHour/endMinute，使用从ISO字符串中提取的值
+      const endHour = coupon.endHour !== undefined ? coupon.endHour : hour
+      const endMinute = coupon.endMinute !== undefined ? coupon.endMinute : minute
+      
+      // 处理startDate
+      const startDatePart = extractDatePart(coupon.startDate)
+      
       const preview = {
         ...coupon,
         id: `preview-${Date.now()}-${index}`,
+        startDate: startDatePart,
+        endDate: endDatePart,
+        endHour,
+        endMinute,
       }
       console.log(`[${index}] aiModel: ${preview.aiModel}, storeName: ${preview.storeName}`)
+      console.log(`[${index}] 原始endDate: ${coupon.endDate}, 处理后: ${endDatePart}, hour: ${endHour}, minute: ${endMinute}`)
       return preview
     })
 

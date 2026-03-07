@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getWebDAVConfigFromRequest, setConfigCookie, clearConfigCookie } from "@/lib/config"
-import { initWebDAVClient, checkConnection } from "@/lib/webdav-client"
 
 export interface WebDAVConfigRequest {
   url: string
@@ -11,91 +10,63 @@ export interface WebDAVConfigRequest {
   api52Key?: string
 }
 
-// 获取配置
+// 获取配置 - 数据库版本，始终返回已配置
 export async function GET(request: NextRequest) {
   try {
     const config = getWebDAVConfigFromRequest(request)
 
-    if (!config) {
-      return NextResponse.json({ success: true, configured: false })
-    }
-
     // 脱敏处理 PushPlus Token
-    const maskedPushPlusToken = config.pushplusToken
+    const maskedPushPlusToken = config?.pushplusToken
       ? config.pushplusToken.substring(0, 4) + "****" + config.pushplusToken.substring(config.pushplusToken.length - 4)
       : ""
 
-    // 脱敏处理 GLM API Key
-    const maskedChatgptApiKey = config.chatgptApiKey
+    // 脱敏处理 ChatGPT API Key
+    const maskedChatgptApiKey = config?.chatgptApiKey
       ? config.chatgptApiKey.substring(0, 4) + "****" + config.chatgptApiKey.substring(config.chatgptApiKey.length - 4)
       : ""
 
     // 脱敏处理 52api Key
-    const maskedApi52Key = config.api52Key
+    const maskedApi52Key = config?.api52Key
       ? config.api52Key.substring(0, 4) + "****" + config.api52Key.substring(config.api52Key.length - 4)
       : ""
 
-    // 不返回密码，但返回脱敏后的 Token
+    // 数据库版本始终返回已配置
     return NextResponse.json({
       success: true,
-      configured: true,
+      configured: true, // 数据库版本始终已配置
       config: {
-        url: config.url,
-        username: config.username,
+        url: config?.url || "",
+        username: config?.username || "",
         pushplusToken: maskedPushPlusToken,
-        hasPushPlusToken: !!config.pushplusToken && config.pushplusToken.length > 0,
+        hasPushPlusToken: !!config?.pushplusToken && config.pushplusToken.length > 0,
         chatgptApiKey: maskedChatgptApiKey,
-        hasChatgptApiKey: !!config.chatgptApiKey && config.chatgptApiKey.length > 0,
+        hasChatgptApiKey: !!config?.chatgptApiKey && config.chatgptApiKey.length > 0,
         api52Key: maskedApi52Key,
-        hasApi52Key: !!config.api52Key && config.api52Key.length > 0,
+        hasApi52Key: !!config?.api52Key && config.api52Key.length > 0,
       },
     })
   } catch (error) {
     console.error("获取配置失败:", error)
-    return NextResponse.json(
-      { success: false, error: "获取配置失败" },
-      { status: 500 }
-    )
+    // 即使出错，数据库版本也返回已配置
+    return NextResponse.json({
+      success: true,
+      configured: true,
+    })
   }
 }
 
-// 保存配置
+// 保存配置 - 只保存PushPlus Token和ChatGPT API Key等配置
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as WebDAVConfigRequest
 
-    // 验证必填字段
-    if (!body.url || !body.username || !body.password) {
-      return NextResponse.json(
-        { success: false, error: "请填写完整的配置信息" },
-        { status: 400 }
-      )
-    }
-
-    // 规范化 URL
-    let url = body.url.trim()
-    if (!url.endsWith("/")) {
-      url += "/"
-    }
-
     const config = {
-      url,
-      username: body.username.trim(),
-      password: body.password,
+      url: body.url?.trim() || "",
+      username: body.username?.trim() || "",
+      password: body.password || "",
       pushplusToken: body.pushplusToken?.trim() || "",
       chatgptApiKey: body.chatgptApiKey?.trim() || "",
       api52Key: body.api52Key?.trim() || "",
-    }
-
-    // 测试连接
-    initWebDAVClient(config)
-    const connected = await checkConnection()
-
-    if (!connected) {
-      return NextResponse.json(
-        { success: false, error: "WebDAV 连接失败，请检查配置信息" },
-        { status: 400 }
-      )
     }
 
     // 创建响应并设置 Cookie

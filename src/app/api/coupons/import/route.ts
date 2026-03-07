@@ -1,50 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getWebDAVConfigFromRequest, WebDAVConfig } from "@/lib/config"
-import { initWebDAVClient } from "@/lib/webdav-client"
-import { getAllCoupons, saveCoupons } from "@/lib/webdav-storage"
-import { safeCreateDate, setLocalTime, toLocalISOString, formatLocalDate } from "@/lib/datetime-utils"
-
-/**
- * 从环境变量获取配置（用于定时任务）
- */
-function getConfigFromEnv(): WebDAVConfig | null {
-  const {
-    WEBDAV_URL,
-    WEBDAV_USERNAME,
-    WEBDAV_PASSWORD,
-  } = process.env
-
-  if (WEBDAV_URL && WEBDAV_USERNAME && WEBDAV_PASSWORD) {
-    const config: WebDAVConfig = {
-      url: WEBDAV_URL,
-      username: WEBDAV_USERNAME,
-      password: WEBDAV_PASSWORD,
-    }
-
-    return config
-  }
-
-  return null
-}
+import { couponManager } from "@/storage/database"
+import { setLocalTime, formatLocalDate } from "@/lib/datetime-utils"
 
 /**
  * 导入优惠券
  */
 export async function POST(request: NextRequest) {
   try {
-    let config = getConfigFromEnv()
-
-    if (!config) {
-      config = getWebDAVConfigFromRequest(request)
-    }
-
-    if (!config) {
-      return NextResponse.json(
-        { success: false, error: "请先配置 WebDAV" },
-        { status: 400 }
-      )
-    }
-
     const body = await request.json()
     const { coupons, mode } = body // mode: 'skip' | 'overwrite' | 'merge'
 
@@ -55,125 +17,47 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // 初始化 WebDAV 客户端
-    initWebDAVClient(config)
+    // 处理优惠券数据
+    const processedCoupons = coupons.map((c: any) => {
+      // 处理日期
+      const endHour = c.endHour ?? 23
+      const endMinute = c.endMinute ?? 59
+      let startDate = c.startDate ? new Date(c.startDate) : new Date()
+      let endDate = c.endDate ? new Date(c.endDate) : new Date()
 
-    // 获取所有现有优惠券
-    const existingCoupons = await getAllCoupons()
-    const existingTitles = new Set(existingCoupons.map(c => c.title))
+      // 如果endDate是Date对象，设置结束时间
+      if (endDate instanceof Date) {
+        endDate = setLocalTime(endDate, endHour, endMinute, 59, 999)
+      }
 
-    let importedCoupons: any[] = []
-    let skippedCoupons: any[] = []
-    let overwrittenCoupons: any[] = []
+      return {
+        title: c.title || '',
+        description: c.description || null,
+        discountType: c.discountType || 'amount',
+        discountAmount: c.discountAmount || null,
+        fullAmount: c.fullAmount || null,
+        storeName: c.storeName || null,
+        startDate,
+        endDate,
+        endHour,
+        endMinute,
+        notes: c.notes || null,
+        isUsed: c.isUsed ?? false,
+        isReminded: false,
+        remindedDays: c.remindedDays || [],
+      }
+    })
 
-    // 根据导入模式处理
-    switch (mode) {
-      case 'skip':
-        // 跳过重复的
-        importedCoupons = coupons
-          .filter((c: any) => !existingTitles.has(c.title))
-          .map((c: any) => {
-            // 处理日期（使用北京时间）
-            const endHour = c.endHour ?? 23
-            const endMinute = c.endMinute ?? 59
-            const startDate = safeCreateDate(c.startDate) || safeCreateDate(formatLocalDate(new Date()))!
-            const endDate = safeCreateDate(c.endDate) || safeCreateDate(formatLocalDate(new Date()))!
-            const finalEndDate = setLocalTime(endDate, endHour, endMinute, 59, 999)
-
-            return {
-              ...c,
-              id: c.id || crypto.randomUUID(),
-              startDate: formatLocalDate(startDate),
-              endDate: toLocalISOString(finalEndDate),
-              endHour: endHour,
-              endMinute: endMinute,
-              createdAt: c.createdAt || toLocalISOString(new Date()),
-              isReminded: false,
-              remindedDays: c.remindedDays || [],
-              isUsed: c.isUsed ?? false,
-            }
-          })
-        skippedCoupons = coupons.filter((c: any) => existingTitles.has(c.title))
-        break
-
-      case 'overwrite':
-        // 覆盖重复的
-        const titles = new Set(coupons.map((c: any) => c.title))
-        const nonOverwritten = existingCoupons.filter(c => !titles.has(c.title))
-
-        importedCoupons = coupons.map((c: any) => {
-          // 处理日期（使用北京时间）
-          const endHour = c.endHour ?? 23
-          const endMinute = c.endMinute ?? 59
-          const startDate = safeCreateDate(c.startDate) || safeCreateDate(formatLocalDate(new Date()))!
-          const endDate = safeCreateDate(c.endDate) || safeCreateDate(formatLocalDate(new Date()))!
-          const finalEndDate = setLocalTime(endDate, endHour, endMinute, 59, 999)
-
-          return {
-            ...c,
-            id: c.id || crypto.randomUUID(),
-            startDate: formatLocalDate(startDate),
-            endDate: toLocalISOString(finalEndDate),
-            endHour: endHour,
-            endMinute: endMinute,
-            createdAt: c.createdAt || toLocalISOString(new Date()),
-            isReminded: false,
-            remindedDays: c.remindedDays || [],
-            isUsed: c.isUsed ?? false,
-          }
-        })
-        overwrittenCoupons = existingCoupons.filter(c => titles.has(c.title))
-
-        await saveCoupons([...nonOverwritten, ...importedCoupons])
-
-        return NextResponse.json({
-          success: true,
-          message: `成功导入 ${importedCoupons.length} 个优惠券，覆盖了 ${overwrittenCoupons.length} 个重复项`,
-          data: {
-            importedCount: importedCoupons.length,
-            overwrittenCount: overwrittenCoupons.length,
-            skippedCount: 0,
-          }
-        })
-
-      case 'merge':
-      default:
-        // 合并模式：导入所有，包括重复的
-        importedCoupons = coupons.map((c: any) => {
-          // 处理日期（使用北京时间）
-          const endHour = c.endHour ?? 23
-          const endMinute = c.endMinute ?? 59
-          const startDate = safeCreateDate(c.startDate) || safeCreateDate(formatLocalDate(new Date()))!
-          const endDate = safeCreateDate(c.endDate) || safeCreateDate(formatLocalDate(new Date()))!
-          const finalEndDate = setLocalTime(endDate, endHour, endMinute, 59, 999)
-
-          return {
-            ...c,
-            id: crypto.randomUUID(), // 总是生成新ID
-            startDate: formatLocalDate(startDate),
-            endDate: toLocalISOString(finalEndDate),
-            endHour: endHour,
-            endMinute: endMinute,
-            createdAt: toLocalISOString(new Date()),
-            isReminded: false,
-            remindedDays: c.remindedDays || [],
-            isUsed: c.isUsed ?? false,
-          }
-        })
-        break
-    }
-
-    // 保存更新后的优惠券
-    await saveCoupons([...existingCoupons, ...importedCoupons])
+    // 使用 couponManager 导入优惠券
+    const result = await couponManager.importCoupons(processedCoupons, mode || "skip")
 
     return NextResponse.json({
       success: true,
-      message: `成功导入 ${importedCoupons.length} 个优惠券${skippedCoupons.length > 0 ? `，跳过了 ${skippedCoupons.length} 个重复项` : ''}`,
+      message: `成功导入 ${result.success} 个优惠券${result.skipped > 0 ? `，跳过了 ${result.skipped} 个重复项` : ''}`,
       data: {
-        importedCount: importedCoupons.length,
-        overwrittenCount: overwrittenCoupons.length,
-        skippedCount: skippedCoupons.length,
-        total: existingCoupons.length + importedCoupons.length,
+        importedCount: result.success,
+        skippedCount: result.skipped,
+        errors: result.errors,
       }
     })
   } catch (error) {

@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getWebDAVConfigFromRequest } from "@/lib/config"
-import { initWebDAVClient } from "@/lib/webdav-client"
-import {
-  getCouponById,
-  updateCoupon,
-  deleteCoupon,
-} from "@/lib/webdav-storage"
+import { couponManager } from "@/storage/database"
 import { updateCouponSchema } from "@/storage/database/shared/schema"
-import { setLocalTime, toLocalISOString } from "@/lib/datetime-utils"
+import { setLocalTime } from "@/lib/datetime-utils"
 
 // 获取单个优惠券
 export async function GET(
@@ -16,17 +10,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const config = getWebDAVConfigFromRequest(request)
-
-    if (!config) {
-      return NextResponse.json(
-        { success: false, error: "请先配置 WebDAV" },
-        { status: 400 }
-      )
-    }
-
-    initWebDAVClient(config)
-    const coupon = await getCouponById(id)
+    const coupon = await couponManager.getCouponById(id)
 
     if (!coupon) {
       return NextResponse.json(
@@ -52,15 +36,6 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
-    const config = getWebDAVConfigFromRequest(request)
-
-    if (!config) {
-      return NextResponse.json(
-        { success: false, error: "请先配置 WebDAV" },
-        { status: 400 }
-      )
-    }
-
     const body = await request.json()
 
     // 验证数据
@@ -81,16 +56,14 @@ export async function PUT(
     const updates = {
       ...validated,
       endDate: finalEndDate,
-      endHour: endHour,
-      endMinute: endMinute,
+      endHour,
+      endMinute,
       ...(body.discountType !== undefined && { discountType: body.discountType || null }),
       ...(body.fullAmount !== undefined && { fullAmount: body.fullAmount || null }),
       ...(body.isUsed !== undefined && { isUsed: body.isUsed }),
-      updatedAt: toLocalISOString(new Date()),
     }
 
-    initWebDAVClient(config)
-    const coupon = await updateCoupon(id, updates as any)
+    const coupon = await couponManager.updateCoupon(id, updates)
 
     if (!coupon) {
       return NextResponse.json(
@@ -116,17 +89,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params
-    const config = getWebDAVConfigFromRequest(request)
-
-    if (!config) {
-      return NextResponse.json(
-        { success: false, error: "请先配置 WebDAV" },
-        { status: 400 }
-      )
-    }
-
-    initWebDAVClient(config)
-    const success = await deleteCoupon(id)
+    const success = await couponManager.deleteCoupon(id)
 
     if (!success) {
       return NextResponse.json(

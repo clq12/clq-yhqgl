@@ -1,56 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getWebDAVConfigFromRequest, WebDAVConfig } from "@/lib/config"
-import { initWebDAVClient } from "@/lib/webdav-client"
-import {
-  getAllCoupons,
-  addCoupon,
-} from "@/lib/webdav-storage"
+import { couponManager } from "@/storage/database"
 import { insertCouponSchema } from "@/storage/database/shared/schema"
-import { safeCreateDate, setLocalTime, toLocalISOString } from "@/lib/datetime-utils"
-
-/**
- * 从环境变量获取配置（用于定时任务）
- */
-function getConfigFromEnv(): WebDAVConfig | null {
-  const {
-    WEBDAV_URL,
-    WEBDAV_USERNAME,
-    WEBDAV_PASSWORD,
-  } = process.env
-
-  if (WEBDAV_URL && WEBDAV_USERNAME && WEBDAV_PASSWORD) {
-    const config: WebDAVConfig = {
-      url: WEBDAV_URL,
-      username: WEBDAV_USERNAME,
-      password: WEBDAV_PASSWORD,
-    }
-
-    return config
-  }
-
-  return null
-}
+import { setLocalTime } from "@/lib/datetime-utils"
 
 // 获取优惠券列表
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    let config = getConfigFromEnv()
-
-    if (!config) {
-      config = getWebDAVConfigFromRequest(request)
-    }
-
-    if (!config) {
-      return NextResponse.json(
-        { success: false, error: "请先配置 WebDAV" },
-        { status: 400 }
-      )
-    }
-
-    initWebDAVClient(config)
-
-    const coupons = await getAllCoupons()
-
+    const coupons = await couponManager.getAllCoupons()
     return NextResponse.json({ success: true, data: coupons })
   } catch (error) {
     console.error("获取优惠券列表失败:", error)
@@ -64,21 +20,7 @@ export async function GET(request: NextRequest) {
 // 创建优惠券
 export async function POST(request: NextRequest) {
   try {
-    let config = getConfigFromEnv()
-
-    if (!config) {
-      config = getWebDAVConfigFromRequest(request)
-    }
-
-    if (!config) {
-      return NextResponse.json(
-        { success: false, error: "请先配置 WebDAV" },
-        { status: 400 }
-      )
-    }
-
     const body = await request.json()
-
     const validated = insertCouponSchema.parse(body)
 
     const endHour = body.endHour ?? 23
@@ -90,24 +32,21 @@ export async function POST(request: NextRequest) {
       finalEndDate = setLocalTime(finalEndDate, endHour, endMinute, 59, 999)
     }
 
-    const coupon = {
+    const couponData = {
       ...validated,
       endDate: finalEndDate,
-      endHour: endHour,
-      endMinute: endMinute,
+      endHour,
+      endMinute,
       discountType: body.discountType || null,
       fullAmount: body.fullAmount || null,
-      id: crypto.randomUUID(),
-      isReminded: false,
+      storeName: body.storeName || null,
       isUsed: false,
+      isReminded: false,
       remindedDays: [],
-      createdAt: toLocalISOString(new Date()), // ✅ 修复
-      updatedAt: null,
+      notes: body.notes || null,
     }
 
-    initWebDAVClient(config)
-
-    await addCoupon(coupon as any)
+    const coupon = await couponManager.addCoupon(couponData)
 
     return NextResponse.json({ success: true, data: coupon }, { status: 201 })
   } catch (error) {

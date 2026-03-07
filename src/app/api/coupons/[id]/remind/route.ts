@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getWebDAVConfigFromRequest } from "@/lib/config"
-import { initWebDAVClient } from "@/lib/webdav-client"
-import { updateCoupon } from "@/lib/webdav-storage"
+import { couponManager } from "@/storage/database"
 
 // 标记优惠券为已提醒
 export async function POST(
@@ -10,17 +8,7 @@ export async function POST(
 ) {
   try {
     const { id } = await params
-    const config = getWebDAVConfigFromRequest(request)
-
-    if (!config) {
-      return NextResponse.json(
-        { success: false, error: "请先配置 WebDAV" },
-        { status: 400 }
-      )
-    }
-
-    initWebDAVClient(config)
-    const coupon = await updateCoupon(id, { isReminded: true })
+    const coupon = await couponManager.updateCoupon(id, { isReminded: true })
 
     if (!coupon) {
       return NextResponse.json(

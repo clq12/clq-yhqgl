@@ -131,38 +131,34 @@ export default function Home() {
   // 直接添加OCR识别的优惠券（不打开表单）
   const handleOcrDirectAdd = async (infos: ExtractedCouponInfo[]) => {
     try {
-      for (const info of infos) {
-        // 构造API期望的数据格式
-        const couponData = {
-          title: info.title || '',
-          description: info.description || '',
-          discountAmount: info.discountAmount,
-          discountType: info.discountType || null,
-          fullAmount: info.fullAmount || null,
-          startDate: safeCreateDate(info.startDate) || safeCreateDate(formatLocalDate(new Date())),
-          endDate: safeCreateDate(info.endDate) || safeCreateDate(formatLocalDate(new Date())),
-          endHour: info.endHour ?? 23,
-          endMinute: info.endMinute ?? 59,
-          notes: info.notes || '',
-          isUsed: false,
-          isReminded: false,
-          remindedDays: [],
-          // 将商家名称合并到标题中
-          ...(info.storeName && !info.title?.includes(info.storeName) && {
-            title: `${info.storeName} ${info.title || ''}`.trim()
-          })
-        }
-
-        const response = await fetch("/api/coupons", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(couponData),
+      // 使用批量添加API
+      const couponsData = infos.map(info => ({
+        title: info.title || '',
+        description: info.description || '',
+        discountAmount: info.discountAmount,
+        discountType: info.discountType || null,
+        fullAmount: info.fullAmount || null,
+        storeName: info.storeName || null,
+        startDate: info.startDate || formatLocalDate(new Date()),
+        endDate: info.endDate || formatLocalDate(new Date()),
+        endHour: info.endHour ?? 23,
+        endMinute: info.endMinute ?? 59,
+        notes: info.notes || '',
+        // 将商家名称合并到标题中
+        ...(info.storeName && !info.title?.includes(info.storeName) && {
+          title: `${info.storeName} ${info.title || ''}`.trim()
         })
+      }))
 
-        const result = await response.json()
-        if (!result.success) {
-          throw new Error(`添加优惠券失败: ${result.error}`)
-        }
+      const response = await fetch("/api/coupons/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coupons: couponsData }),
+      })
+
+      const result = await response.json()
+      if (!result.success) {
+        throw new Error(`批量添加优惠券失败: ${result.error}`)
       }
 
       // 刷新列表
@@ -171,7 +167,7 @@ export default function Home() {
       // 关闭OCR对话框
       setIsOcrDialogOpen(false)
 
-      console.log(`成功添加 ${infos.length} 张优惠券`)
+      console.log(`成功添加 ${result.data?.addedCount || infos.length} 张优惠券`)
     } catch (error) {
       console.error("直接添加优惠券失败:", error)
       throw error

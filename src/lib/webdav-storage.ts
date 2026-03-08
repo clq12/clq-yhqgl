@@ -10,15 +10,19 @@ const COUPONS_FILE = "/coupons/data.json"
 const BACKUP_DIR = "/coupons/backups"
 
 // WebDAV 专用的 Coupon 类型（使用字符串存储日期）
+// 注意：现在使用数据库存储，此类型仅用于前端兼容
 export interface WebDAVCoupon {
   id: string
   title: string
   description: string | null
   discountAmount: number | null
   discountType: 'amount' | 'percentage' | 'full' | null // 折扣类型：amount(减免金额), percentage(折扣), full(满减)
+  fullAmount: number | null // 满减门槛金额
+  storeName: string | null // 商家/品牌名称
   startDate: string // ISO 字符串
   endDate: string // ISO 字符串
-  endHour: number | null // 截止小时，0-23，null表示23点
+  endHour: number | null // 截止小时，0-23
+  endMinute: number | null // 截止分钟
   isReminded: boolean
   remindedDays: number[] // 记录已经提醒过的天数，如[7, 3, 1]
   isUsed: boolean // 是否已使用

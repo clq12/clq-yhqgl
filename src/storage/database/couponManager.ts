@@ -1,8 +1,9 @@
-import { eq, and, lte, gte, inArray, sql, desc } from "drizzle-orm"
+import { eq, and, or, lte, gte, inArray, sql, desc } from "drizzle-orm"
 import { getDb } from "coze-coding-dev-sdk"
 import { coupons, insertCouponSchema, updateCouponSchema } from "./shared/schema"
 import type { Coupon, InsertCoupon, UpdateCoupon } from "./shared/schema"
 import * as schema from "./shared/schema"
+import { nanoid } from "nanoid"
 
 /**
  * 优惠券管理器
@@ -14,7 +15,10 @@ export class CouponManager {
    */
   async getAllCoupons(): Promise<Coupon[]> {
     const db = await getDb(schema)
-    return db.select().from(coupons).orderBy(desc(coupons.createdAt))
+    return db
+      .select()
+      .from(coupons)
+      .orderBy(desc(coupons.createdAt))
   }
 
   /**
@@ -29,14 +33,14 @@ export class CouponManager {
   /**
    * 添加优惠券
    */
-  async addCoupon(coupon: Omit<InsertCoupon, "id" | "createdAt" | "updatedAt"> & { id?: string }): Promise<Coupon> {
+  async addCoupon(coupon: Omit<InsertCoupon, "id" | "createdAt" | "updatedAt">): Promise<Coupon> {
     const db = await getDb(schema)
     
     const couponData = {
+      id: nanoid(), // 生成唯一ID
       ...coupon,
-      id: coupon.id || crypto.randomUUID(),
       createdAt: new Date(),
-      updatedAt: null,
+      updatedAt: new Date(),
     }
     
     const validated = insertCouponSchema.parse(couponData)
@@ -68,8 +72,8 @@ export class CouponManager {
    */
   async deleteCoupon(id: string): Promise<boolean> {
     const db = await getDb(schema)
-    const result = await db.delete(coupons).where(eq(coupons.id, id))
-    return (result.rowCount ?? 0) > 0
+    const [deleted] = await db.delete(coupons).where(eq(coupons.id, id)).returning()
+    return !!deleted
   }
 
   /**
@@ -84,9 +88,8 @@ export class CouponManager {
   /**
    * 批量更新优惠券状态
    */
-  async bulkUpdateStatus(ids: string[], updates: { isUsed?: boolean; isReminded?: boolean }): Promise<number> {
+  async bulkUpdateStatus(ids: string[], updates: { isUsed?: boolean }): Promise<number> {
     const db = await getDb(schema)
-    
     const result = await db
       .update(coupons)
       .set({
@@ -99,8 +102,7 @@ export class CouponManager {
   }
 
   /**
-   * 获取即将到期的优惠券（精确到小时，使用北京时间 UTC+8）
-   * @param hours 提前多少小时提醒
+   * 获取即将到期的优惠券
    */
   async getExpiringCouponsByHours(hours: number): Promise<Coupon[]> {
     const db = await getDb(schema)
@@ -119,15 +121,12 @@ export class CouponManager {
       )
 
     return results.filter((coupon) => {
-      // 获取截止时间的小时和分钟
       const endHour = coupon.endHour ?? 23
       const endMinute = coupon.endMinute ?? 59
 
-      // 构造完整的截止时间
-      const endDate = new Date(coupon.endDate)
+      const endDate = new Date(coupon.endDate!)
       endDate.setHours(endHour, endMinute, 0, 0)
 
-      // 检查是否在指定时间范围内
       return endDate > now && endDate <= targetTime
     })
   }
@@ -143,7 +142,7 @@ export class CouponManager {
       .where(
         and(
           eq(coupons.isUsed, false),
-          sql`title ILIKE ${`%${query}%`} OR description ILIKE ${`%${query}%`} OR store_name ILIKE ${`%${query}%`}`
+          sql`(title ILIKE ${`%${query}%`} OR description ILIKE ${`%${query}%`} OR store_name ILIKE ${`%${query}%`})`
         )
       )
   }
@@ -166,10 +165,10 @@ export class CouponManager {
 
     const total = allCoupons.length
     const used = allCoupons.filter((c) => c.isUsed).length
-    const unused = allCoupons.filter((c) => !c.isUsed && new Date(c.endDate) > now).length
-    const expired = allCoupons.filter((c) => !c.isUsed && new Date(c.endDate) <= now).length
+    const unused = allCoupons.filter((c) => !c.isUsed && c.endDate && new Date(c.endDate) > now).length
+    const expired = allCoupons.filter((c) => !c.isUsed && c.endDate && new Date(c.endDate) <= now).length
     const expiringIn7Days = allCoupons.filter((c) => {
-      if (c.isUsed) return false
+      if (c.isUsed || !c.endDate) return false
       const endDate = new Date(c.endDate)
       return endDate > now && endDate <= sevenDaysLater
     }).length
@@ -191,11 +190,11 @@ export class CouponManager {
         return db.select().from(coupons).where(eq(coupons.isUsed, true))
       case "unused": {
         const results = await db.select().from(coupons).where(eq(coupons.isUsed, false))
-        return results.filter((c) => new Date(c.endDate) > now)
+        return results.filter((c) => c.endDate && new Date(c.endDate) > now)
       }
       case "expired": {
         const results = await db.select().from(coupons).where(eq(coupons.isUsed, false))
-        return results.filter((c) => new Date(c.endDate) <= now)
+        return results.filter((c) => c.endDate && new Date(c.endDate) <= now)
       }
       default:
         return db.select().from(coupons)
@@ -219,7 +218,6 @@ export class CouponManager {
 
     for (const couponData of couponList) {
       try {
-        // 检查是否已存在
         const exists = existingTitles.has(couponData.title || "")
 
         if (exists && mode === "skip") {
@@ -228,7 +226,6 @@ export class CouponManager {
         }
 
         if (exists && mode === "overwrite") {
-          // 找到并更新
           const existing = existingCoupons.find((c) => c.title === couponData.title)
           if (existing) {
             await this.updateCoupon(existing.id, couponData as UpdateCoupon)
@@ -237,11 +234,19 @@ export class CouponManager {
           continue
         }
 
-        // 创建新优惠券
-        await this.addCoupon(couponData)
+        const couponToAdd = {
+          id: nanoid(), // 生成唯一ID
+          ...couponData,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }
+
+        const validated = insertCouponSchema.parse(couponToAdd)
+        await db.insert(coupons).values(validated)
         success++
       } catch (error) {
-        errors.push(`导入失败: ${couponData.title} - ${error}`)
+        console.error("导入优惠券失败:", error)
+        errors.push(`${couponData.title}: ${error instanceof Error ? error.message : "未知错误"}`)
       }
     }
 
@@ -249,7 +254,5 @@ export class CouponManager {
   }
 }
 
+// 导出单例
 export const couponManager = new CouponManager()
-
-// 兼容性导出：保持与 WebDAV 存储相同的接口
-export type { Coupon, InsertCoupon, UpdateCoupon }

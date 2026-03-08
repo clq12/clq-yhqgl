@@ -18,14 +18,14 @@ export async function GET() {
       const endMinute = coupon.endMinute ?? 59
       
       // 解析截止日期
-      const endDate = new Date(coupon.endDate)
+      const endDate = coupon.endDate ? new Date(coupon.endDate) : null
       
       // 验证日期解析是否成功
-      if (isNaN(endDate.getTime())) {
+      if (!endDate || isNaN(endDate.getTime())) {
         return {
-          id: coupon.id,
+          id: String(coupon.id),
           title: coupon.title,
-          endDate: String(coupon.endDate),
+          endDate: '',
           daysRemaining: 0,
           remainingTimeText: "截止日期无效",
           isReminded: coupon.isReminded,
@@ -81,9 +81,9 @@ export async function GET() {
       const remindInfo = willRemind()
 
       return {
-        id: coupon.id,
+        id: String(coupon.id),
         title: coupon.title,
-        endDate: String(coupon.endDate),
+        endDate: coupon.endDate ? String(coupon.endDate) : '',
         daysRemaining,
         remainingTimeText,
         isReminded: coupon.isReminded,

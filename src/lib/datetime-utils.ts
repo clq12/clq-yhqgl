@@ -3,24 +3,27 @@
  * 全项目统一时间工具（固定为北京时间 UTC+8）
  */
 
-const BEIJING_OFFSET_MINUTES = 8 * 60
-const BEIJING_OFFSET_MS = BEIJING_OFFSET_MINUTES * 60 * 1000
+const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000 // 8小时的毫秒数
 
 /**
  * 获取当前北京时间 Date 对象
+ * 不依赖系统时区，直接基于 UTC 时间计算
  */
 export function getBeijingNow(): Date {
   const now = new Date()
-  const offset = now.getTimezoneOffset() * 60 * 1000
-  return new Date(now.getTime() + offset + BEIJING_OFFSET_MS)
+  // 获取 UTC 时间戳，然后加 8 小时
+  const utcTime = now.getTime() + now.getTimezoneOffset() * 60 * 1000
+  return new Date(utcTime + BEIJING_OFFSET_MS)
 }
 
 /**
  * 将任意 Date 转换为北京时间 Date
+ * 不依赖系统时区，直接基于 UTC 时间计算
  */
 export function toBeijingDate(date: Date): Date {
-  const offset = date.getTimezoneOffset() * 60 * 1000
-  return new Date(date.getTime() + offset + BEIJING_OFFSET_MS)
+  // 获取 UTC 时间戳，然后加 8 小时
+  const utcTime = date.getTime() + date.getTimezoneOffset() * 60 * 1000
+  return new Date(utcTime + BEIJING_OFFSET_MS)
 }
 
 /**
@@ -43,18 +46,22 @@ export function safeCreateDate(input: any): Date | null {
 /**
  * 生成北京时间 ISO 字符串
  * 格式: YYYY-MM-DDTHH:mm:ss.SSS+08:00
+ * 不依赖系统时区，直接基于 UTC 时间计算
  */
 export function toLocalISOString(date: Date): string {
-  const bj = toBeijingDate(date)
+  // 获取 UTC 时间
+  const utcTime = date.getTime() + date.getTimezoneOffset() * 60 * 1000
+  // 加 8 小时得到北京时间
+  const beijingTime = new Date(utcTime + BEIJING_OFFSET_MS)
 
-  const year = bj.getFullYear()
-  const month = String(bj.getMonth() + 1).padStart(2, "0")
-  const day = String(bj.getDate()).padStart(2, "0")
+  const year = beijingTime.getFullYear()
+  const month = String(beijingTime.getMonth() + 1).padStart(2, "0")
+  const day = String(beijingTime.getDate()).padStart(2, "0")
 
-  const hours = String(bj.getHours()).padStart(2, "0")
-  const minutes = String(bj.getMinutes()).padStart(2, "0")
-  const seconds = String(bj.getSeconds()).padStart(2, "0")
-  const ms = String(bj.getMilliseconds()).padStart(3, "0")
+  const hours = String(beijingTime.getHours()).padStart(2, "0")
+  const minutes = String(beijingTime.getMinutes()).padStart(2, "0")
+  const seconds = String(beijingTime.getSeconds()).padStart(2, "0")
+  const ms = String(beijingTime.getMilliseconds()).padStart(3, "0")
 
   return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${ms}+08:00`
 }

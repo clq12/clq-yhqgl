@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getWebDAVConfigFromRequest, WebDAVConfig } from "@/lib/config"
 import { initWebDAVClient } from "@/lib/webdav-client"
 import { getAllCoupons } from "@/lib/webdav-storage"
+import { toLocalISOString, formatLocalDate } from "@/lib/datetime-utils"
 
 /**
  * 从环境变量获取配置（用于定时任务）
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
 
     // 生成导出数据
     const exportData = {
-      exportTime: new Date().toISOString(),
+      exportTime: toLocalISOString(new Date()),
       exportCount: coupons.length,
       coupons: coupons
     }
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: exportData,
-      filename: `coupons_${new Date().toISOString().split('T')[0]}.json`
+      filename: `coupons_${formatLocalDate(new Date())}.json`
     })
   } catch (error) {
     console.error("导出优惠券失败:", error)

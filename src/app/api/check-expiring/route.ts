@@ -8,6 +8,7 @@ import {
 } from "@/lib/webdav-storage"
 import { sendPushPlus, generateGroupedExpiringMessage } from "@/lib/pushplus"
 import { getRemainingHours, isRemindWithinDays } from "@/lib/utils"
+import { toLocalISOString } from "@/lib/datetime-utils"
 
 /**
  * 计算优惠券剩余天数（使用北京时间 UTC+8）
@@ -241,7 +242,7 @@ export async function GET(request: NextRequest) {
             ...coupon,
             remindedDays: newRemindedDays,
             // 移除 isReminded 的更新
-            updatedAt: new Date().toISOString(),
+            updatedAt: toLocalISOString(new Date()),
           }
         })
         

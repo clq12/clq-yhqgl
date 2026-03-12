@@ -1,4 +1,4 @@
-import { pgTable, text, varchar, timestamp, boolean, integer, index } from "drizzle-orm/pg-core"
+import { pgTable, text, varchar, timestamp, boolean, integer, index, real } from "drizzle-orm/pg-core"
 import { sql } from "drizzle-orm"
 import { createSchemaFactory } from "drizzle-zod"
 import { z } from "zod"
@@ -11,7 +11,7 @@ export const coupons = pgTable(
       .default(sql`gen_random_uuid()`),
     title: varchar("title", { length: 255 }).notNull(),
     description: text("description"),
-    discountAmount: integer("discount_amount"),
+    discountAmount: real("discount_amount"), // 改为 real 支持浮点数
     startDate: timestamp("start_date", { withTimezone: true }).notNull(),
     endDate: timestamp("end_date", { withTimezone: true }).notNull(),
     isReminded: boolean("is_reminded").default(false).notNull(),
@@ -39,6 +39,9 @@ export const insertCouponSchema = createCoercedInsertSchema(coupons).pick({
   startDate: true,
   endDate: true,
   notes: true,
+}).extend({
+  // 覆盖 discountAmount，允许数字或null，支持浮点数
+  discountAmount: z.number().nullable().optional(),
 })
 
 export const updateCouponSchema = createCoercedInsertSchema(coupons)
@@ -52,6 +55,10 @@ export const updateCouponSchema = createCoercedInsertSchema(coupons)
     notes: true,
   })
   .partial()
+  .extend({
+    // 覆盖 discountAmount，允许数字或null，支持浮点数
+    discountAmount: z.number().nullable().optional(),
+  })
 
 // TypeScript types
 export type Coupon = typeof coupons.$inferSelect

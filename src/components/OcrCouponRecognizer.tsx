@@ -417,12 +417,28 @@ export default function OcrCouponRecognizer({ onExtracted, onDirectAdd, onCancel
     setAddingCoupon(true)
 
     try {
+      console.log('=== handleAddAllCoupons 开始 ===')
+      console.log('aiResult.coupons:', JSON.stringify(aiResult.coupons, null, 2))
+      
       // 将所有优惠券转换为ExtractedCouponInfo格式
-      const extractedInfos: ExtractedCouponInfo[] = aiResult.coupons.map((coupon: any) => {
+      const extractedInfos: ExtractedCouponInfo[] = aiResult.coupons.map((coupon: any, index: number) => {
         // 处理时间格式
         const endDatePart = extractDatePart(coupon.endDate)
         const { hour: extractedHour, minute: extractedMinute } = extractTimeParts(coupon.endDate)
         const startDatePart = extractDatePart(coupon.startDate)
+        
+        console.log(`[${index}] 原始数据:`, {
+          startDate: coupon.startDate,
+          endDate: coupon.endDate,
+          endHour: coupon.endHour,
+          endMinute: coupon.endMinute
+        })
+        console.log(`[${index}] 处理后:`, {
+          startDatePart,
+          endDatePart,
+          extractedHour,
+          extractedMinute
+        })
         
         return {
           storeName: coupon.storeName || '',
@@ -439,6 +455,8 @@ export default function OcrCouponRecognizer({ onExtracted, onDirectAdd, onCancel
         }
       })
 
+      console.log('最终extractedInfos:', JSON.stringify(extractedInfos, null, 2))
+      
       // 批量添加所有优惠券
       await onDirectAdd(extractedInfos)
     } catch (error) {

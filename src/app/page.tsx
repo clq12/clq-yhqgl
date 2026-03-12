@@ -130,17 +130,28 @@ export default function Home() {
 
   // 直接添加OCR识别的优惠券（不打开表单）
   const handleOcrDirectAdd = async (infos: ExtractedCouponInfo[]) => {
+    console.log('=== handleOcrDirectAdd 开始 ===')
+    console.log('传入的infos:', JSON.stringify(infos, null, 2))
+    
     try {
       for (const info of infos) {
         // 构造API期望的数据格式
+        const startDateStr = info.startDate || formatLocalDate(new Date())
+        const endDateStr = info.endDate || formatLocalDate(new Date())
+        
+        console.log('处理优惠券:', info.title)
+        console.log('startDate原始值:', info.startDate, '处理后:', startDateStr)
+        console.log('endDate原始值:', info.endDate, '处理后:', endDateStr)
+        console.log('endHour:', info.endHour, 'endMinute:', info.endMinute)
+        
         const couponData = {
           title: info.title || '',
           description: info.description || '',
           discountAmount: info.discountAmount,
           discountType: info.discountType || null,
           fullAmount: info.fullAmount || null,
-          startDate: safeCreateDate(info.startDate) || safeCreateDate(formatLocalDate(new Date())),
-          endDate: safeCreateDate(info.endDate) || safeCreateDate(formatLocalDate(new Date())),
+          startDate: startDateStr,
+          endDate: endDateStr,
           endHour: info.endHour ?? 23,
           endMinute: info.endMinute ?? 59,
           notes: info.notes || '',
@@ -152,6 +163,8 @@ export default function Home() {
             title: `${info.storeName} ${info.title || ''}`.trim()
           })
         }
+        
+        console.log('发送到API的couponData:', JSON.stringify(couponData, null, 2))
 
         const response = await fetch("/api/coupons", {
           method: "POST",
@@ -160,6 +173,8 @@ export default function Home() {
         })
 
         const result = await response.json()
+        console.log('API响应:', result)
+        
         if (!result.success) {
           throw new Error(`添加优惠券失败: ${result.error}`)
         }

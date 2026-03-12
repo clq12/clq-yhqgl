@@ -78,8 +78,13 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
+    
+    console.log('=== 创建优惠券 API ===')
+    console.log('收到的body:', JSON.stringify(body, null, 2))
 
     const validated = insertCouponSchema.parse(body)
+    
+    console.log('validated:', validated)
 
     const endHour = body.endHour ?? 23
     const endMinute = body.endMinute ?? 59
@@ -104,6 +109,8 @@ export async function POST(request: NextRequest) {
       createdAt: toLocalISOString(new Date()), // ✅ 修复
       updatedAt: null,
     }
+    
+    console.log('最终coupon:', coupon)
 
     initWebDAVClient(config)
 

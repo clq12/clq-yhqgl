@@ -2,6 +2,7 @@ import { eq, and, lte, SQL, sql } from "drizzle-orm"
 import { getDb } from "coze-coding-dev-sdk"
 import {
   coupons,
+  dbInsertCouponSchema,
   insertCouponSchema,
   updateCouponSchema,
   type Coupon,
@@ -13,7 +14,20 @@ export class CouponManager {
   async createCoupon(data: InsertCoupon): Promise<Coupon> {
     const db = await getDb()
     const validated = insertCouponSchema.parse(data)
-    const [coupon] = await db.insert(coupons).values(validated).returning()
+    
+    // 将字符串日期转换为 Date 对象
+    const dbData = {
+      ...validated,
+      startDate: typeof validated.startDate === 'string' 
+        ? new Date(validated.startDate) 
+        : validated.startDate,
+      endDate: typeof validated.endDate === 'string' 
+        ? new Date(validated.endDate) 
+        : validated.endDate,
+    }
+    
+    const dbValidated = dbInsertCouponSchema.parse(dbData)
+    const [coupon] = await db.insert(coupons).values(dbValidated).returning()
     return coupon
   }
 
@@ -69,9 +83,19 @@ export class CouponManager {
   async updateCoupon(id: string, data: UpdateCoupon): Promise<Coupon | null> {
     const db = await getDb()
     const validated = updateCouponSchema.parse(data)
+    
+    // 将字符串日期转换为 Date 对象
+    const dbData: Record<string, unknown> = { ...validated, updatedAt: new Date() }
+    if (typeof validated.startDate === 'string') {
+      dbData.startDate = new Date(validated.startDate)
+    }
+    if (typeof validated.endDate === 'string') {
+      dbData.endDate = new Date(validated.endDate)
+    }
+    
     const [coupon] = await db
       .update(coupons)
-      .set({ ...validated, updatedAt: new Date() })
+      .set(dbData)
       .where(eq(coupons.id, id))
       .returning()
     return coupon || null

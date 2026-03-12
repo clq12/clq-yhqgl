@@ -89,14 +89,39 @@ export async function POST(request: NextRequest) {
     const endHour = body.endHour ?? 23
     const endMinute = body.endMinute ?? 59
 
-    let finalEndDate = validated.endDate
+    // 处理日期：直接存储为北京时间 ISO 字符串，避免时区转换问题
+    let finalEndDate: string
+    
+    if (validated.endDate instanceof Date) {
+      // 如果是 Date 对象，转换为北京时间 ISO 字符串
+      finalEndDate = toLocalISOString(validated.endDate)
+    } else if (typeof validated.endDate === 'string') {
+      // 如果是字符串，直接使用（前端已经传的是 YYYY-MM-DD 格式）
+      // 转换为带时间的 ISO 字符串
+      const dateStr = validated.endDate.includes('T') 
+        ? validated.endDate 
+        : `${validated.endDate}T${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}:00.000+08:00`
+      finalEndDate = dateStr
+    } else {
+      finalEndDate = toLocalISOString(new Date())
+    }
 
-    if (finalEndDate instanceof Date) {
-      finalEndDate = setLocalTime(finalEndDate, endHour, endMinute, 59, 999)
+    // 同样处理 startDate
+    let finalStartDate: string
+    if (validated.startDate instanceof Date) {
+      finalStartDate = toLocalISOString(validated.startDate)
+    } else if (typeof validated.startDate === 'string') {
+      const dateStr = validated.startDate.includes('T')
+        ? validated.startDate
+        : `${validated.startDate}T00:00:00.000+08:00`
+      finalStartDate = dateStr
+    } else {
+      finalStartDate = toLocalISOString(new Date())
     }
 
     const coupon = {
       ...validated,
+      startDate: finalStartDate,
       endDate: finalEndDate,
       endHour: endHour,
       endMinute: endMinute,

@@ -188,11 +188,19 @@ async function extractWithChatGPT(imageDataUrl: string): Promise<NextResponse> {
     // 安全补字段：确保所有字段都有默认值
     const today = formatLocalDate(new Date())
 
-    const normalized = coupons.map((c: any) => {
+    const normalized = coupons.map((c: any, index: number) => {
       // 获取日期：优先使用 expiryDate，其次 endDate
       // 确保只保留日期部分（YYYY-MM-DD）
       let processedStartDate = c.startDate ?? today
-      let processedEndDate = c.expiryDate ?? c.endDate ?? today
+      let processedEndDate = c.expiryDate || c.endDate || today
+
+      console.log(`[${index}] AI返回原始数据:`, {
+        startDate: c.startDate,
+        endDate: c.endDate,
+        expiryDate: c.expiryDate,
+        endHour: c.endHour,
+        endMinute: c.endMinute
+      })
 
       // 提取日期部分（如果是带时间的格式，只取日期）
       const extractDate = (dateStr: string): string => {
@@ -210,7 +218,12 @@ async function extractWithChatGPT(imageDataUrl: string): Promise<NextResponse> {
       processedStartDate = extractDate(processedStartDate)
       processedEndDate = extractDate(processedEndDate)
 
-      console.log(`处理后 - startDate: ${processedStartDate}, endDate: ${processedEndDate}, endHour: ${c.endHour ?? 23}, endMinute: ${c.endMinute ?? 59}`)
+      console.log(`[${index}] 处理后:`, { 
+        startDate: processedStartDate, 
+        endDate: processedEndDate, 
+        endHour: c.endHour ?? 23, 
+        endMinute: c.endMinute ?? 59 
+      })
 
       return {
         id: crypto.randomUUID(),
@@ -296,7 +309,7 @@ function parseExtractedJSON(jsonText: string): Array<{
       discountAmount: coupon.discountAmount || null,
       fullAmount: coupon.fullAmount || null,
       startDate: coupon.startDate || formatLocalDate(new Date()),
-      endDate: coupon.endDate || '',
+      endDate: coupon.expiryDate || coupon.endDate || '',
       endHour: coupon.endHour || 23,
       endMinute: coupon.endMinute || 59,
       notes: coupon.notes || null

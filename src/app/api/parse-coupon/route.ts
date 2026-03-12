@@ -738,13 +738,13 @@ async function extractCouponInfoWithDoubao(text: string): Promise<ExtractedCoupo
 
 - startDate：
   - 文本中明确出现才填写
-  - 格式：YYYY-MM-DD（北京时间，不要带Z后缀）
+  - 格式：YYYY-MM-DD（北京时间，不带任何后缀，不要带Z，不要带+08:00）
   - 否则 null
 
 - endDate：
   - 到期或有效期描述
   - 相对时间（如 明天 / 后天12点）原样输出
-  - 格式：YYYY-MM-DD（北京时间，不要带Z后缀）
+  - 格式：YYYY-MM-DD（北京时间，不带任何后缀，不要带Z，不要带+08:00）
 
 - endHour：
   - 仅当文本中明确出现小时信息时填写
@@ -925,13 +925,13 @@ async function extractCouponsWithDoubaoBatch(text: string): Promise<ExtractedCou
 
 - startDate：
   - 文本中明确出现才填写
-  - 格式：YYYY-MM-DD（北京时间，不要带Z后缀）
+  - 格式：YYYY-MM-DD（北京时间，不带任何后缀，不要带Z，不要带+08:00）
   - 否则 null
 
 - endDate：
   - 到期或有效期描述
   - 相对时间（如 明天 / 后天12点）原样输出
-  - 格式：YYYY-MM-DD（北京时间，不要带Z后缀）
+  - 格式：YYYY-MM-DD（北京时间，不带任何后缀，不要带Z，不要带+08:00）
 
 - endHour：
   - 仅当文本中明确出现小时信息时填写
@@ -1092,8 +1092,8 @@ async function extractCouponInfoWithChatGPT(text: string, apiKey?: string): Prom
 - discountType: "amount" | "percentage" | "full" | null - 折扣类型（满减/full，折扣/percentage，减免/amount）
 - discountAmount: number | null - 优惠金额（满减中的减金额、减免金额）
 - fullAmount: number | null - 满减中的满金额
-- startDate: string | null - 开始日期，格式YYYY-MM-DD（北京时间，不要带Z后缀）
-- endDate: string | null - 到期日期，格式YYYY-MM-DD（北京时间，不要带Z后缀）
+- startDate: string | null - 开始日期，格式YYYY-MM-DD（北京时间，不带任何后缀，不要带Z，不要带+08:00）
+- endDate: string | null - 到期日期，格式YYYY-MM-DD（北京时间，不带任何后缀，不要带Z，不要带+08:00）
 - endHour: number | null - 截止小时，0-23
 - endMinute: number | null - 截止分钟，0-59
 - storeName: string | null - 商家或平台名称（需要单独提取，不要只从title中取）
@@ -1259,8 +1259,8 @@ async function extractCouponsWithChatGPTBatch(text: string, apiKey?: string): Pr
 - discountType: "amount" | "percentage" | "full" | null - 折扣类型（满减/full，折扣/percentage，减免/amount）
 - discountAmount: number | null - 优惠金额（满减中的减金额、减免金额）
 - fullAmount: number | null - 满减中的满金额
-- startDate: string | null - 开始日期，格式YYYY-MM-DD（北京时间，不要带Z后缀）
-- endDate: string | null - 到期日期，格式YYYY-MM-DD（北京时间，不要带Z后缀）
+- startDate: string | null - 开始日期，格式YYYY-MM-DD（北京时间，不带任何后缀，不要带Z，不要带+08:00）
+- endDate: string | null - 到期日期，格式YYYY-MM-DD（北京时间，不带任何后缀，不要带Z，不要带+08:00）
 - endHour: number | null - 截止小时，0-23
 - endMinute: number | null - 截止分钟，0-59
 - storeName: string | null - 商家或平台名称（需要单独提取，不要只从title中取）

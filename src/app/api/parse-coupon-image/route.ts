@@ -127,10 +127,10 @@ async function extractWithChatGPT(imageDataUrl: string): Promise<NextResponse> {
 
 【startDate】
 - 如果未明确给出，使用今天日期
-- 格式必须为 YYYY-MM-DD（北京时间）
+- 格式必须为 YYYY-MM-DD（北京时间，不带任何后缀，不要带Z，不要带+08:00）
 
 【endDate】
-- 必须转换为 YYYY-MM-DD（北京时间）
+- 必须转换为 YYYY-MM-DD（北京时间，不带任何后缀，不要带Z，不要带+08:00）
 - 支持：2026年3月8日、2026/03/08、2026-03-08、3月8日（默认当前年份）
 - ⚠️ 所有日期必须按北京时间（UTC+8）处理
 

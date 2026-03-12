@@ -45,7 +45,7 @@ export function safeCreateDate(input: any): Date | null {
 
 /**
  * 生成北京时间 ISO 字符串
- * 格式: YYYY-MM-DDTHH:mm:ss.SSS+08:00
+ * 格式: YYYY-MM-DDTHH:mm:ss.SSS（不带时区后缀）
  * 不依赖系统时区，直接基于 UTC 时间计算
  */
 export function toLocalISOString(date: Date): string {
@@ -63,7 +63,7 @@ export function toLocalISOString(date: Date): string {
   const seconds = String(beijingTime.getSeconds()).padStart(2, "0")
   const ms = String(beijingTime.getMilliseconds()).padStart(3, "0")
 
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${ms}+08:00`
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${ms}`
 }
 
 /**

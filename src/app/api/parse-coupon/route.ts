@@ -777,18 +777,19 @@ async function extractCouponInfoWithDoubao(text: string): Promise<ExtractedCoupo
     if (jsonMatch) {
       const parsedData = JSON.parse(jsonMatch[0])
 
-      // 处理时间格式，移除Z后缀（如果是UTC时间）
-      let processedEndDate = parsedData.endDate
-      let processedStartDate = parsedData.startDate
-
-      if (processedStartDate && processedStartDate.endsWith('Z')) {
-        const utcDate = new Date(processedStartDate)
-        processedStartDate = toLocalISOString(utcDate)
-      }
-
-      if (processedEndDate && processedEndDate.endsWith('Z')) {
-        const utcDate = new Date(processedEndDate)
-        processedEndDate = toLocalISOString(utcDate)
+      // 处理时间格式，只保留日期部分（YYYY-MM-DD）
+      const extractDate = (dateStr: string | null | undefined): string | undefined => {
+        if (!dateStr) return undefined
+        // 如果带时间，只取日期部分
+        if (dateStr.includes('T')) {
+          return dateStr.split('T')[0]
+        }
+        // 如果带Z后缀，解析后提取日期
+        if (dateStr.endsWith('Z')) {
+          const d = new Date(dateStr)
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        }
+        return dateStr
       }
 
       // 验证和转换数据
@@ -799,8 +800,8 @@ async function extractCouponInfoWithDoubao(text: string): Promise<ExtractedCoupo
       if (parsedData.description) result.description = parsedData.description
       if (parsedData.discountAmount) result.discountAmount = Number(parsedData.discountAmount)
       if (parsedData.fullAmount) result.fullAmount = Number(parsedData.fullAmount)
-      if (processedStartDate) result.startDate = processedStartDate
-      if (processedEndDate) result.endDate = processedEndDate
+      if (parsedData.startDate) result.startDate = extractDate(parsedData.startDate)
+      if (parsedData.endDate) result.endDate = extractDate(parsedData.endDate)
       if (parsedData.endHour) result.endHour = Number(parsedData.endHour)
       if (parsedData.endMinute) result.endMinute = Number(parsedData.endMinute)
 
@@ -994,18 +995,19 @@ async function extractCouponsWithDoubaoBatch(text: string): Promise<ExtractedCou
     // 转换为系统内部格式
     const results: ExtractedCouponInfo[] = []
     for (const item of parsedData) {
-      // 处理startDate和endDate，移除Z后缀（如果是UTC时间）
-      let processedStartDate = item.startDate
-      let processedEndDate = item.endDate
-
-      if (processedStartDate && processedStartDate.endsWith('Z')) {
-        const utcDate = new Date(processedStartDate)
-        processedStartDate = toLocalISOString(utcDate)
-      }
-
-      if (processedEndDate && processedEndDate.endsWith('Z')) {
-        const utcDate = new Date(processedEndDate)
-        processedEndDate = toLocalISOString(utcDate)
+      // 处理startDate和endDate，只保留日期部分（YYYY-MM-DD）
+      const extractDate = (dateStr: string | null | undefined): string | undefined => {
+        if (!dateStr) return undefined
+        // 如果带时间，只取日期部分
+        if (dateStr.includes('T')) {
+          return dateStr.split('T')[0]
+        }
+        // 如果带Z后缀，解析后提取日期
+        if (dateStr.endsWith('Z')) {
+          const d = new Date(dateStr)
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        }
+        return dateStr
       }
 
       const result: ExtractedCouponInfo = {
@@ -1018,8 +1020,8 @@ async function extractCouponsWithDoubaoBatch(text: string): Promise<ExtractedCou
       if (item.description) result.description = item.description
       if (item.notes) result.notes = item.notes
       if (item.storeName) result.storeName = item.storeName
-      if (processedStartDate) result.startDate = processedStartDate
-      if (processedEndDate) result.endDate = processedEndDate
+      if (item.startDate) result.startDate = extractDate(item.startDate)
+      if (item.endDate) result.endDate = extractDate(item.endDate)
 
       // 映射折扣类型
       if (item.discountType) {
@@ -1333,19 +1335,19 @@ async function extractCouponsWithChatGPTBatch(text: string, apiKey?: string): Pr
 
     // 转换为系统格式
     const results: ExtractedCouponInfo[] = parsedArray.map((item: any) => {
-      // 处理startDate和endDate，移除Z后缀（如果是UTC时间）
-      let processedStartDate = item.startDate
-      let processedEndDate = item.endDate
-
-      // 如果时间字符串带Z后缀（UTC时间），转换为北京时间格式
-      if (processedStartDate && processedStartDate.endsWith('Z')) {
-        const utcDate = new Date(processedStartDate)
-        processedStartDate = toLocalISOString(utcDate)
-      }
-
-      if (processedEndDate && processedEndDate.endsWith('Z')) {
-        const utcDate = new Date(processedEndDate)
-        processedEndDate = toLocalISOString(utcDate)
+      // 处理startDate和endDate，只保留日期部分（YYYY-MM-DD）
+      const extractDate = (dateStr: string | null | undefined): string | undefined => {
+        if (!dateStr) return undefined
+        // 如果带时间，只取日期部分
+        if (dateStr.includes('T')) {
+          return dateStr.split('T')[0]
+        }
+        // 如果带Z后缀，解析后提取日期
+        if (dateStr.endsWith('Z')) {
+          const d = new Date(dateStr)
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        }
+        return dateStr
       }
 
       return {
@@ -1354,8 +1356,8 @@ async function extractCouponsWithChatGPTBatch(text: string, apiKey?: string): Pr
         discountType: item.discountType,
         discountAmount: item.discountAmount,
         fullAmount: item.fullAmount,
-        startDate: processedStartDate,
-        endDate: processedEndDate,
+        startDate: extractDate(item.startDate),
+        endDate: extractDate(item.endDate),
         endHour: item.endHour,
         endMinute: item.endMinute,
         storeName: item.storeName,

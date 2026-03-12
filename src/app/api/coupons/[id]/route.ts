@@ -7,7 +7,7 @@ import {
   deleteCoupon,
 } from "@/lib/webdav-storage"
 import { updateCouponSchema } from "@/storage/database/shared/schema"
-import { setLocalTime, toLocalISOString } from "@/lib/datetime-utils"
+import { toLocalISOString } from "@/lib/datetime-utils"
 
 // 获取单个优惠券
 export async function GET(
@@ -66,16 +66,32 @@ export async function PUT(
     // 验证数据
     const validated = updateCouponSchema.parse(body)
 
-    // 处理endDate和endHour/endMinute（使用北京时间）
+    // 处理endDate和endHour/endMinute
     const endHour = body.endHour ?? 23
     const endMinute = body.endMinute ?? 59
 
-    let finalEndDate = validated.endDate
-
-    // 如果endDate是Date对象，使用北京时间设置时间
-    if (finalEndDate instanceof Date) {
-      finalEndDate = setLocalTime(finalEndDate, endHour, endMinute, 59, 999)
+    // 处理日期：只存储日期部分（YYYY-MM-DD），时间由 endHour/endMinute 单独存储
+    const extractDate = (dateValue: any): string | undefined => {
+      if (!dateValue) return undefined
+      if (dateValue instanceof Date) {
+        return `${dateValue.getFullYear()}-${String(dateValue.getMonth() + 1).padStart(2, '0')}-${String(dateValue.getDate()).padStart(2, '0')}`
+      }
+      if (typeof dateValue === 'string') {
+        // 如果带时间，只取日期部分
+        if (dateValue.includes('T')) {
+          return dateValue.split('T')[0]
+        }
+        // 如果带Z后缀，解析后提取日期
+        if (dateValue.endsWith('Z')) {
+          const d = new Date(dateValue)
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        }
+        return dateValue
+      }
+      return undefined
     }
+
+    const finalEndDate = extractDate(validated.endDate)
 
     // 添加所有新字段支持
     const updates = {

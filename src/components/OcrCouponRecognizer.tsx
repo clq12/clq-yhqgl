@@ -59,35 +59,11 @@ function extractDatePart(dateStr: string | undefined): string | undefined {
   return dateStr
 }
 
-// 辅助函数：从ISO字符串中提取小时和分钟（转换为北京时间）
-function extractTimeParts(dateStr: string | undefined): { hour: number | undefined, minute: number | undefined } {
-  if (!dateStr || !dateStr.includes('T')) {
-    return { hour: undefined, minute: undefined }
-  }
-  
-  try {
-    // 如果是UTC时间（带Z后缀），需要转换为北京时间
-    if (dateStr.endsWith('Z')) {
-      const utcDate = new Date(dateStr)
-      // UTC时间 + 8小时 = 北京时间
-      const beijingHour = (utcDate.getUTCHours() + 8) % 24
-      const beijingMinute = utcDate.getUTCMinutes()
-      return { hour: beijingHour, minute: beijingMinute }
-    }
-    
-    // 带时区偏移的时间（如 +08:00），提取原始时间（已经是北京时间）
-    // 例如：2026-03-31T23:59:00.000+08:00
-    const timePart = dateStr.split('T')[1] // 23:59:00.000+08:00
-    const timeWithoutOffset = timePart.split(/[+-]/)[0] // 23:59:00.000
-    const timeWithoutMs = timeWithoutOffset.split('.')[0] // 23:59:00
-    const [hour, minute] = timeWithoutMs.split(':').map(Number)
-    
-    return { 
-      hour: isNaN(hour) ? undefined : hour, 
-      minute: isNaN(minute) ? undefined : minute 
-    }
-  } catch (e) {
-    return { hour: undefined, minute: undefined }
+// 辅助函数：获取截止时间（直接使用 endHour/endMinute，不从 endDate 提取）
+function getEndTime(coupon: { endHour?: number | null, endMinute?: number | null }): { hour: number | undefined, minute: number | undefined } {
+  return { 
+    hour: coupon.endHour ?? undefined, 
+    minute: coupon.endMinute ?? undefined 
   }
 }
 
@@ -379,7 +355,7 @@ export default function OcrCouponRecognizer({ onExtracted, onDirectAdd, onCancel
         
         // 处理时间格式
         const endDatePart = extractDatePart(coupon.endDate)
-        const { hour: extractedHour, minute: extractedMinute } = extractTimeParts(coupon.endDate)
+        const { hour, minute } = getEndTime(coupon)
         const startDatePart = extractDatePart(coupon.startDate)
         
         extractedInfos.push({
@@ -391,8 +367,8 @@ export default function OcrCouponRecognizer({ onExtracted, onDirectAdd, onCancel
           fullAmount: coupon.fullAmount,
           startDate: startDatePart,
           endDate: endDatePart,
-          endHour: coupon.endHour !== undefined ? coupon.endHour : (extractedHour !== undefined ? extractedHour : 23),
-          endMinute: coupon.endMinute !== undefined ? coupon.endMinute : (extractedMinute !== undefined ? extractedMinute : 59),
+          endHour: hour ?? 23,
+          endMinute: minute ?? 59,
           notes: coupon.notes ? `AI识别: ChatGPT, ${coupon.notes}` : `AI识别: ChatGPT`,
         })
       })
@@ -424,7 +400,7 @@ export default function OcrCouponRecognizer({ onExtracted, onDirectAdd, onCancel
       const extractedInfos: ExtractedCouponInfo[] = aiResult.coupons.map((coupon: any, index: number) => {
         // 处理时间格式
         const endDatePart = extractDatePart(coupon.endDate)
-        const { hour: extractedHour, minute: extractedMinute } = extractTimeParts(coupon.endDate)
+        const { hour, minute } = getEndTime(coupon)
         const startDatePart = extractDatePart(coupon.startDate)
         
         console.log(`[${index}] 原始数据:`, {
@@ -436,8 +412,8 @@ export default function OcrCouponRecognizer({ onExtracted, onDirectAdd, onCancel
         console.log(`[${index}] 处理后:`, {
           startDatePart,
           endDatePart,
-          extractedHour,
-          extractedMinute
+          hour,
+          minute
         })
         
         return {
@@ -449,8 +425,8 @@ export default function OcrCouponRecognizer({ onExtracted, onDirectAdd, onCancel
           fullAmount: coupon.fullAmount,
           startDate: startDatePart,
           endDate: endDatePart,
-          endHour: coupon.endHour !== undefined ? coupon.endHour : (extractedHour !== undefined ? extractedHour : 23),
-          endMinute: coupon.endMinute !== undefined ? coupon.endMinute : (extractedMinute !== undefined ? extractedMinute : 59),
+          endHour: hour ?? 23,
+          endMinute: minute ?? 59,
           notes: coupon.notes ? `AI识别: ChatGPT, ${coupon.notes}` : `AI识别: ChatGPT`,
         }
       })

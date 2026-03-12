@@ -78,7 +78,6 @@ async function extractWithChatGPT(imageDataUrl: string): Promise<NextResponse> {
 4. 不要添加任何额外文字
 5. 所有字段必须存在
 6. 不允许缺失字段
-7. ⚠️ 所有时间格式必须使用北京时间（UTC+8）
 
 返回格式必须严格为：
 {
@@ -90,7 +89,7 @@ async function extractWithChatGPT(imageDataUrl: string): Promise<NextResponse> {
       "discountAmount": number | null,
       "fullAmount": number | null,
       "startDate": string,
-      "endDate": string,
+      "expiryDate": string,
       "endHour": number,
       "endMinute": number,
       "notes": string | null,
@@ -126,21 +125,21 @@ async function extractWithChatGPT(imageDataUrl: string): Promise<NextResponse> {
 - 非满减则 null
 
 【startDate】
+- 格式：YYYY-MM-DD（纯日期，不带时间）
 - 如果未明确给出，使用今天日期
-- 格式必须为 YYYY-MM-DD（北京时间，不带任何后缀，不要带Z，不要带+08:00）
 
-【endDate】
-- 必须转换为 YYYY-MM-DD（北京时间，不带任何后缀，不要带Z，不要带+08:00）
+【expiryDate】
+- 格式：YYYY-MM-DD（纯日期，不带时间）
 - 支持：2026年3月8日、2026/03/08、2026-03-08、3月8日（默认当前年份）
-- ⚠️ 所有日期必须按北京时间（UTC+8）处理
+- ⚠️ 必须返回纯日期格式，不要带时间，不要带Z，不要带+08:00
 
 【endHour】
 - 默认 23
-- ⚠️ 使用北京时间（24小时制，0-23）
+- 仅当图片中明确显示截止时间时才填写
 
 【endMinute】
 - 默认 59
-- ⚠️ 使用北京时间（0-59）
+- 仅当图片中明确显示截止分钟时才填写
 
 【storeName】
 - 商家名称
@@ -190,32 +189,28 @@ async function extractWithChatGPT(imageDataUrl: string): Promise<NextResponse> {
     const today = formatLocalDate(new Date())
 
     const normalized = coupons.map((c: any) => {
-      // 处理startDate和endDate，移除Z后缀（如果是UTC时间）
+      // 获取日期：优先使用 expiryDate，其次 endDate
+      // 确保只保留日期部分（YYYY-MM-DD）
       let processedStartDate = c.startDate ?? today
-      let processedEndDate = c.endDate ?? today
+      let processedEndDate = c.expiryDate ?? c.endDate ?? today
 
-      console.log(`处理前 - startDate: ${c.startDate}, endDate: ${c.endDate}`)
-
-      // 如果时间字符串带Z后缀（UTC时间），转换为北京时间格式
-      if (processedStartDate && processedStartDate.endsWith('Z')) {
-        const utcDate = new Date(processedStartDate)
-        processedStartDate = toLocalISOString(utcDate)
-        console.log(`startDate带Z，转换后: ${processedStartDate}`)
+      // 提取日期部分（如果是带时间的格式，只取日期）
+      const extractDate = (dateStr: string): string => {
+        if (dateStr.includes('T')) {
+          return dateStr.split('T')[0]
+        }
+        // 如果带Z后缀，先解析再提取日期
+        if (dateStr.endsWith('Z')) {
+          const d = new Date(dateStr)
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        }
+        return dateStr
       }
 
-      if (processedEndDate && processedEndDate.endsWith('Z')) {
-        const utcDate = new Date(processedEndDate)
-        processedEndDate = toLocalISOString(utcDate)
-        console.log(`endDate带Z，转换后: ${processedEndDate}`)
-      }
+      processedStartDate = extractDate(processedStartDate)
+      processedEndDate = extractDate(processedEndDate)
 
-      // 如果是纯日期格式（YYYY-MM-DD），保持原样，使用endHour和endMinute
-      const isPureDate = (dateStr: string) => /^\d{4}-\d{2}-\d{2}$/.test(dateStr)
-      if (isPureDate(processedEndDate)) {
-        console.log(`endDate是纯日期格式，保持原样: ${processedEndDate}`)
-      }
-
-      console.log(`处理后 - startDate: ${processedStartDate}, endDate: ${processedEndDate}`)
+      console.log(`处理后 - startDate: ${processedStartDate}, endDate: ${processedEndDate}, endHour: ${c.endHour ?? 23}, endMinute: ${c.endMinute ?? 59}`)
 
       return {
         id: crypto.randomUUID(),
@@ -225,7 +220,7 @@ async function extractWithChatGPT(imageDataUrl: string): Promise<NextResponse> {
         discountAmount: c.discountAmount ?? null,
         fullAmount: c.fullAmount ?? null,
         startDate: processedStartDate,
-        endDate: processedEndDate,
+        endDate: processedEndDate,  // 只存储日期 YYYY-MM-DD
         endHour: c.endHour ?? 23,
         endMinute: c.endMinute ?? 59,
         notes: c.notes ?? null,

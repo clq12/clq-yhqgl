@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getWebDAVConfigFromRequest, WebDAVConfig } from "@/lib/config"
 import { initWebDAVClient } from "@/lib/webdav-client"
 import { getAllCoupons, saveCoupons } from "@/lib/webdav-storage"
-import { safeCreateDate, setLocalTime, toLocalISOString, formatLocalDate } from "@/lib/datetime-utils"
+import { toLocalISOString, formatLocalDate } from "@/lib/datetime-utils"
 
 /**
  * 从环境变量获取配置（用于定时任务）
@@ -63,18 +63,32 @@ export async function POST(request: NextRequest) {
 
     console.log('批量添加优惠券:', { inputCount: coupons.length, existingCount: allCoupons.length })
 
+    // 处理日期：只存储日期部分（YYYY-MM-DD），时间由 endHour/endMinute 单独存储
+    const extractDate = (dateValue: any): string => {
+      if (!dateValue) return formatLocalDate(new Date())
+      if (typeof dateValue === 'string') {
+        // 如果带时间，只取日期部分
+        if (dateValue.includes('T')) {
+          return dateValue.split('T')[0]
+        }
+        // 如果带Z后缀，解析后提取日期
+        if (dateValue.endsWith('Z')) {
+          const d = new Date(dateValue)
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        }
+        return dateValue
+      }
+      return formatLocalDate(new Date())
+    }
+
     // 为新优惠券生成ID并添加到列表
     const newCoupons: any[] = coupons.map((coupon: any) => {
-      // 获取或使用默认的结束时间（北京时间）
+      // 获取或使用默认的结束时间
       const endHour = coupon.endHour ?? 23
       const endMinute = coupon.endMinute ?? 59
 
-      // 使用safeCreateDate创建本地时间的Date对象
-      const startDate = safeCreateDate(coupon.startDate) || safeCreateDate(formatLocalDate(new Date()))!
-      const endDate = safeCreateDate(coupon.endDate) || safeCreateDate(formatLocalDate(new Date()))!
-
-      // 使用setLocalTime设置结束时间（北京时间）
-      const finalEndDate = setLocalTime(endDate, endHour, endMinute, 59, 999)
+      const finalStartDate = extractDate(coupon.startDate)
+      const finalEndDate = extractDate(coupon.endDate)
 
       // 清理数据，只保留需要的字段
       const cleanedCoupon = {
@@ -84,8 +98,8 @@ export async function POST(request: NextRequest) {
         discountType: coupon.discountType || 'amount',
         discountAmount: coupon.discountAmount || null,
         fullAmount: coupon.fullAmount, // 满减金额，用于满减类型
-        startDate: formatLocalDate(startDate),
-        endDate: toLocalISOString(finalEndDate), // 保存完整的时间（包含时分秒）
+        startDate: finalStartDate,
+        endDate: finalEndDate, // 只存储日期（YYYY-MM-DD）
         endHour: endHour,
         endMinute: endMinute,
         notes: coupon.notes || null,
@@ -180,9 +194,11 @@ export async function PATCH(request: NextRequest) {
         // 批量延长截止时间
         const days = body.days ?? 7
         targetCoupons.forEach(coupon => {
-          const endDate = new Date(coupon.endDate)
+          // endDate 是纯日期格式（YYYY-MM-DD），手动解析避免时区问题
+          const [year, month, day] = coupon.endDate.split('-').map(Number)
+          const endDate = new Date(year, month - 1, day)
           endDate.setDate(endDate.getDate() + days)
-          coupon.endDate = formatLocalDate(endDate)
+          coupon.endDate = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`
         })
         break
 

@@ -6,7 +6,7 @@ import {
   addCoupon,
 } from "@/lib/webdav-storage"
 import { insertCouponSchema } from "@/storage/database/shared/schema"
-import { safeCreateDate, setLocalTime, toLocalISOString } from "@/lib/datetime-utils"
+import { formatLocalDate, toLocalISOString } from "@/lib/datetime-utils"
 
 /**
  * 从环境变量获取配置（用于定时任务）
@@ -89,35 +89,31 @@ export async function POST(request: NextRequest) {
     const endHour = body.endHour ?? 23
     const endMinute = body.endMinute ?? 59
 
-    // 处理日期：直接存储为北京时间 ISO 字符串，避免时区转换问题
-    let finalEndDate: string
-    
-    if (validated.endDate instanceof Date) {
-      // 如果是 Date 对象，转换为北京时间 ISO 字符串
-      finalEndDate = toLocalISOString(validated.endDate)
-    } else if (typeof validated.endDate === 'string') {
-      // 如果是字符串，直接使用（前端已经传的是 YYYY-MM-DD 格式）
-      // 转换为带时间的 ISO 字符串
-      const dateStr = validated.endDate.includes('T') 
-        ? validated.endDate 
-        : `${validated.endDate}T${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}:00.000+08:00`
-      finalEndDate = dateStr
-    } else {
-      finalEndDate = toLocalISOString(new Date())
+    // 处理日期：只存储日期部分（YYYY-MM-DD），时间由 endHour/endMinute 单独存储
+    const extractDate = (dateValue: any): string => {
+      if (!dateValue) {
+        return formatLocalDate(new Date())
+      }
+      if (dateValue instanceof Date) {
+        return formatLocalDate(dateValue)
+      }
+      if (typeof dateValue === 'string') {
+        // 如果带时间，只取日期部分
+        if (dateValue.includes('T')) {
+          return dateValue.split('T')[0]
+        }
+        // 如果带Z后缀，解析后提取日期
+        if (dateValue.endsWith('Z')) {
+          const d = new Date(dateValue)
+          return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        }
+        return dateValue
+      }
+      return formatLocalDate(new Date())
     }
 
-    // 同样处理 startDate
-    let finalStartDate: string
-    if (validated.startDate instanceof Date) {
-      finalStartDate = toLocalISOString(validated.startDate)
-    } else if (typeof validated.startDate === 'string') {
-      const dateStr = validated.startDate.includes('T')
-        ? validated.startDate
-        : `${validated.startDate}T00:00:00.000+08:00`
-      finalStartDate = dateStr
-    } else {
-      finalStartDate = toLocalISOString(new Date())
-    }
+    const finalEndDate = extractDate(validated.endDate)
+    const finalStartDate = extractDate(validated.startDate)
 
     const coupon = {
       ...validated,

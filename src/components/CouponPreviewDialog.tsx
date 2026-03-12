@@ -44,32 +44,11 @@ function extractDatePart(dateStr: string | undefined): string {
   return dateStr
 }
 
-// 辅助函数：从ISO字符串中提取小时和分钟（转换为北京时间）
-function extractTimeParts(dateStr: string | undefined): { hour: number, minute: number } {
-  if (!dateStr || !dateStr.includes('T')) {
-    return { hour: 23, minute: 59 }
-  }
-  
-  try {
-    // 如果是UTC时间（带Z后缀），需要转换为北京时间
-    if (dateStr.endsWith('Z')) {
-      const utcDate = new Date(dateStr)
-      // UTC时间 + 8小时 = 北京时间
-      const beijingHour = (utcDate.getUTCHours() + 8) % 24
-      const beijingMinute = utcDate.getUTCMinutes()
-      return { hour: beijingHour, minute: beijingMinute }
-    }
-    
-    // 带时区偏移的时间（如 +08:00），提取原始时间（已经是北京时间）
-    // 例如：2026-03-31T23:59:00.000+08:00
-    const timePart = dateStr.split('T')[1] // 23:59:00.000+08:00
-    const timeWithoutOffset = timePart.split(/[+-]/)[0] // 23:59:00.000
-    const timeWithoutMs = timeWithoutOffset.split('.')[0] // 23:59:00
-    const [hour, minute] = timeWithoutMs.split(':').map(Number)
-    
-    return { hour: isNaN(hour) ? 23 : hour, minute: isNaN(minute) ? 59 : minute }
-  } catch (e) {
-    return { hour: 23, minute: 59 }
+// 辅助函数：获取截止时间（直接使用 endHour/endMinute，不从 endDate 提取）
+function getEndTime(coupon: { endHour?: number | null, endMinute?: number | null }): { hour: number, minute: number } {
+  return { 
+    hour: coupon.endHour ?? 23, 
+    minute: coupon.endMinute ?? 59 
   }
 }
 
@@ -98,21 +77,12 @@ export default function CouponPreviewDialog({
     const previews = coupons.map((coupon, index) => {
       // 处理endDate：如果是带时间的ISO格式，提取日期和时间
       const endDatePart = extractDatePart(coupon.endDate)
-      const { hour, minute } = extractTimeParts(coupon.endDate)
-      
-      console.log(`[${index}] extractTimeParts结果:`, { hour, minute, endDate: coupon.endDate })
-      
-      // 如果AI没有提供endHour/endMinute，使用从ISO字符串中提取的值
-      const endHour = coupon.endHour !== undefined ? coupon.endHour : hour
-      const endMinute = coupon.endMinute !== undefined ? coupon.endMinute : minute
+      const { hour, minute } = getEndTime(coupon)
       
       console.log(`[${index}] 最终时间值:`, { 
-        couponEndHour: coupon.endHour, 
-        couponEndMinute: coupon.endMinute, 
-        extractedHour: hour, 
-        extractedMinute: minute, 
-        finalEndHour: endHour, 
-        finalEndMinute: endMinute 
+        endHour: hour, 
+        endMinute: minute, 
+        endDate: coupon.endDate 
       })
       
       // 处理startDate
@@ -123,11 +93,11 @@ export default function CouponPreviewDialog({
         id: `preview-${Date.now()}-${index}`,
         startDate: startDatePart,
         endDate: endDatePart,
-        endHour,
-        endMinute,
+        endHour: hour,
+        endMinute: minute,
       }
       console.log(`[${index}] aiModel: ${preview.aiModel}, storeName: ${preview.storeName}`)
-      console.log(`[${index}] 原始endDate: ${coupon.endDate}, 处理后: ${endDatePart}, hour: ${endHour}, minute: ${endMinute}`)
+      console.log(`[${index}] 原始endDate: ${coupon.endDate}, 处理后: ${endDatePart}, hour: ${hour}, minute: ${minute}`)
       return preview
     })
 

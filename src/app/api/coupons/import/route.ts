@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getWebDAVConfigFromRequest, WebDAVConfig } from "@/lib/config"
 import { initWebDAVClient } from "@/lib/webdav-client"
 import { getAllCoupons, saveCoupons } from "@/lib/webdav-storage"
-import { safeCreateDate, setLocalTime, toLocalISOString, formatLocalDate } from "@/lib/datetime-utils"
+import { toLocalISOString, formatLocalDate } from "@/lib/datetime-utils"
 
 /**
  * 从环境变量获取配置（用于定时任务）
@@ -73,18 +73,27 @@ export async function POST(request: NextRequest) {
         importedCoupons = coupons
           .filter((c: any) => !existingTitles.has(c.title))
           .map((c: any) => {
-            // 处理日期（使用北京时间）
+            // 处理日期：只存储日期部分（YYYY-MM-DD），时间由 endHour/endMinute 单独存储
             const endHour = c.endHour ?? 23
             const endMinute = c.endMinute ?? 59
-            const startDate = safeCreateDate(c.startDate) || safeCreateDate(formatLocalDate(new Date()))!
-            const endDate = safeCreateDate(c.endDate) || safeCreateDate(formatLocalDate(new Date()))!
-            const finalEndDate = setLocalTime(endDate, endHour, endMinute, 59, 999)
+            const extractDate = (dateValue: any): string => {
+              if (!dateValue) return formatLocalDate(new Date())
+              if (typeof dateValue === 'string') {
+                if (dateValue.includes('T')) return dateValue.split('T')[0]
+                if (dateValue.endsWith('Z')) {
+                  const d = new Date(dateValue)
+                  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+                }
+                return dateValue
+              }
+              return formatLocalDate(new Date())
+            }
 
             return {
               ...c,
               id: c.id || crypto.randomUUID(),
-              startDate: formatLocalDate(startDate),
-              endDate: toLocalISOString(finalEndDate),
+              startDate: extractDate(c.startDate),
+              endDate: extractDate(c.endDate),
               endHour: endHour,
               endMinute: endMinute,
               createdAt: c.createdAt || toLocalISOString(new Date()),
@@ -102,18 +111,27 @@ export async function POST(request: NextRequest) {
         const nonOverwritten = existingCoupons.filter(c => !titles.has(c.title))
 
         importedCoupons = coupons.map((c: any) => {
-          // 处理日期（使用北京时间）
+          // 处理日期：只存储日期部分（YYYY-MM-DD），时间由 endHour/endMinute 单独存储
           const endHour = c.endHour ?? 23
           const endMinute = c.endMinute ?? 59
-          const startDate = safeCreateDate(c.startDate) || safeCreateDate(formatLocalDate(new Date()))!
-          const endDate = safeCreateDate(c.endDate) || safeCreateDate(formatLocalDate(new Date()))!
-          const finalEndDate = setLocalTime(endDate, endHour, endMinute, 59, 999)
+          const extractDate = (dateValue: any): string => {
+            if (!dateValue) return formatLocalDate(new Date())
+            if (typeof dateValue === 'string') {
+              if (dateValue.includes('T')) return dateValue.split('T')[0]
+              if (dateValue.endsWith('Z')) {
+                const d = new Date(dateValue)
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+              }
+              return dateValue
+            }
+            return formatLocalDate(new Date())
+          }
 
           return {
             ...c,
             id: c.id || crypto.randomUUID(),
-            startDate: formatLocalDate(startDate),
-            endDate: toLocalISOString(finalEndDate),
+            startDate: extractDate(c.startDate),
+            endDate: extractDate(c.endDate),
             endHour: endHour,
             endMinute: endMinute,
             createdAt: c.createdAt || toLocalISOString(new Date()),
@@ -140,18 +158,27 @@ export async function POST(request: NextRequest) {
       default:
         // 合并模式：导入所有，包括重复的
         importedCoupons = coupons.map((c: any) => {
-          // 处理日期（使用北京时间）
+          // 处理日期：只存储日期部分（YYYY-MM-DD），时间由 endHour/endMinute 单独存储
           const endHour = c.endHour ?? 23
           const endMinute = c.endMinute ?? 59
-          const startDate = safeCreateDate(c.startDate) || safeCreateDate(formatLocalDate(new Date()))!
-          const endDate = safeCreateDate(c.endDate) || safeCreateDate(formatLocalDate(new Date()))!
-          const finalEndDate = setLocalTime(endDate, endHour, endMinute, 59, 999)
+          const extractDate = (dateValue: any): string => {
+            if (!dateValue) return formatLocalDate(new Date())
+            if (typeof dateValue === 'string') {
+              if (dateValue.includes('T')) return dateValue.split('T')[0]
+              if (dateValue.endsWith('Z')) {
+                const d = new Date(dateValue)
+                return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+              }
+              return dateValue
+            }
+            return formatLocalDate(new Date())
+          }
 
           return {
             ...c,
             id: crypto.randomUUID(), // 总是生成新ID
-            startDate: formatLocalDate(startDate),
-            endDate: toLocalISOString(finalEndDate),
+            startDate: extractDate(c.startDate),
+            endDate: extractDate(c.endDate),
             endHour: endHour,
             endMinute: endMinute,
             createdAt: toLocalISOString(new Date()),

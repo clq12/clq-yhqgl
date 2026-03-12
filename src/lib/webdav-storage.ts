@@ -16,9 +16,11 @@ export interface WebDAVCoupon {
   description: string | null
   discountAmount: number | null
   discountType: 'amount' | 'percentage' | 'full' | null // 折扣类型：amount(减免金额), percentage(折扣), full(满减)
+  fullAmount: number | null // 满减门槛金额
   startDate: string // ISO 字符串
   endDate: string // ISO 字符串
   endHour: number | null // 截止小时，0-23，null表示23点
+  endMinute: number | null // 截止分钟，0-59，null表示59分
   isReminded: boolean
   remindedDays: number[] // 记录已经提醒过的天数，如[7, 3, 1]
   isUsed: boolean // 是否已使用
@@ -87,16 +89,24 @@ export async function getAllCoupons(): Promise<Coupon[]> {
  */
 export async function saveCoupons(coupons: Coupon[]): Promise<void> {
   try {
+    console.log('=== saveCoupons 开始 ===')
+    console.log('优惠券数量:', coupons.length)
+    
     await initStorage()
 
     // 创建备份
+    console.log('开始创建备份...')
     await createBackup()
+    console.log('备份创建完成')
 
     const data: CouponData = {
       coupons,
       lastModified: toLocalISOString(new Date()),
     }
+    
+    console.log('准备写入文件，数据大小:', JSON.stringify(data).length, '字节')
     await writeFile(COUPONS_FILE, JSON.stringify(data, null, 2))
+    console.log('文件写入成功')
   } catch (error) {
     console.error("保存优惠券失败:", error)
     throw error
@@ -115,9 +125,21 @@ export async function getCouponById(id: string): Promise<Coupon | null> {
  * 添加优惠券
  */
 export async function addCoupon(coupon: Coupon): Promise<Coupon> {
+  console.log('=== addCoupon 开始 ===')
+  console.log('要添加的优惠券:', coupon.title)
+  
+  // 获取最新的优惠券列表
   const coupons = await getAllCoupons()
+  console.log('当前优惠券数量:', coupons.length)
+  
+  // 添加新优惠券
   coupons.push(coupon)
+  console.log('添加后优惠券数量:', coupons.length)
+  
+  // 保存
   await saveCoupons(coupons)
+  console.log('保存成功')
+  
   return coupon
 }
 

@@ -106,21 +106,30 @@ export async function POST(request: NextRequest) {
       isReminded: false,
       isUsed: false,
       remindedDays: [],
-      createdAt: toLocalISOString(new Date()), // ✅ 修复
+      createdAt: toLocalISOString(new Date()),
       updatedAt: null,
     }
     
-    console.log('最终coupon:', coupon)
+    console.log('最终coupon:', JSON.stringify(coupon, null, 2))
 
     initWebDAVClient(config)
-
-    await addCoupon(coupon as any)
+    
+    try {
+      await addCoupon(coupon as any)
+    } catch (addError: any) {
+      console.error('addCoupon具体错误:', addError)
+      return NextResponse.json(
+        { success: false, error: `WebDAV写入失败: ${addError?.message || '未知错误'}` },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json({ success: true, data: coupon }, { status: 201 })
-  } catch (error) {
+  } catch (error: any) {
     console.error("创建优惠券失败:", error)
+    const errorMessage = error?.message || '创建优惠券失败'
     return NextResponse.json(
-      { success: false, error: "创建优惠券失败" },
+      { success: false, error: errorMessage },
       { status: 500 }
     )
   }

@@ -1,42 +1,39 @@
 import { NextRequest, NextResponse } from "next/server"
-import { couponManager } from "@/storage/database"
+import { getWebDAVConfigFromRequest } from "@/lib/config"
+import { initWebDAVClient } from "@/lib/webdav-client"
+import { updateCoupon } from "@/lib/webdav-storage"
 
-/**
- * 更新优惠券提醒状态
- */
+// 标记优惠券为已提醒
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
-    const body = await request.json()
-    const { isReminded, remindedDays } = body
+    const config = getWebDAVConfigFromRequest(request)
 
-    const updates: { isReminded?: boolean; remindedDays?: number[] } = {}
-    
-    if (typeof isReminded === 'boolean') {
-      updates.isReminded = isReminded
-    }
-    
-    if (Array.isArray(remindedDays)) {
-      updates.remindedDays = remindedDays
+    if (!config) {
+      return NextResponse.json(
+        { success: false, error: "请先配置 WebDAV" },
+        { status: 400 }
+      )
     }
 
-    const coupon = await couponManager.updateCoupon(id, updates)
-    
+    initWebDAVClient(config)
+    const coupon = await updateCoupon(id, { isReminded: true })
+
     if (!coupon) {
       return NextResponse.json(
         { success: false, error: "优惠券不存在" },
         { status: 404 }
       )
     }
-    
+
     return NextResponse.json({ success: true, data: coupon })
   } catch (error) {
-    console.error("更新提醒状态失败:", error)
+    console.error("标记提醒失败:", error)
     return NextResponse.json(
-      { success: false, error: "更新提醒状态失败" },
+      { success: false, error: "标记提醒失败" },
       { status: 500 }
     )
   }

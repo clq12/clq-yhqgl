@@ -1,48 +1,115 @@
-import { NextResponse } from "next/server"
-import { couponManager } from "@/storage/database"
+import { NextRequest, NextResponse } from "next/server"
+import { getWebDAVConfigFromRequest, WebDAVConfig } from "@/lib/config"
+import { initWebDAVClient } from "@/lib/webdav-client"
+import { getAllCoupons, getExpiringCoupons } from "@/lib/webdav-storage"
+
+/**
+ * 从环境变量获取配置（用于定时任务）
+ */
+function getConfigFromEnv(): WebDAVConfig | null {
+  const {
+    WEBDAV_URL,
+    WEBDAV_USERNAME,
+    WEBDAV_PASSWORD,
+  } = process.env
+
+  if (WEBDAV_URL && WEBDAV_USERNAME && WEBDAV_PASSWORD) {
+    const config: WebDAVConfig = {
+      url: WEBDAV_URL,
+      username: WEBDAV_USERNAME,
+      password: WEBDAV_PASSWORD,
+    }
+
+    return config
+  }
+
+  return null
+}
 
 // 查询所有优惠券的提醒状态
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // 获取所有优惠券
-    const allCoupons = await couponManager.getAllCoupons()
+    // 1. 获取配置（优先从环境变量，其次从 Cookie）
+    let config = getConfigFromEnv()
 
-    // 分析提醒状态（使用北京时间 UTC+8）
+    if (!config) {
+      config = getWebDAVConfigFromRequest(request)
+    }
+
+    if (!config) {
+      return NextResponse.json(
+        { success: false, error: "请先配置 WebDAV" },
+        { status: 400 }
+      )
+    }
+
+    // 2. 初始化 WebDAV 客户端
+    initWebDAVClient(config)
+
+    // 3. 获取所有优惠券
+    const allCoupons = await getAllCoupons()
+
+    // 4. 获取即将到期的优惠券
+    const expiring7Days = await getExpiringCoupons(7)
+    const expiring3Days = await getExpiringCoupons(3)
+    const expiring1Day = await getExpiringCoupons(1)
+
+    // 5. 分析提醒状态（使用北京时间 UTC+8）
     const now = new Date()
     
     // 过滤掉已使用的优惠券
     const unusedCoupons = allCoupons.filter(coupon => !coupon.isUsed)
     
     const statusList = unusedCoupons.map(coupon => {
-      const endHour = coupon.endHour ?? 23
-      const endMinute = coupon.endMinute ?? 59
+      const endHour = (coupon as any).endHour
+      const endMinute = (coupon as any).endMinute ?? 59
       
       // 解析截止日期
-      const endDate = coupon.endDate ? new Date(coupon.endDate) : null
+      let endDate: Date
+      
+      // 检查日期是否已经包含时间部分（完整的ISO格式）
+      if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
+        endDate = new Date(coupon.endDate)
+      } else {
+        // 纯日期格式，添加时间部分
+        endDate = new Date(coupon.endDate + 'T00:00:00Z')
+      }
       
       // 验证日期解析是否成功
-      if (!endDate || isNaN(endDate.getTime())) {
+      if (isNaN(endDate.getTime())) {
         return {
-          id: String(coupon.id),
+          id: coupon.id,
           title: coupon.title,
-          endDate: '',
+          endDate: coupon.endDate,
           daysRemaining: 0,
           remainingTimeText: "截止日期无效",
           isReminded: coupon.isReminded,
-          remindedDays: coupon.remindedDays || [],
+          remindedDays: (coupon as any).remindedDays || [],
           willRemind: false,
           remindDays: [],
           reason: "截止日期无效"
         }
       }
       
-      // 设置截止时间
-      endDate.setHours(endHour, endMinute, 0, 0)
+      // 设置截止时间（UTC时间）
+      // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
+      let utcHour = (endHour ?? 23) - 8
+      if (utcHour < 0) {
+        utcHour += 24
+        endDate.setDate(endDate.getDate() - 1)
+      }
+      endDate.setUTCHours(utcHour, endMinute, 0, 0)
       
-      const diff = endDate.getTime() - now.getTime()
+      // 当前时间（UTC）
+      const nowUTC = now.getTime()
+      
+      // 截止时间（UTC）
+      const endTimeUTC = endDate.getTime()
+      
+      const diff = endTimeUTC - nowUTC
       const totalHours = diff / (1000 * 60 * 60)
       const daysRemaining = Math.ceil(totalHours / 24)
-      const remindedDays = coupon.remindedDays || []
+      const remindedDays = (coupon as any).remindedDays || []
 
       // 计算精确到小时的剩余时间文本
       let remainingTimeText = ""
@@ -81,9 +148,9 @@ export async function GET() {
       const remindInfo = willRemind()
 
       return {
-        id: String(coupon.id),
+        id: coupon.id,
         title: coupon.title,
-        endDate: coupon.endDate ? String(coupon.endDate) : '',
+        endDate: coupon.endDate,
         daysRemaining,
         remainingTimeText,
         isReminded: coupon.isReminded,
@@ -97,9 +164,9 @@ export async function GET() {
     // 6. 统计信息
     const stats = {
       total: allCoupons.length,
-      expiring7Days: statusList.filter(s => s.daysRemaining <= 7 && s.daysRemaining > 0).length,
-      expiring3Days: statusList.filter(s => s.daysRemaining <= 3 && s.daysRemaining > 0).length,
-      expiring1Day: statusList.filter(s => s.daysRemaining <= 1 && s.daysRemaining > 0).length,
+      expiring7Days: expiring7Days.length,
+      expiring3Days: expiring3Days.length,
+      expiring1Day: expiring1Day.length,
       willRemind: statusList.filter(s => s.willRemind).length,
       alreadyReminded: statusList.filter(s => s.isReminded).length
     }

@@ -772,10 +772,10 @@ export default function Home() {
     }
   }
 
-  // 判断是否即将到期（3天内，与推送提醒阈值保持一致）
+  // 判断是否即将到期（7天内）
   const isExpiringSoon = (coupon: Coupon) => {
     const days = getDaysRemaining(coupon)
-    return days <= 3 && days >= 0
+    return days <= 7 && days >= 0
   }
 
   // 判断是否已过期
@@ -1480,7 +1480,7 @@ export default function Home() {
                       {getFilteredAndSortedCoupons().filter(
                         (c) => isExpiringSoon(c) && !isExpired(c) && !c.isReminded && !(c as any).isUsed
                       ).length}{" "}
-                      张优惠券将在3天内到期，请尽快使用！
+                      张优惠券将在7天内到期，请尽快使用！
                     </p>
                   </div>
                 </div>

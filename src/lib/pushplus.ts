@@ -140,6 +140,7 @@ export async function sendPushPlus(message: PushPlusMessage): Promise<{ success:
 
 /**
  * 计算剩余天数和小时数（使用北京时间 UTC+8）
+ * 计算方式：endDate（日期） + endHour:endMinute（时间）
  */
 function calculateRemainingTime(coupon: any): { days: number; hours: number; text: string } {
   const now = new Date()
@@ -150,38 +151,28 @@ function calculateRemainingTime(coupon: any): { days: number; hours: number; tex
     return { days: 0, hours: 0, text: "截止日期无效" }
   }
 
-  // 获取截止时间的小时和分钟（北京时间）
-  const endHour = (coupon as any).endHour ?? 23
-  const endMinute = 59
+  // 获取截止时间的小时和分钟
+  const endHour = coupon.endHour ?? 23
+  const endMinute = coupon.endMinute ?? 59
   const endSecond = 59
 
+  // endDate 只存储日期（YYYY-MM-DD），组合 endHour:endMinute
+  const endDateStr = coupon.endDate
   let endDateTimestamp: number
 
-  // 处理不同的日期格式（与 utils.ts 中的逻辑保持一致）
-  if (coupon.endDate.includes('T') && coupon.endDate.endsWith('Z')) {
-    // 带Z后缀，表示UTC时间，直接解析
-    const utcDate = new Date(coupon.endDate)
-    endDateTimestamp = utcDate.getTime()
-  } else if (coupon.endDate.includes('T')) {
-    // 带T但不带Z，假设为本地时间（北京时间），手动解析
-    const [datePart, timePart] = coupon.endDate.split('T')
-    const [year, month, day] = datePart.split('-').map(Number)
-    const timeComponents = (timePart || '00:00:00').split(':')
-    const hour = Number(timeComponents[0])
-    const minute = Number(timeComponents[1] || 0)
-    const second = Number(timeComponents[2] || 0)
-
-    // 创建本地时间对象（北京时间）
-    const localDate = new Date(year, month - 1, day, hour, minute, second)
-    endDateTimestamp = localDate.getTime()
+  // 提取日期部分（处理可能带时间的格式）
+  let datePart: string
+  if (endDateStr.includes('T')) {
+    datePart = endDateStr.split('T')[0]
   } else {
-    // 纯日期格式（如 2026-02-23），假设为北京时间
-    // 使用手动解析方式
-    const [year, month, day] = coupon.endDate.split('-').map(Number)
-    // 创建本地时间对象（北京时间），使用 endHour:endMinute:59
-    const localDate = new Date(year, month - 1, day, endHour, endMinute, endSecond)
-    endDateTimestamp = localDate.getTime()
+    datePart = endDateStr
   }
+
+  const [year, month, day] = datePart.split('-').map(Number)
+  
+  // 创建本地时间对象（北京时间），组合日期和时间
+  const endDate = new Date(year, month - 1, day, endHour, endMinute, endSecond)
+  endDateTimestamp = endDate.getTime()
 
   // 计算剩余毫秒数
   const diffMs = endDateTimestamp - nowTimestamp
@@ -211,42 +202,29 @@ function calculateRemainingTime(coupon: any): { days: number; hours: number; tex
 
 /**
  * 格式化到期时间（北京时间 UTC+8）
+ * 计算方式：endDate（日期） + endHour:endMinute（时间）
  */
 function formatExpiryDate(coupon: any): string {
   if (!coupon.endDate) {
     return "截止日期无效"
   }
 
-  const endHour = (coupon as any).endHour ?? 23
-  const endMinute = 59
+  const endHour = coupon.endHour ?? 23
+  const endMinute = coupon.endMinute ?? 59
 
-  let year: number, month: number, day: number
-
-  // 处理不同的日期格式（与 utils.ts 中的逻辑保持一致）
-  if (coupon.endDate.includes('T') && coupon.endDate.endsWith('Z')) {
-    // 带Z后缀，表示UTC时间，直接解析并转换为北京时间
-    const utcDate = new Date(coupon.endDate)
-    year = utcDate.getUTCFullYear()
-    month = utcDate.getUTCMonth() + 1
-    day = utcDate.getUTCDate()
-  } else if (coupon.endDate.includes('T')) {
-    // 带T但不带Z，假设为本地时间（北京时间），手动解析
-    const [datePart] = coupon.endDate.split('T')
-    const dateComponents = datePart.split('-').map(Number)
-    year = dateComponents[0]
-    month = dateComponents[1]
-    day = dateComponents[2]
+  // 提取日期部分（处理可能带时间的格式）
+  let datePart: string
+  if (coupon.endDate.includes('T')) {
+    datePart = coupon.endDate.split('T')[0]
   } else {
-    // 纯日期格式（如 2026-02-23），假设为北京时间
-    const dateComponents = coupon.endDate.split('-').map(Number)
-    year = dateComponents[0]
-    month = dateComponents[1]
-    day = dateComponents[2]
+    datePart = coupon.endDate
   }
 
+  const [year, month, day] = datePart.split('-').map(Number)
+
   // 组合日期和时间
-  const dateStr = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
-  const timeStr = `${endHour}:${endMinute.toString().padStart(2, '0')}`
+  const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  const timeStr = `${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}`
 
   return `${dateStr} ${timeStr}`
 }

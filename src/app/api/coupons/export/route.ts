@@ -89,7 +89,8 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * 辅助函数：计算优惠券剩余天数（使用北京时间 UTC+8，与前端逻辑保持一致）
+ * 辅助函数：计算优惠券剩余天数
+ * 计算方式：endDate（日期） + endHour:endMinute（时间）
  */
 function getDaysRemaining(coupon: any): number {
   const now = new Date()
@@ -98,44 +99,31 @@ function getDaysRemaining(coupon: any): number {
   if (!coupon.endDate) {
     return 0
   }
-  
-  // 解析截止日期
-  let endDate: Date
-  
-  // 检查日期是否已经包含时间部分（完整的ISO格式）
-  if (coupon.endDate.includes('T') || coupon.endDate.includes(' ')) {
-    // 完整ISO格式，直接使用
-    endDate = new Date(coupon.endDate)
+
+  // 获取截止时间的小时和分钟
+  const endHour = coupon.endHour ?? 23
+  const endMinute = coupon.endMinute ?? 59
+  const endSecond = 59
+
+  // 提取日期部分（处理可能带时间的格式）
+  let datePart: string
+  if (coupon.endDate.includes('T')) {
+    datePart = coupon.endDate.split('T')[0]
   } else {
-    // 纯日期格式，添加时间部分
-    endDate = new Date(coupon.endDate + 'T00:00:00Z')
-    
-    // 获取截止时间的小时和分钟（只对纯日期格式添加）
-    const endHour = (coupon as any).endHour ?? 23
-    const endMinute = (coupon as any).endMinute ?? 59
-    
-    // 设置截止时间（UTC时间）
-    // UTC+8的小时 = endHour，所以UTC时间应该是 endHour - 8
-    let utcHour = endHour - 8
-    if (utcHour < 0) {
-      utcHour += 24
-      endDate.setDate(endDate.getDate() - 1)
-    }
-    endDate.setUTCHours(utcHour, endMinute, 0, 0)
+    datePart = coupon.endDate
   }
+
+  const [year, month, day] = datePart.split('-').map(Number)
+  
+  // 创建本地时间对象（北京时间），组合日期和时间
+  const endDate = new Date(year, month - 1, day, endHour, endMinute, endSecond)
   
   // 验证日期解析是否成功
   if (isNaN(endDate.getTime())) {
     return 0
   }
   
-  // 当前时间（UTC）
-  const nowUTC = now.getTime()
-  
-  // 截止时间（UTC）
-  const endTimeUTC = endDate.getTime()
-  
-  const diffMs = endTimeUTC - nowUTC
+  const diffMs = endDate.getTime() - now.getTime()
   
   // 验证计算结果是否有效
   if (isNaN(diffMs) || !isFinite(diffMs)) {

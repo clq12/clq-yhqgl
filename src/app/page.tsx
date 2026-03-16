@@ -772,10 +772,11 @@ export default function Home() {
     }
   }
 
-  // 判断是否即将到期（7天内）
+  // 判断是否即将到期（严格小于7天，使用小时数精确判断）
   const isExpiringSoon = (coupon: Coupon) => {
-    const days = getDaysRemaining(coupon)
-    return days <= 7 && days >= 0
+    const hours = getRemainingHours(coupon)
+    // 7天 = 168小时，只有剩余时间严格小于168小时才算即将到期
+    return hours < 168 && hours >= 0
   }
 
   // 判断是否已过期

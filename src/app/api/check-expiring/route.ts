@@ -15,8 +15,6 @@ import { toLocalISOString } from "@/lib/datetime-utils"
  * 计算方式：endDate（日期） + endHour:endMinute（时间）
  */
 function getDaysRemaining(coupon: any): number {
-  const now = new Date()
-
   // 验证截止日期是否存在
   if (!coupon.endDate) {
     console.error(`优惠券 "${coupon.title}" 没有截止日期`)
@@ -26,7 +24,6 @@ function getDaysRemaining(coupon: any): number {
   // 获取截止时间的小时和分钟
   const endHour = coupon.endHour ?? 23
   const endMinute = coupon.endMinute ?? 59
-  const endSecond = 59
 
   // 提取日期部分（处理可能带时间的格式）
   let datePart: string
@@ -38,17 +35,17 @@ function getDaysRemaining(coupon: any): number {
 
   const [year, month, day] = datePart.split('-').map(Number)
   
-  // 创建本地时间对象（北京时间），组合日期和时间
-  const endDate = new Date(year, month - 1, day, endHour, endMinute, endSecond)
+  // 创建北京时间（UTC+8）的截止时间戳
+  const endDateTimestamp = Date.UTC(year, month - 1, day, endHour, endMinute, 59, 0) - 8 * 60 * 60 * 1000
 
-  // 验证日期解析是否成功
-  if (isNaN(endDate.getTime())) {
+  // 验证时间戳是否有效
+  if (isNaN(endDateTimestamp)) {
     console.error(`无效的截止日期: ${coupon.endDate}`)
     return 0
   }
 
   // 计算剩余毫秒数
-  const diffMs = endDate.getTime() - now.getTime()
+  const diffMs = endDateTimestamp - Date.now()
 
   // 验证计算结果是否有效
   if (isNaN(diffMs) || !isFinite(diffMs)) {

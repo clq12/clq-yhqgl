@@ -13,13 +13,9 @@ export function cn(...inputs: ClassValue[]) {
  * 计算方式：endDate（日期） + endHour:endMinute（时间）
  */
 export function getRemainingHours(coupon: Coupon): number {
-  const now = new Date();
-  const nowTimestamp = now.getTime();
-
   // 获取截止时间的小时和分钟
   const endHour = coupon.endHour ?? 23;
   const endMinute = coupon.endMinute ?? 59;
-  const endSecond = 59;
 
   // endDate 只存储日期（YYYY-MM-DD），需要组合 endHour:endMinute
   const endDateStr = coupon.endDate;
@@ -34,12 +30,14 @@ export function getRemainingHours(coupon: Coupon): number {
 
   const [year, month, day] = datePart.split('-').map(Number);
   
-  // 创建本地时间对象（北京时间），组合日期和时间
-  const endDate = new Date(year, month - 1, day, endHour, endMinute, endSecond);
-  const endDateTimestamp = endDate.getTime();
+  // 创建北京时间（UTC+8）的截止时间戳
+  // 使用 Date.UTC 创建 UTC 时间，然后减去8小时偏移
+  // 因为北京时间 = UTC + 8小时，所以 UTC时间 = 北京时间 - 8小时
+  // 例如：北京时间 23:59 = UTC 15:59
+  const endDateTimestamp = Date.UTC(year, month - 1, day, endHour, endMinute, 59, 0) - 8 * 60 * 60 * 1000;
 
   // 计算剩余毫秒数
-  const diffMs = endDateTimestamp - nowTimestamp;
+  const diffMs = endDateTimestamp - Date.now();
   // 转换为小时，使用 Math.floor 向下取整，允许负数
   const hours = Math.floor(diffMs / (1000 * 60 * 60));
 

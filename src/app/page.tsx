@@ -595,7 +595,7 @@ export default function Home() {
       const endHour = (coupon as any).endHour ?? 23
       const endMinute = (coupon as any).endMinute ?? 59
 
-      beijingEndTime = new Date(Date.UTC(year, month, day, endHour, endMinute, 0, 0))
+      beijingEndTime = new Date(Date.UTC(year, month, day, endHour, endMinute, 0, 0) - 8 * 60 * 60 * 1000)
     }
 
     const beijingEndTimestamp = beijingEndTime.getTime()
@@ -606,9 +606,8 @@ export default function Home() {
       return 0
     }
 
-    // 计算时间差（毫秒）：截止时间戳 - 当前UTC时间戳 - 8小时偏移
-    // 因为截止时间戳是北京时间，当前时间是UTC时间，所以需要减去8小时的偏移
-    const diff = beijingEndTimestamp - (Date.now() + 8 * 60 * 60 * 1000)
+    // 计算时间差：截止时间戳 - 当前时间戳
+    const diff = beijingEndTimestamp - Date.now()
 
     // 验证计算结果是否有效
     if (isNaN(diff) || !isFinite(diff)) {
@@ -665,7 +664,7 @@ export default function Home() {
       const endHour = (coupon as any).endHour ?? 23
       const endMinute = (coupon as any).endMinute ?? 59
 
-      beijingEndTime = new Date(Date.UTC(year, month, day, endHour, endMinute, 0, 0))
+      beijingEndTime = new Date(Date.UTC(year, month, day, endHour, endMinute, 0, 0) - 8 * 60 * 60 * 1000)
     }
 
     const beijingEndTimestamp = beijingEndTime.getTime()
@@ -676,8 +675,8 @@ export default function Home() {
       return 0
     }
 
-    // 计算时间差（毫秒）：截止时间戳 - 当前UTC时间戳 - 8小时偏移
-    const diff = beijingEndTimestamp - (Date.now() + 8 * 60 * 60 * 1000)
+    // 计算时间差：截止时间戳 - 当前时间戳
+    const diff = beijingEndTimestamp - Date.now()
 
     // 验证计算结果是否有效
     if (isNaN(diff) || !isFinite(diff)) {
@@ -735,7 +734,7 @@ export default function Home() {
       const endHour = (coupon as any).endHour ?? 23
       const endMinute = (coupon as any).endMinute ?? 59
 
-      beijingEndTime = new Date(Date.UTC(year, month, day, endHour, endMinute, 0, 0))
+      beijingEndTime = new Date(Date.UTC(year, month, day, endHour, endMinute, 0, 0) - 8 * 60 * 60 * 1000)
     }
 
     const beijingEndTimestamp = beijingEndTime.getTime()
@@ -746,8 +745,8 @@ export default function Home() {
       return "时间计算错误"
     }
 
-    // 计算时间差（毫秒）：截止时间戳 - 当前UTC时间戳 - 8小时偏移
-    const diff = beijingEndTimestamp - (Date.now() + 8 * 60 * 60 * 1000)
+    // 计算时间差：截止时间戳 - 当前时间戳
+    const diff = beijingEndTimestamp - Date.now()
     const totalHours = diff / (1000 * 60 * 60)
 
     // 验证计算结果是否有效

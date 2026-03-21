@@ -25,7 +25,7 @@ export interface OcrResult {
 export interface ExtractedCouponInfo {
   title?: string
   discountAmount?: number
-  discountType?: 'amount' | 'percentage' | 'full'
+  discountType?: 'amount' | 'percentage' | 'full' | 'group'
   fullAmount?: number
   startDate?: string
   endDate?: string
@@ -151,6 +151,7 @@ function getDiscountTypeLabel(type?: string): string {
     case 'full': return '满减'
     case 'percentage': return '折扣'
     case 'amount': return '减免'
+    case 'group': return '团购'
     default: return '优惠'
   }
 }
@@ -161,6 +162,7 @@ function getCouponTypeBadge(type?: string): 'default' | 'secondary' | 'destructi
     case 'full': return 'destructive'
     case 'percentage': return 'default'
     case 'amount': return 'secondary'
+    case 'group': return 'outline'
     default: return 'outline'
   }
 }

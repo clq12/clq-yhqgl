@@ -33,7 +33,7 @@ export interface OcrResult {
 export interface ExtractedCouponInfo {
   title?: string
   discountAmount?: number
-  discountType?: 'amount' | 'percentage' | 'full'
+  discountType?: 'amount' | 'percentage' | 'full' | 'group'
   fullAmount?: number
   startDate?: string
   endDate?: string

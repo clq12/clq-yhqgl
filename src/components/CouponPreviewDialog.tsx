@@ -246,10 +246,12 @@ export default function CouponPreviewDialog({
                       <SelectItem value="amount">减免金额</SelectItem>
                       <SelectItem value="percentage">折扣</SelectItem>
                       <SelectItem value="full">满减</SelectItem>
+                      <SelectItem value="group">团购券</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
+                {currentCoupon.discountType !== 'group' && (
                 <div className="space-y-2">
                   <Label htmlFor="discountAmount">
                     优惠金额/折扣 <span className="text-red-500">*</span>
@@ -267,6 +269,7 @@ export default function CouponPreviewDialog({
                     }
                   />
                 </div>
+                )}
               </div>
 
               {/* 满减金额（仅满减类型显示） */}

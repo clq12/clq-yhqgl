@@ -15,7 +15,7 @@ export interface WebDAVCoupon {
   title: string
   description: string | null
   discountAmount: number | null
-  discountType: 'amount' | 'percentage' | 'full' | null // 折扣类型：amount(减免金额), percentage(折扣), full(满减)
+  discountType: 'amount' | 'percentage' | 'full' | 'group' | null // 折扣类型：amount(减免金额), percentage(折扣), full(满减), group(团购券)
   fullAmount: number | null // 满减门槛金额
   startDate: string // ISO 字符串
   endDate: string // ISO 字符串

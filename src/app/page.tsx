@@ -509,15 +509,17 @@ export default function Home() {
     const discountAmount = coupon.discountAmount
     const fullAmount = (coupon as any).fullAmount
 
-    if (!discountType || !discountAmount) return null
+    if (!discountType) return null
 
     switch (discountType) {
       case 'amount':
-        return `减${discountAmount}元`
+        return discountAmount ? `减${discountAmount}元` : null
       case 'percentage':
-        return `${discountAmount}折`
+        return discountAmount ? `${discountAmount}折` : null
       case 'full':
-        return `满${fullAmount}减${discountAmount}`
+        return fullAmount && discountAmount ? `满${fullAmount}减${discountAmount}` : null
+      case 'group':
+        return '团购'
       default:
         return null
     }
@@ -529,7 +531,12 @@ export default function Home() {
     const discountAmount = coupon.discountAmount
     const fullAmount = (coupon as any).fullAmount
 
-    if (!discountType || !discountAmount) return 0
+    if (!discountType) return 0
+    
+    // 团购券不参与折扣率排序
+    if (discountType === 'group') return 0
+    
+    if (!discountAmount) return 0
 
     switch (discountType) {
       case 'amount':
@@ -838,7 +845,9 @@ export default function Home() {
             ? `减免${c.discountAmount}元`
             : c.discountType === 'full'
               ? `满减`
-              : ''
+              : c.discountType === 'group'
+                ? `团购`
+                : ''
 
         return title.includes(query) ||
                description.includes(query) ||

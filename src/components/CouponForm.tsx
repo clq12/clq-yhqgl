@@ -28,7 +28,7 @@ import { safeCreateDate } from "@/lib/datetime-utils"
 const couponSchema = z.object({
   title: z.string().min(1, "标题不能为空").max(255, "标题不能超过255个字符"),
   description: z.string().optional(),
-  discountType: z.enum(['amount', 'percentage', 'full']).nullable().optional(), // 折扣类型
+  discountType: z.enum(['amount', 'percentage', 'full', 'group']).nullable().optional(), // 折扣类型
   discountAmount: z.number().optional(), // 折扣金额或折扣比例
   fullAmount: z.number().optional(), // 满减中的满金额
   startDate: z.date({ message: "开始日期不能为空" }),
@@ -48,6 +48,7 @@ const couponSchema = z.object({
   if (data.discountType === 'amount' || data.discountType === 'percentage') {
     return data.discountAmount !== undefined && data.discountAmount > 0
   }
+  // 团购券不需要金额
   return true
 }, {
   message: "请完整填写折扣信息",
@@ -183,7 +184,7 @@ export default function CouponForm({ coupon, ocrExtractedInfo, onSubmit, onCance
                       const value = e.target.value
                       field.onChange(value === "" ? null : value)
                       // 清空相关字段
-                      if (value === "") {
+                      if (value === "" || value === "group") {
                         form.setValue("discountAmount", undefined)
                         form.setValue("fullAmount", undefined)
                       }
@@ -194,6 +195,7 @@ export default function CouponForm({ coupon, ocrExtractedInfo, onSubmit, onCance
                     <option value="amount">减免金额</option>
                     <option value="percentage">折扣比例</option>
                     <option value="full">满减优惠</option>
+                    <option value="group">团购券</option>
                   </select>
                 </FormControl>
                 <FormMessage />

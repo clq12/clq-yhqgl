@@ -10,7 +10,6 @@ import {
 import { cloud } from '../cloud';
 import { syncAccountData, type AccountSyncResult } from '../db/appDb';
 import * as localDB from '../db/indexedDB';
-import { createDemoCoupons } from '../lib/demoData';
 
 export interface User {
   id: string;
@@ -98,7 +97,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // 开发预览：?demo=1 使用本地示例数据，跳过云端登录
         if (import.meta.env.DEV && new URLSearchParams(window.location.search).has('demo')) {
           const existing = await localDB.listCoupons();
-          if (existing.length === 0) await localDB.putCoupons(createDemoCoupons());
+          if (existing.length === 0) {
+            const { createDemoCoupons } = await import('../lib/demoData');
+            await localDB.putCoupons(createDemoCoupons());
+          }
           if (cancelled) return;
           setSession({ user: { id: 'demo', name: '演示账号', email: 'demo@example.com' } });
           setSyncResult({

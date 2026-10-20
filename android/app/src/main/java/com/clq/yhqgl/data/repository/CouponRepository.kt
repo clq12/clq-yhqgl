@@ -4,7 +4,7 @@ import android.content.Context
 import com.clq.yhqgl.data.local.CouponDao
 import com.clq.yhqgl.data.local.toDomain
 import com.clq.yhqgl.data.local.toEntity
-import com.clq.yhqgl.data.model.Coupon
+import com.clq.yhqgl.model.Coupon
 import com.clq.yhqgl.data.settings.SettingsStore
 import com.clq.yhqgl.data.sync.SyncEngine
 import com.clq.yhqgl.rules.CouponRules

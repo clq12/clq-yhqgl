@@ -2,7 +2,6 @@ package com.clq.yhqgl.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -33,12 +32,17 @@ import com.clq.yhqgl.data.ai.AgnesProvider
 import com.clq.yhqgl.data.local.AppDatabase
 import com.clq.yhqgl.data.local.toDomain
 import com.clq.yhqgl.data.local.toEntity
-import com.clq.yhqgl.data.model.Coupon
 import com.clq.yhqgl.data.settings.SettingsStore
+import com.clq.yhqgl.model.Coupon
 import com.clq.yhqgl.model.DiscountType
 import kotlinx.coroutines.launch
-import java.time.LocalDate
+import java.time.Instant
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.UUID
+
+private val ISO = DateTimeFormatter.ISO_OFFSET_DATE_TIME.withZone(ZoneOffset.ofHours(8))
+private fun nowIso(): String = ISO.format(Instant.now())
 
 @Composable
 fun AIDialog(
@@ -98,8 +102,8 @@ fun AIDialog(
                                 )
                                 val provider = AgnesProvider(key, ctx.baseUrl ?: "https://api.agnes.ai/v1", settings.ai.model ?: "agnes-chat")
                                 val result = provider.parseIntent(input, ctx)
-                                intent = result
-                                preview = buildPreview(result)
+                                intent = result.getOrThrow()
+                                preview = buildPreview(intent!!)
                             } catch (e: Exception) {
                                 error = e.message ?: "解析失败"
                             } finally {
@@ -144,7 +148,7 @@ fun AIDialog(
                         preview?.let { coupon ->
                             val withId = coupon.copy(
                                 id = if (coupon.id.isBlank()) UUID.randomUUID().toString() else coupon.id,
-                                createdAt = Coupon.nowIso()
+                                createdAt = nowIso()
                             )
                             db.couponDao().insert(withId.toEntity())
                             onCreated(withId.id)
@@ -173,11 +177,11 @@ private fun buildPreview(intent: AiIntent): Coupon? {
         discountType = changes["discountType"]?.let { DiscountType.valueOf(it.uppercase()) },
         discountAmount = changes["discountAmount"]?.toDoubleOrNull(),
         fullAmount = changes["fullAmount"]?.toDoubleOrNull(),
-        startDate = changes["startDate"] ?: LocalDate.now().toString(),
-        endDate = changes["endDate"] ?: LocalDate.now().plusDays(30).toString(),
+        startDate = changes["startDate"] ?: java.time.LocalDate.now().toString(),
+        endDate = changes["endDate"] ?: java.time.LocalDate.now().plusDays(30).toString(),
         endHour = changes["endHour"]?.toIntOrNull() ?: 23,
         endMinute = changes["endMinute"]?.toIntOrNull() ?: 59,
         notes = changes["notes"],
-        createdAt = Coupon.nowIso()
+        createdAt = nowIso()
     )
 }

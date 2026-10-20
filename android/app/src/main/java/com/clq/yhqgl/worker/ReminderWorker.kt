@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit
 
     override suspend fun doWork(): Result {
         val settings = SettingsStore(applicationContext)
-        if (!settings.settings.autoSync) return Result.success()
+        if (!settings.settings.sync.autoSync) return Result.success()
 
         val remindDays = listOf(7, 3, 1) // 后续从 settings 读取
         val db = AppDatabase.getInstance(applicationContext)

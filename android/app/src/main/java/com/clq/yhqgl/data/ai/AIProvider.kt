@@ -1,6 +1,7 @@
 package com.clq.yhqgl.data.ai
 
-import com.clq.yhqgl.data.model.Coupon
+import com.clq.yhqgl.model.Coupon
+import kotlinx.serialization.Serializable
 
 /**
  * AI Provider 抽象接口
@@ -31,7 +32,8 @@ import com.clq.yhqgl.data.model.Coupon
     val baseUrl: String?
 )
 
- data class AiIntent(
+ @Serializable
+data class AiIntent(
     val intent: String, // create / update / delete / query / chat
     val targetId: String?,
     val changes: Map<String, String?>,

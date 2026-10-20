@@ -17,7 +17,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -47,7 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.clq.yhqgl.data.local.AppDatabase
-import com.clq.yhqgl.data.model.Coupon
+import com.clq.yhqgl.model.Coupon
 import com.clq.yhqgl.data.repository.CouponRepository
 import com.clq.yhqgl.data.settings.SettingsStore
 import com.clq.yhqgl.rules.CouponRules
@@ -84,7 +84,7 @@ fun CouponListScreen(modifier: Modifier = Modifier, initialCouponId: String? = n
                 title = { Text("优惠券") },
                 actions = {
                     IconButton(onClick = { showAI = true }) {
-                        Icon(Icons.Default.SmartToy, contentDescription = "AI")
+                        Icon(Icons.Default.Email, contentDescription = "AI")
                     }
                     IconButton(onClick = {
                         scope.launch {

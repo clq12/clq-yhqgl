@@ -5,8 +5,7 @@ import android.provider.Settings
 import com.clq.yhqgl.data.local.CouponDao
 import com.clq.yhqgl.data.local.toDomain
 import com.clq.yhqgl.data.local.toEntity
-import com.clq.yhqgl.data.model.Coupon
-import com.clq.yhqgl.data.model.toSchema
+import com.clq.yhqgl.model.Coupon
 import com.clq.yhqgl.data.settings.SettingsStore
 import com.clq.yhqgl.model.CouponDataPackage
 import com.clq.yhqgl.model.SyncCheckpoint
@@ -63,7 +62,7 @@ import java.time.format.DateTimeFormatter
         // 读取本地
         val localEntities = dao.getAllWithDeleted()
         val localMap = localEntities.associateBy { it.id }.mapValues { it.value.toDomain() }
-        val remoteMap = remoteData.coupons.associateBy { it.id }.mapValues { it.value.toDomain() }
+        val remoteMap = remoteData.coupons.associateBy { it.id }
 
         // 合并
         val merged = mutableListOf<Coupon>()
@@ -106,7 +105,7 @@ import java.time.format.DateTimeFormatter
         )
 
         val newData = CouponDataPackage(
-            coupons = merged.map { it.toSchema() },
+            coupons = merged,
             deletedIds = deletedIds.toList()
         )
 

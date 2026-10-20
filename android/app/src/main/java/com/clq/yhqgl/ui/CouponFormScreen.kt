@@ -15,15 +15,12 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenu
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -37,7 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import com.clq.yhqgl.data.model.Coupon
+import com.clq.yhqgl.model.Coupon
 import com.clq.yhqgl.model.DiscountType
 import java.time.LocalDate
 
@@ -108,28 +105,30 @@ fun CouponFormScreen(
                         minLines = 2
                     )
 
-                    ExposedDropdownMenuBox(
-                        expanded = typeExpanded,
-                        onExpandedChange = { typeExpanded = !typeExpanded }
-                    ) {
+                    var typeMenuExpanded by remember { mutableStateOf(false) }
+                    Column {
                         OutlinedTextField(
                             value = typeOptions.find { it.first == discountType }?.second ?: "",
                             onValueChange = {},
                             readOnly = true,
                             label = { Text("折扣类型") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
-                            modifier = Modifier.fillMaxWidth().menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                            modifier = Modifier.fillMaxWidth(),
+                            trailingIcon = {
+                                TextButton(onClick = { typeMenuExpanded = true }) {
+                                    Text("选择")
+                                }
+                            }
                         )
-                        ExposedDropdownMenu(
-                            expanded = typeExpanded,
-                            onDismissRequest = { typeExpanded = false }
+                        DropdownMenu(
+                            expanded = typeMenuExpanded,
+                            onDismissRequest = { typeMenuExpanded = false }
                         ) {
                             typeOptions.forEach { (type, label) ->
                                 DropdownMenuItem(
                                     text = { Text(label) },
                                     onClick = {
                                         discountType = type
-                                        typeExpanded = false
+                                        typeMenuExpanded = false
                                     }
                                 )
                             }

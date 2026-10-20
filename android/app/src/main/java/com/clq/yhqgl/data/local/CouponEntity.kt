@@ -2,7 +2,7 @@ package com.clq.yhqgl.data.local
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import com.clq.yhqgl.data.model.Coupon
+import com.clq.yhqgl.model.Coupon
 import com.clq.yhqgl.model.DiscountType
 import com.clq.yhqgl.model.VersionVectorEntry
 import kotlinx.serialization.builtins.ListSerializer
@@ -13,7 +13,7 @@ import kotlinx.serialization.json.Json
  * Room 实体，字段与 Coupon 一一对应
  */
 @Entity(tableName = "coupons")
- data class CouponEntity(
+data class CouponEntity(
     @PrimaryKey
     val id: String,
     val title: String,

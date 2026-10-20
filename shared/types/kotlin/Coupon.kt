@@ -39,7 +39,9 @@ import kotlinx.serialization.Serializable
     val updatedAt: String? = null,
     val version: VersionVectorEntry? = null,
     @SerialName("modifiedAt")
-    val modifiedAt: String? = null
+    val modifiedAt: String? = null,
+    @SerialName("isDeleted")
+    val isDeleted: Boolean = false
 ) {
     companion object {
         const val SCHEMA_VERSION = 2

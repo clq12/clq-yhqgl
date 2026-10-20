@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { initDB } from './db/indexedDB';
 import { SyncStatusBar } from './components/SyncStatusBar';
 import { CouponList } from './components/CouponList';
 import { CouponDetail } from './components/CouponDetail';
 import { SettingsPanel } from './components/SettingsPanel';
 import { AIPanel } from './components/AIPanel';
-import { BarChart3, Settings as SettingsIcon } from 'lucide-react';
+import { LoginScreen } from './components/LoginScreen';
+import { BarChart3, Settings as SettingsIcon, LogOut } from 'lucide-react';
 
-function App() {
+function AppContent() {
+  const { session, loading, signOut } = useAuth();
   const [ready, setReady] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -17,8 +20,12 @@ function App() {
     initDB().then(() => setReady(true));
   }, []);
 
-  if (!ready) {
+  if (loading || !ready) {
     return <div className="p-8">初始化中...</div>;
+  }
+
+  if (!session) {
+    return <LoginScreen onLoggedIn={() => window.location.reload()} />;
   }
 
   return (
@@ -26,6 +33,9 @@ function App() {
       <header className="bg-white border-b px-6 py-3 flex items-center justify-between shrink-0">
         <h1 className="text-xl font-bold text-gray-900">优惠券管理</h1>
         <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-500 hidden sm:inline">
+            {session.user.name || session.user.id}
+          </span>
           <SyncStatusBar />
           <button
             onClick={() => { setShowStats(true); setShowSettings(false); }}
@@ -42,6 +52,13 @@ function App() {
             <SettingsIcon className="w-4 h-4" />
           </button>
           <AIPanel onSelectCoupon={setSelectedId} />
+          <button
+            onClick={() => signOut()}
+            className="p-2 rounded-lg border hover:bg-gray-50"
+            title="退出登录"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </header>
 
@@ -65,6 +82,14 @@ function App() {
         )}
       </main>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 

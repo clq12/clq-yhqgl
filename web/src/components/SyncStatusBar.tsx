@@ -5,15 +5,22 @@ import { sync } from '../sync/syncEngine';
 export function SyncStatusBar() {
   const [status, setStatus] = useState<'idle' | 'syncing' | 'error'>('idle');
   const [lastAt, setLastAt] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   const doSync = async () => {
     setStatus('syncing');
+    setMessage(null);
     const result = await sync();
     if (result.success) {
       setStatus('idle');
       setLastAt(result.checkpoint?.lastSyncAt || null);
+    } else if (result.error?.includes('WebDAV 未配置')) {
+      // WebDAV 未配置时（例如已使用云服务），不显示错误
+      setStatus('idle');
+      setMessage('WebDAV 未配置');
     } else {
       setStatus('error');
+      setMessage(result.error || null);
     }
   };
 
@@ -26,6 +33,7 @@ export function SyncStatusBar() {
   return (
     <button
       onClick={doSync}
+      title={message ?? '同步'}
       className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border hover:bg-gray-50"
     >
       <RefreshCw className={`w-4 h-4 ${status === 'syncing' ? 'animate-spin' : ''}`} />

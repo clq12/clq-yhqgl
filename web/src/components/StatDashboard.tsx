@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
-import { listCoupons } from '../db/indexedDB';
+import { listCoupons } from '../db/appDb';
 import type { Coupon } from '../types/coupon';
 import { isExpired, extractStore } from '../rules/couponRules';
 

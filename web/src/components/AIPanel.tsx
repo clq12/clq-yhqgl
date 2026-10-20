@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Bot, X, Check, AlertCircle, Loader2 } from 'lucide-react';
 import type { AIContext, AiIntent } from '../ai/provider';
 import { createProvider } from '../ai/agnesProvider';
-import { listCoupons, putCoupon, deleteCouponLocal, getSettings } from '../db/indexedDB';
+import { listCoupons, putCoupon, deleteCouponLocal, getSettings } from '../db/appDb';
 import { bumpVersion, sync } from '../sync/syncEngine';
 import type { Coupon, DiscountType } from '../types/coupon';
 import { beijingNow } from '../rules/couponRules';

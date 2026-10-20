@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Search } from 'lucide-react';
 import type { Coupon } from '../types/coupon';
-import { listCoupons } from '../db/indexedDB';
+import { listCoupons } from '../db/appDb';
 import { isExpired, remainingDays } from '../rules/couponRules';
 
 interface CouponListProps {

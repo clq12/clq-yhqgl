@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { X, TestTube } from 'lucide-react';
-import { getSettings, putSettings } from '../db/indexedDB';
+import { getSettings, putSettings } from '../db/appDb';
 import { WebDAVClient } from '../sync/webdav';
 import type { AppSettings } from '../types/coupon';
 

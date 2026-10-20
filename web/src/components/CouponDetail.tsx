@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { deleteCouponLocal, getCoupon, putCoupon } from '../db/indexedDB';
+import { deleteCouponLocal, getCoupon, putCoupon } from '../db/appDb';
 import { bumpVersion, sync } from '../sync/syncEngine';
 import type { Coupon } from '../types/coupon';
 import { StatDashboard } from './StatDashboard';

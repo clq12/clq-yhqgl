@@ -74,7 +74,14 @@ def get_commit_tree_sha(commit_sha: str) -> str:
 
 def should_ignore(path: Path) -> bool:
     parts = path.parts
-    return ".workbuddy" in parts or ".git" in parts or "node_modules" in parts or ".gradle" in parts
+    if ".workbuddy" in parts or ".git" in parts or "node_modules" in parts or ".gradle" in parts:
+        return True
+    if "web/dist" in path.as_posix():
+        return True
+    name = path.name
+    if name.endswith(".genie"):
+        return True
+    return False
 
 
 def collect_files(root: Path):
@@ -112,7 +119,7 @@ def main():
     print(f"新 tree: {new_tree_sha}")
 
     new_commit = api("POST", "/git/commits", {
-        "message": "refactor: 全面重构为 Android + Web 双端，保留 WebDAV 自托管同步",
+        "message": "feat: 接入 WorkBuddy 云服务，修复 Android 打包缺失 Gradle Wrapper",
         "tree": new_tree_sha,
         "parents": [base_commit_sha],
     })

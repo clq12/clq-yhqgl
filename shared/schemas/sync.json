@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/clq12/clq-yhqgl/shared/schemas/sync.json",
+  "title": "SyncCheckpoint",
+  "description": "WebDAV 同步元数据，记录各设备向量时钟与最后一次同步时间。",
+  "type": "object",
+  "required": ["schemaVersion", "deviceId", "vectorClock", "lastSyncAt"],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 2,
+      "description": "数据协议版本，当前为 2"
+    },
+    "deviceId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "当前设备唯一标识"
+    },
+    "deviceName": {
+      "type": ["string", "null"],
+      "description": "设备可读名称，如：小米手机、办公电脑"
+    },
+    "vectorClock": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "description": "各设备计数器映射，key 为 deviceId"
+    },
+    "lastSyncAt": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "最后一次成功同步时间"
+    },
+    "pendingChanges": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "当前设备待上传的本地变更数量"
+    },
+    "conflictCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "上次同步检测到但未解决的冲突数量"
+    }
+  },
+  "additionalProperties": false
+}

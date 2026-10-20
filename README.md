@@ -1,335 +1,40 @@
-# 优惠券管理应用 - WebDAV 版
+# clq-yhqgl 重构项目
 
-一个基于 Next.js 16 + shadcn/ui + WebDAV 的优惠券管理应用，无需配置数据库，数据存储在 WebDAV 服务器。
+本仓库是 [clq-yhqgl](https://github.com/clq12/clq-yhqgl) 的双端重构工程：
 
-## ✨ 功能特性
+- `android/`：安卓原生 App（Kotlin + Jetpack Compose）
+- `web/`：电脑网页端（React + TypeScript + Vite）
+- `shared/`：双端共享的数据模型、JSON Schema、业务规则、同步协议
+- `docs/`：重构分析与实施计划
 
-- 📱 **多设备访问** - 电脑、手机随时访问
-- 🔄 **数据同步** - 所有设备数据实时同步
-- ⏰ **智能提醒** - 优惠券到期前自动提醒
-- 📊 **统计面板** - 实时查看有效/即将到期/已过期数量
-- 🎨 **精美 UI** - 现代化界面，移动端优化
-- 💾 **WebDAV 存储** - 无需数据库，数据自主可控
-- 🔄 **自动备份** - 每次操作自动备份数据
+## 核心设计
 
-## 🚀 快速开始
+- **数据自主**：WebDAV 作为自托管同步中枢，无需第三方后端。
+- **离线优先**：安卓 Room、网页 IndexedDB，本地先写后同步。
+- **版本向量同步**：解决多端并发写冲突，支持字段级合并。
+- **状态栏提醒**：安卓 WorkManager + Notification；网页 Service Worker + 浏览器通知。
+- **可插拔 AI**：默认 Agnes，预留其他 OpenAI 兼容 Provider。
 
-### 本地开发
+## 快速开始
 
-```bash
-# 启动开发服务器
-coze dev
-```
-
-启动后，在浏览器中打开 [http://localhost:5000](http://localhost:5000) 查看应用。
-
-### 云端部署
-
-应用可以部署到任何支持 Next.js 的平台：
-
-1. **Vercel**（推荐）: https://vercel.com
-2. **Railway**: https://railway.app
-3. **Render**: https://render.com
-
-#### 快速部署到 Vercel
+### 安卓
 
 ```bash
-# 使用部署脚本（推荐）
-bash scripts/deploy-to-vercel.sh
-
-# 或手动推送
-git push origin main
+cd android
+# 使用 Android Studio 打开，或命令行：
+./gradlew assembleDebug
 ```
 
-推送后 Vercel 会自动部署，1-2 分钟后即可访问。
-
-详细部署指南请查看 [DEPLOYMENT.md](./DEPLOYMENT.md)
-
-部署问题排查请查看 [VERCEL_TROUBLESHOOT.md](./VERCEL_TROUBLESHOOT.md)
-
-## 📖 使用指南
-
-### 1. 配置 WebDAV
-
-首次使用需要配置 WebDAV：
-
-1. 打开应用首页
-2. 在"配置 WebDAV"区域填写：
-   - WebDAV 地址（如 `https://dav.jianguoyun.com/dav/`）
-   - 用户名
-   - 密码
-3. 点击"保存配置"
-
-**支持的 WebDAV 服务：**
-- 坚果云（推荐，免费）
-- Nextcloud / ownCloud
-- 群晖 NAS
-- 其他支持 WebDAV 的服务
-
-详细配置指南请查看 [WEBDAV_GUIDE.md](./WEBDAV_GUIDE.md)
-
-### 2. 添加优惠券
-
-1. 点击右上角"添加"按钮
-2. 填写优惠券信息（标题、描述、折扣力度、日期等）
-3. 点击"保存"
-
-### 3. 管理优惠券
-
-- **编辑**：点击编辑图标
-- **删除**：点击删除图标
-- **标记提醒**：点击铃铛图标
-
-## 🛠️ 技术栈
-
-- **框架**: Next.js 16 (App Router)
-- **UI 组件**: shadcn/ui
-- **样式**: Tailwind CSS 4
-- **存储**: WebDAV
-- **表单**: React Hook Form + Zod
-- **日期**: date-fns
-
-## 📁 项目结构
-
-```
-src/
-├── app/                          # Next.js App Router
-│   ├── api/
-│   │   ├── coupons/              # 优惠券 API
-│   │   └── webdav/               # WebDAV 配置 API
-│   ├── layout.tsx
-│   └── page.tsx                  # 首页
-├── components/
-│   ├── ui/                       # shadcn/ui 组件
-│   ├── CouponForm.tsx            # 优惠券表单
-│   └── WebDAVConfig.tsx          # WebDAV 配置组件
-└── lib/
-    ├── webdav-client.ts          # WebDAV 客户端封装
-    ├── webdav-storage.ts         # 数据存储服务
-    └── config.ts                 # 配置管理
-```
-
-## 💾 数据存储
-
-数据以 JSON 文件形式存储在 WebDAV 服务器：
-
-```
-/coupons/
-├── data.json          # 主数据文件
-└── backups/           # 备份目录
-    └── backup-*.json  # 自动备份文件
-```
-
-## 🔧 开发指南
-
-### 依赖管理
-
-**必须使用 pnpm 管理依赖**
+### 网页
 
 ```bash
-# 安装依赖
-pnpm install
-
-# 添加新依赖
-pnpm add package-name
+cd web
+npm install
+npm run dev
 ```
 
-### 测试
-
-```bash
-# 类型检查
-pnpm ts-check
-
-# 构建
-pnpm build
-
-# 启动生产环境
-pnpm start
-```
-
-## ⏰ 定时任务
-
-应用支持定时任务自动检查即将到期的优惠券，并发送微信推送提醒。
-
-### 推送时间
-
-系统会在每天**北京时间 7:30 和 16:30** 自动发送推送提醒。
-
-**推送规则（不重复）：**
-- **1天内**：剩余时间 ≤ 1天的优惠券（最紧急，红色）
-- **3天内**：剩余时间 > 1 且 ≤ 3天的优惠券（较紧急，橙色）
-- **7天内**：剩余时间 > 3 且 ≤ 7天的优惠券（一般提醒，黄色）
-
-每张优惠券只出现在最紧急的那个组中，不重复显示。
-
-**推送格式：**
-```
-🔔 优惠券即将到期提醒
-
-🚨 1天内到期（X张）
-⚠️ 3天内到期（Y张）
-📢 7天内到期（Z张）
-
-📱 查看优惠券详情 → https://clq-rosy.vercel.app
-```
-
-### 快速配置
-
-🚀 **5分钟快速配置指南**：[查看快速配置](./QUICK_START_SCHEDULE.md)
-
-**推荐方案：**
-- ✅ **GitHub Actions**（完全免费，每天两次推送）⭐ **强烈推荐**
-- ✅ **cron-job.org**（完全免费）
-- ⚠️ Vercel Cron Jobs（免费版限制较多）
-
-详细配置请查看：
-- [GitHub Actions 配置指南](./GITHUB_ACTIONS_SETUP.md) ⭐ 推荐
-- [Vercel Cron Jobs 配置指南](./VERCEL_CRON_GUIDE.md)
-
-### 快速配置到 GitHub Actions（推荐）✨
-
-1. 访问你的 GitHub 仓库 Settings → Secrets and variables → Actions
-2. 添加以下 Secrets：
-   - `WEBDAV_URL` = `https://dav.jianguoyun.com/dav/`
-   - `WEBDAV_USERNAME` = 你的坚果云账号
-   - `WEBDAV_PASSWORD` = 你的坚果云应用密码
-   - `PUSHPLUS_TOKEN` = 你的 PushPlus Token
-3. 推送代码到 GitHub
-4. 访问 Actions 页面，启用工作流
-5. 手动测试一次
-
-完成！GitHub Actions 会每小时自动调用你的接口。
-
-详细配置请查看 [GitHub Actions 配置指南](./GITHUB_ACTIONS_SETUP.md)。
-
-#### 其他平台
-
-- **GitHub Actions**：适用于开源项目
-- **阿里云 FC**：适用于阿里云部署
-- **Vercel Cron Jobs**：详细限制说明请查看 [Vercel Cron Jobs 配置指南](./VERCEL_CRON_GUIDE.md)
-
-### 提醒时间
-
-系统会**每小时检查一次**，发送**一条**合并推送消息：
-
-**提醒规则（合并推送）：**
-- **1天内**：所有剩余时间 ≤ 1天的优惠券（最紧急，红色）
-- **3天内**：所有剩余时间 ≤ 3天的优惠券（较紧急，橙色）
-- **7天内**：所有剩余时间 ≤ 7天的优惠券（一般提醒，黄色）
-
-**推送格式：**
-```
-🔔 优惠券即将到期提醒
-
-🚨 1天内到期（X张）
-⚠️ 3天内到期（Y张）
-📢 7天内到期（Z张）
-
-📱 查看优惠券详情 → https://clq-rosy.vercel.app
-```
-
-**优势：**
-- ✅ 信息集中，一目了然
-- ✅ 按紧急程度排序，优先处理重要信息
-- ✅ 减少推送数量，避免打扰
-
-详细说明请查看 [推送消息格式说明](./PUSH_MESSAGE_MERGED.md) 和 [推送时间配置说明](./PUSH_TIME_CONFIG.md)
-
-### 环境变量
-
-定时任务需要配置以下环境变量：
-
-```bash
-# WebDAV 配置
-WEBDAV_URL=https://dav.jianguoyun.com/dav/
-WEBDAV_USERNAME=你的坚果云账号
-WEBDAV_PASSWORD=你的坚果云应用密码
-
-# PushPlus 配置
-PUSHPLUS_TOKEN=你的PushPlus Token
-```
-
-## 📖 文档
-
-### 快速开始
-- **[定时任务快速配置](./QUICK_START_SCHEDULE.md)** - 5分钟快速配置定时任务
-
-### 详细指南
-- **[WEBDAV_GUIDE.md](./WEBDAV_GUIDE.md)** - WebDAV 详细使用指南
-- **[PUSHPLUS_SETUP.md](./PUSHPLUS_SETUP.md)** - PushPlus 推送配置指南
-- **[SCHEDULE_CONFIG.md](./SCHEDULE_CONFIG.md)** - 定时任务配置指南
-- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - 云端部署指南
-
-### 功能说明
-- **[PRECISE_REMINDER.md](./PRECISE_REMINDER.md)** - 精确提醒功能说明
-- **[OPTIMIZATION_SUMMARY.md](./OPTIMIZATION_SUMMARY.md)** - 功能优化总结
-
-## 🔐 安全说明
-
-- WebDAV 配置存储在浏览器的 Cookie 中（httpOnly）
-- 建议使用 HTTPS 连接 WebDAV
-- 定期备份 WebDAV 中的数据文件
-- 使用强密码保护 WebDAV 账号
-
-## 🆚 WebDAV vs 数据库
-
-### WebDAV 版本（当前）
-
-**优点：**
-- ✅ 无需配置数据库
-- ✅ 数据自主可控
-- ✅ 易于备份和迁移
-- ✅ 完全免费
-
-**缺点：**
-- ⚠️ 并发性能较低
-- ⚠️ 不适合大量数据
-
-### 数据库版本
-
-**优点：**
-- ✅ 并发性能高
-- ✅ 支持大量数据
-- ✅ 支持复杂查询
-
-**缺点：**
-- ❌ 需要配置数据库
-- ❌ 需要额外成本（超出免费额度）
-- ❌ 配置复杂
-
-**建议：** 个人使用推荐 WebDAV 版本，企业或团队使用推荐数据库版本。
-
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-## 📝 许可证
-
-MIT License
-
-## 💡 常见问题
-
-### Q: 数据保存在哪里？
-
-A: 数据保存在您配置的 WebDAV 服务器上的 `/coupons/data.json` 文件中。
-
-### Q: 如何备份数据？
-
-A: 登录您的 WebDAV 服务，下载 `/coupons/data.json` 文件即可。系统也会自动创建备份。
-
-### Q: 可以迁移到其他 WebDAV 吗？
-
-A: 可以。下载旧 WebDAV 的数据文件，上传到新 WebDAV 即可。
-
-### Q: 支持哪些 WebDAV 服务？
-
-A: 支持所有标准 WebDAV 协议的服务，包括坚果云、Nextcloud、群晖 NAS 等。
-
-详细问题请查看 [WEBDAV_GUIDE.md](./WEBDAV_GUIDE.md)。
-
-## 📞 支持
-
-如有问题，请：
-1. 查看 [WEBDAV_GUIDE.md](./WEBDAV_GUIDE.md) 使用指南
-2. 查看 [DEPLOYMENT.md](./DEPLOYMENT.md) 部署指南
-3. 提交 Issue
+## 文档
+
+- [重构分析与分阶段计划](./docs/REFACTOR_ANALYSIS.md)
+- [优惠券业务规则](./shared/rules/coupon-rules.md)
+- [WebDAV 同步协议](./shared/rules/sync-protocol.md)

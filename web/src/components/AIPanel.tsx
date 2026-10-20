@@ -1,23 +1,74 @@
 import { useState } from 'react';
-import { Bot, X, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { AlertCircle, Bot, Check, Sparkles, Trash2, Wand2 } from 'lucide-react';
 import type { AIContext, AiIntent } from '../ai/provider';
 import { createProvider } from '../ai/agnesProvider';
-import { listCoupons, putCoupon, deleteCouponLocal, getSettings } from '../db/appDb';
-import { bumpVersion, sync } from '../sync/syncEngine';
+import { deleteCouponLocal, getSettings, listCoupons, putCoupon } from '../db/appDb';
+import { bumpVersion } from '../sync/syncEngine';
 import type { Coupon, DiscountType } from '../types/coupon';
 import { beijingNow } from '../rules/couponRules';
+import { notifyDataChanged } from '../lib/dataBus';
+import { Button, Modal, Textarea, useToast } from './ui';
 
 interface AIPanelProps {
   onSelectCoupon?: (id: string | null) => void;
 }
 
+type Preview =
+  | { kind: 'create'; coupon: Coupon }
+  | { kind: 'update'; before: Coupon; after: Coupon }
+  | { kind: 'delete'; coupon: Coupon }
+  | { kind: 'query'; message: string };
+
+function buildCoupon(intent: AiIntent): Coupon {
+  const changes = intent.changes;
+  return {
+    id: crypto.randomUUID(),
+    title: changes.title || '未命名优惠券',
+    description: changes.description || null,
+    discountType: (changes.discountType as DiscountType) || null,
+    discountAmount: changes.discountAmount ? Number.parseFloat(changes.discountAmount) : null,
+    fullAmount: changes.fullAmount ? Number.parseFloat(changes.fullAmount) : null,
+    startDate: changes.startDate || beijingNow().toISOString().slice(0, 10),
+    endDate: changes.endDate || beijingNow().toISOString().slice(0, 10),
+    endHour: 23,
+    endMinute: 59,
+    isReminded: false,
+    remindedDays: [],
+    isUsed: false,
+    notes: changes.notes || null,
+    createdAt: beijingNow().toISOString(),
+    updatedAt: beijingNow().toISOString(),
+    version: null,
+    modifiedAt: beijingNow().toISOString(),
+  };
+}
+
+function applyChanges(existing: Coupon, intent: AiIntent): Coupon {
+  const c = intent.changes;
+  return {
+    ...existing,
+    title: c.title || existing.title,
+    description: c.description ?? existing.description,
+    discountType: (c.discountType as DiscountType) || existing.discountType,
+    discountAmount: c.discountAmount ? Number.parseFloat(c.discountAmount) : existing.discountAmount,
+    fullAmount: c.fullAmount ? Number.parseFloat(c.fullAmount) : existing.fullAmount,
+    startDate: c.startDate || existing.startDate,
+    endDate: c.endDate || existing.endDate,
+    notes: c.notes ?? existing.notes,
+    updatedAt: beijingNow().toISOString(),
+    modifiedAt: beijingNow().toISOString(),
+  };
+}
+
 export function AIPanel({ onSelectCoupon }: AIPanelProps) {
+  const { showToast } = useToast();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [executing, setExecuting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [intent, setIntent] = useState<AiIntent | null>(null);
-  const [preview, setPreview] = useState<{ action: string; target: Coupon | null } | null>(null);
+  const [preview, setPreview] = useState<Preview | null>(null);
 
   const reset = () => {
     setInput('');
@@ -26,180 +77,227 @@ export function AIPanel({ onSelectCoupon }: AIPanelProps) {
     setPreview(null);
   };
 
-  const handleSubmit = async () => {
+  const close = () => {
+    setOpen(false);
+    reset();
+  };
+
+  const handleParse = async () => {
     if (!input.trim()) return;
     setLoading(true);
     setError(null);
     setIntent(null);
     setPreview(null);
     try {
-      const coupons = await listCoupons();
-      const settings = (await getSettings()) ?? undefined;
+      const [coupons, settings] = await Promise.all([listCoupons(), getSettings()]);
+      const key = settings?.ai.apiKey;
+      if (!key) {
+        setError('请先在「设置 → AI 助手」中配置 API Key');
+        return;
+      }
       const context: AIContext = {
         coupons,
-        provider: settings?.ai.provider || 'agnes',
-        apiKey: settings?.ai.apiKey || null,
-        baseUrl: settings?.ai.baseUrl || null,
-        model: settings?.ai.model || null,
+        provider: settings.ai.provider || 'agnes',
+        apiKey: key,
+        baseUrl: settings.ai.baseUrl,
+        model: settings.ai.model,
       };
       const provider = createProvider(context);
       const result = await provider.parseIntent(input, context);
       setIntent(result);
-      buildPreview(result, coupons);
+
+      if (result.intent === 'create') {
+        setPreview({ kind: 'create', coupon: buildCoupon(result) });
+      } else if (result.intent === 'update' && result.targetId) {
+        const target = coupons.find((c) => c.id === result.targetId);
+        if (!target) {
+          setError('没有找到要修改的优惠券，请换一种描述');
+          return;
+        }
+        setPreview({ kind: 'update', before: target, after: applyChanges(target, result) });
+      } else if (result.intent === 'delete' && result.targetId) {
+        const target = coupons.find((c) => c.id === result.targetId);
+        if (!target) {
+          setError('没有找到要删除的优惠券，请换一种描述');
+          return;
+        }
+        setPreview({ kind: 'delete', coupon: target });
+      } else {
+        setPreview({ kind: 'query', message: result.reasoning });
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'AI 解析失败');
+      setError(e instanceof Error ? e.message : 'AI 解析失败，请稍后重试');
     } finally {
       setLoading(false);
     }
   };
 
-  const buildPreview = (intent: AiIntent, coupons: Coupon[]) => {
-    if (intent.intent === 'create') {
-      const draft: Coupon = {
-        id: crypto.randomUUID(),
-        title: intent.changes.title || '未命名',
-        description: intent.changes.description || null,
-        discountType: (intent.changes.discountType as DiscountType) || null,
-        discountAmount: intent.changes.discountAmount ? parseFloat(intent.changes.discountAmount) : null,
-        fullAmount: intent.changes.fullAmount ? parseFloat(intent.changes.fullAmount) : null,
-        startDate: intent.changes.startDate || beijingNow().toISOString().slice(0, 10),
-        endDate: intent.changes.endDate || beijingNow().toISOString().slice(0, 10),
-        endHour: 23,
-        endMinute: 59,
-        isReminded: false,
-        remindedDays: [],
-        isUsed: false,
-        notes: intent.changes.notes || null,
-        createdAt: beijingNow().toISOString(),
-        updatedAt: beijingNow().toISOString(),
-        version: null,
-        modifiedAt: beijingNow().toISOString(),
-      };
-      setPreview({ action: '创建优惠券', target: draft });
-    } else if (intent.intent === 'update' && intent.targetId) {
-      const target = coupons.find((c) => c.id === intent.targetId) || null;
-      if (target) {
-        setPreview({
-          action: '更新优惠券',
-          target: { ...target, title: intent.changes.title || target.title },
-        });
-      } else {
-        setError('找不到要更新的优惠券');
+  const handleExecute = async () => {
+    if (!preview || !intent) return;
+    setExecuting(true);
+    try {
+      if (preview.kind === 'create') {
+        const withVersion = await bumpVersion(preview.coupon);
+        await putCoupon(withVersion);
+        notifyDataChanged();
+        onSelectCoupon?.(withVersion.id);
+        showToast('已创建优惠券', 'success');
+      } else if (preview.kind === 'update') {
+        const withVersion = await bumpVersion(preview.after);
+        await putCoupon(withVersion);
+        notifyDataChanged();
+        onSelectCoupon?.(withVersion.id);
+        showToast('已更新优惠券', 'success');
+      } else if (preview.kind === 'delete') {
+        await deleteCouponLocal(preview.coupon.id);
+        notifyDataChanged();
+        onSelectCoupon?.(null);
+        showToast('已删除优惠券', 'success');
       }
-    } else if (intent.intent === 'delete' && intent.targetId) {
-      const target = coupons.find((c) => c.id === intent.targetId) || null;
-      setPreview({ action: '删除优惠券', target });
-    } else {
-      setPreview({ action: '查询/对话', target: null });
+      close();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '执行失败');
+    } finally {
+      setExecuting(false);
     }
   };
 
-  const execute = async () => {
-    if (!intent) return;
-    try {
-      if (intent.intent === 'create' && preview?.target) {
-        const withVersion = await bumpVersion(preview.target);
-        await putCoupon(withVersion);
-        await sync();
-        onSelectCoupon?.(withVersion.id);
-      } else if (intent.intent === 'update' && intent.targetId && preview?.target) {
-        const existing = (await listCoupons()).find((c) => c.id === intent.targetId);
-        if (!existing) throw new Error('目标不存在');
-        const updated = await bumpVersion({ ...existing, ...preview.target });
-        await putCoupon(updated);
-        await sync();
-        onSelectCoupon?.(updated.id);
-      } else if (intent.intent === 'delete' && intent.targetId) {
-        await deleteCouponLocal(intent.targetId);
-        await sync();
-        onSelectCoupon?.(null);
-      }
-      setOpen(false);
-      reset();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '执行失败');
-    }
-  };
+  const actionable = preview && preview.kind !== 'query';
 
   return (
     <>
-      <button
+      <Button
+        size="sm"
         onClick={() => setOpen(true)}
-        className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700"
+        icon={<Sparkles className="h-4 w-4" />}
+        className="hidden sm:inline-flex"
       >
-        <Bot className="w-4 h-4" />
         AI 助手
-      </button>
+      </Button>
+      <Button
+        size="sm"
+        variant="soft"
+        onClick={() => setOpen(true)}
+        aria-label="打开 AI 助手"
+        className="sm:hidden"
+      >
+        <Sparkles className="h-4 w-4" />
+      </Button>
 
-      {open && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl shadow-xl w-[640px] max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b">
-              <h2 className="font-bold text-lg">AI 助手</h2>
-              <button onClick={() => { setOpen(false); reset(); }}>
-                <X className="w-5 h-5 text-gray-500" />
-              </button>
-            </div>
-            <div className="p-4 flex-1 overflow-auto space-y-4">
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="例如：帮我添加一张瑞幸 5 折券，10 月 30 日到期"
-                className="w-full h-24 border rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-rose-500"
-              />
-              <button
-                onClick={handleSubmit}
-                disabled={loading}
-                className="w-full py-2 bg-rose-600 text-white rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
+      <Modal
+        open={open}
+        onClose={close}
+        title="AI 助手"
+        description="用一句话创建、修改或删除优惠券，执行前会先给你看变更预览"
+        size="lg"
+        footer={
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-slate-400">AI 只生成变更草稿，确认后才会写入</span>
+            <div className="flex gap-2">
+              <Button variant="secondary" size="sm" onClick={close}>
+                取消
+              </Button>
+              <Button
+                size="sm"
+                onClick={handleExecute}
+                disabled={!actionable}
+                loading={executing}
+                icon={<Check className="h-4 w-4" />}
               >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Bot className="w-4 h-4" />}
-                {loading ? '解析中...' : '解析命令'}
-              </button>
+                确认执行
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <Textarea
+            label="你想做什么？"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            rows={3}
+            placeholder="例如：帮我添加一张瑞幸 5 折券，10 月 30 日到期"
+            hint="支持创建、修改、删除和查询，例如「把星巴克那张改成 12 月 31 日到期」"
+          />
 
-              {error && (
-                <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg text-sm">
-                  <AlertCircle className="w-4 h-4" />
-                  {error}
+          <Button
+            onClick={handleParse}
+            loading={loading}
+            disabled={!input.trim()}
+            icon={<Wand2 className="h-4 w-4" />}
+            className="w-full"
+          >
+            解析并预览
+          </Button>
+
+          {error && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-sm text-rose-700"
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+              {error}
+            </div>
+          )}
+
+          {intent && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+                <Bot className="h-3.5 w-3.5" aria-hidden />
+                AI 理解
+              </div>
+              <p className="mt-1 text-sm text-slate-700">{intent.reasoning}</p>
+
+              {preview?.kind === 'create' && (
+                <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-sm">
+                  <p className="font-medium text-emerald-800">将创建：{preview.coupon.title}</p>
+                  <p className="mt-1 text-xs text-emerald-700">
+                    到期 {preview.coupon.endDate}
+                    {preview.coupon.discountAmount != null
+                      ? ` · 优惠 ${preview.coupon.discountAmount}`
+                      : ''}
+                  </p>
                 </div>
               )}
 
-              {intent && (
-                <div className="border rounded-lg p-4 space-y-3">
-                  <div className="font-medium text-gray-900">AI 理解：{intent.reasoning}</div>
-                  {preview && preview.action !== '查询/对话' && (
-                    <>
-                      <div className="text-sm text-gray-600">拟执行操作：<span className="font-semibold">{preview.action}</span></div>
-                      {preview.target && (
-                        <div className="bg-gray-50 rounded-lg p-3 text-sm space-y-1">
-                          <div>标题：{preview.target.title}</div>
-                          <div>到期：{preview.target.endDate} {String(preview.target.endHour ?? 23).padStart(2, '0')}:{String(preview.target.endMinute ?? 59).padStart(2, '0')}</div>
-                          {preview.target.discountType && (
-                            <div>折扣：{preview.target.discountType} {preview.target.discountAmount}</div>
-                          )}
-                        </div>
-                      )}
-                      <div className="flex gap-2 pt-2">
-                        <button
-                          onClick={() => { setIntent(null); setPreview(null); }}
-                          className="flex-1 py-2 bg-gray-100 rounded-lg hover:bg-gray-200"
-                        >
-                          取消
-                        </button>
-                        <button
-                          onClick={execute}
-                          className="flex-1 py-2 bg-green-600 text-white rounded-lg flex items-center justify-center gap-1 hover:bg-green-700"
-                        >
-                          <Check className="w-4 h-4" /> 确认执行
-                        </button>
-                      </div>
-                    </>
+              {preview?.kind === 'update' && (
+                <div className="mt-3 space-y-1.5 rounded-lg border border-amber-200 bg-amber-50/60 p-3 text-sm">
+                  <p className="font-medium text-amber-800">将修改：{preview.before.title}</p>
+                  {preview.before.title !== preview.after.title && (
+                    <p className="text-xs text-amber-700">
+                      标题：{preview.before.title} → {preview.after.title}
+                    </p>
+                  )}
+                  {preview.before.endDate !== preview.after.endDate && (
+                    <p className="text-xs text-amber-700">
+                      到期：{preview.before.endDate} → {preview.after.endDate}
+                    </p>
+                  )}
+                  {preview.before.discountAmount !== preview.after.discountAmount && (
+                    <p className="text-xs text-amber-700">
+                      优惠：{preview.before.discountAmount ?? '无'} → {preview.after.discountAmount ?? '无'}
+                    </p>
                   )}
                 </div>
               )}
+
+              {preview?.kind === 'delete' && (
+                <div className="mt-3 flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50/60 p-3 text-sm">
+                  <Trash2 className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" aria-hidden />
+                  <div>
+                    <p className="font-medium text-rose-800">将删除：{preview.coupon.title}</p>
+                    <p className="mt-0.5 text-xs text-rose-600">删除后无法恢复</p>
+                  </div>
+                </div>
+              )}
+
+              {preview?.kind === 'query' && (
+                <p className="mt-3 rounded-lg bg-white p-3 text-sm text-slate-600">{preview.message}</p>
+              )}
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </Modal>
     </>
   );
 }

@@ -30,12 +30,27 @@
 |---|---|
 | 数据库 | `coupons`、`settings` 两张表，RLS 按 `owner_id = auth.uid()` 隔离 |
 | 认证 | 邮箱验证码登录/注册（`cloud.auth.sendOtp` + `verifyOtp`） |
+| 登录同步 | 登录后自动拉取该账号的云端数据；首次登录会把本地历史数据补传上云 |
 | 离线降级 | 云端写入失败时自动写本地 IndexedDB，不影响操作 |
 
 数据库结构：
 
 - `coupons`：优惠券主表（id/title/discount_type/start_date/end_date/reminder/version 等）
 - `settings`：用户设置（WebDAV/AI/提醒配置，JSONB 存储）
+
+### 登录后的账号数据同步
+
+`web/src/db/appDb.ts` 的 `syncAccountData()` 负责账号与数据库对齐：
+
+1. 读取当前账号在云端的全部优惠券（RLS 保证只返回自己的记录）。
+2. 与本地 IndexedDB 缓存合并：
+   - 云端没有、本地有 → 视为该账号的历史数据，补传上云；
+   - 两端都有 → 取修改时间较新的一份；
+   - 云端有、本地没有 → 直接拉取。
+3. 以云端结果覆盖本地缓存，保证离线打开也有数据。
+4. 记录最后登录的账号 ID；同一设备切换账号时只拉取不推送，避免把上一个账号的本地数据带到新账号。
+
+登录流程由 `AuthContext` 驱动：`verifyOtp` 成功后立即刷新会话并触发同步，同步期间展示「正在同步账号数据」，完成后以 Toast 汇总本次拉取与补传数量。
 
 ## 快速开始
 

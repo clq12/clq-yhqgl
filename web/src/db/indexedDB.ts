@@ -12,38 +12,81 @@ interface YhqDB extends DBSchema {
     value: SyncCheckpoint;
   };
   settings: {
-    key: string;
+    key: number;
     value: AppSettings;
   };
 }
 
-const DB_NAME = 'clq-yhqgl';
+const DB_NAME = 'clq-yhqgl-v2';
 const DB_VERSION = 1;
 
-let db: IDBPDatabase<YhqDB> | null = null;
+let dbPromise: Promise<IDBPDatabase<YhqDB>> | null = null;
 
-export async function initDB(): Promise<IDBPDatabase<YhqDB>> {
-  if (db) return db;
-  db = await openDB<YhqDB>(DB_NAME, DB_VERSION, {
-    upgrade(database) {
-      if (!database.objectStoreNames.contains('coupons')) {
-        const store = database.createObjectStore('coupons', { keyPath: 'id' });
-        store.createIndex('by-end-date', 'endDate');
-      }
-      if (!database.objectStoreNames.contains('sync')) {
-        database.createObjectStore('sync', { keyPath: 'deviceId' });
-      }
-      if (!database.objectStoreNames.contains('settings')) {
-        database.createObjectStore('settings', { keyPath: 'schemaVersion' });
-      }
-    },
+function upgradeDatabase(database: IDBPDatabase<YhqDB>) {
+  if (!database.objectStoreNames.contains('coupons')) {
+    const store = database.createObjectStore('coupons', { keyPath: 'id' });
+    store.createIndex('by-end-date', 'endDate');
+  }
+  if (!database.objectStoreNames.contains('sync')) {
+    database.createObjectStore('sync', { keyPath: 'deviceId' });
+  }
+  if (!database.objectStoreNames.contains('settings')) {
+    database.createObjectStore('settings', { keyPath: 'schemaVersion' });
+  }
+}
+
+function deleteDatabase(): Promise<void> {
+  return new Promise((resolve) => {
+    const request = indexedDB.deleteDatabase(DB_NAME);
+    request.onsuccess = () => resolve();
+    request.onerror = () => resolve();
+    request.onblocked = () => resolve();
   });
-  return db;
+}
+
+async function openWithRecovery(): Promise<IDBPDatabase<YhqDB>> {
+  try {
+    const opened = await openDB<YhqDB>(DB_NAME, DB_VERSION, {
+      upgrade: upgradeDatabase,
+      blocked() {
+        console.warn('[db] upgrade blocked by another connection');
+      },
+      blocking() {
+        console.warn('[db] this connection is blocking an upgrade');
+      },
+      terminated() {
+        console.warn('[db] connection terminated');
+        dbPromise = null;
+      },
+    });
+    return opened;
+  } catch (e) {
+    // 旧版本数据库可能缺少对象仓库，删除后按最新结构重建
+    console.warn('[local] 重建本地数据库：', e);
+    await deleteDatabase();
+    return openDB<YhqDB>(DB_NAME, DB_VERSION, { upgrade: upgradeDatabase });
+  }
+}
+
+export function initDB(): Promise<IDBPDatabase<YhqDB>> {
+  if (!dbPromise) {
+    dbPromise = Promise.race([
+      openWithRecovery(),
+      new Promise<never>((_, reject) =>
+        window.setTimeout(() => reject(new Error('本地数据库初始化超时')), 8000),
+      ),
+    ]).catch(async (e) => {
+      console.warn('[db] 初始化失败，重置后重试：', e);
+      dbPromise = null;
+      await deleteDatabase();
+      return openWithRecovery();
+    });
+  }
+  return dbPromise;
 }
 
 export async function getDB(): Promise<IDBPDatabase<YhqDB>> {
-  if (!db) await initDB();
-  return db!;
+  return initDB();
 }
 
 // Coupon CRUD
@@ -93,7 +136,7 @@ export async function putSyncCheckpoint(checkpoint: SyncCheckpoint): Promise<voi
 // Settings
 export async function getSettings(): Promise<AppSettings | undefined> {
   const d = await getDB();
-  return d.get('settings', 2 as unknown as string);
+  return d.get('settings', 2);
 }
 
 export async function putSettings(settings: AppSettings): Promise<void> {

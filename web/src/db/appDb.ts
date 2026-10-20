@@ -6,7 +6,7 @@ import * as localDB from './indexedDB';
 // 当用户已登录时优先走 WorkBuddy Cloud（数据跨设备同步），
 // 未登录时回退到 IndexedDB（纯本地离线可用）。
 
-async function isCloudReady(): Promise<boolean> {
+export async function isCloudReady(): Promise<boolean> {
   try {
     const { data: session, error } = await cloud.auth.getSession();
     return !!session && !error;
@@ -188,4 +188,167 @@ export async function putSettings(settings: AppSettings): Promise<void> {
     }
   }
   await localDB.putSettings(settings);
+}
+
+// ---------------------------------------------------------------------------
+// 登录后的账号数据对齐
+// ---------------------------------------------------------------------------
+
+export interface AccountSyncResult {
+  ok: boolean;
+  /** 云端原有记录数 */
+  cloudCount: number;
+  /** 本次从本地补充上云的记录数 */
+  pushed: number;
+  /** 对齐后本地可见的记录总数 */
+  total: number;
+  /** 是否把本地设置也迁移到了云端 */
+  settingsPushed: boolean;
+  error?: string;
+}
+
+function recordTime(c: Coupon): number {
+  const raw = c.modifiedAt || c.updatedAt || c.createdAt;
+  const t = raw ? Date.parse(raw) : NaN;
+  return Number.isNaN(t) ? 0 : t;
+}
+
+const LAST_USER_KEY = 'yhqgl-last-user';
+
+const EMPTY_SETTINGS: AppSettings = {
+  schemaVersion: 2,
+  webdav: { url: '', username: '', password: '', rootPath: '/yhqgl/v2' },
+  sync: { autoSync: true, syncIntervalMinutes: 15, syncOnWifiOnly: false },
+  reminder: { enabled: true, remindDays: [7, 3, 1], quietStart: null, quietEnd: null },
+  ai: { provider: 'agnes', apiKey: null, baseUrl: null, model: null },
+};
+
+/**
+ * 登录后调用：拉取该账号在云端的全部优惠券，与本地缓存合并。
+ * - 云端没有、本地有 → 视为首次登录的历史数据，补传上云
+ * - 两端都有 → 取修改时间较新的一份
+ * - 云端有、本地没有 → 直接拉取
+ * 完成后把结果写回本地 IndexedDB，保证离线打开也有数据。
+ */
+export async function syncAccountData(): Promise<AccountSyncResult> {
+  const { data: session, error: sessionError } = await cloud.auth.getSession();
+  if (sessionError || !session) {
+    return { ok: false, cloudCount: 0, pushed: 0, total: 0, settingsPushed: false, error: '未登录' };
+  }
+
+  const currentUserId = session.user.id;
+  let lastUserId: string | null = null;
+  try {
+    lastUserId = localStorage.getItem(LAST_USER_KEY);
+  } catch {
+    lastUserId = null;
+  }
+  // 同一台设备之前登录过其他账号时，不能把上一个账号的本地缓存推到当前账号
+  const sameOwner = !lastUserId || lastUserId === currentUserId;
+
+  const localCoupons = await localDB.listCoupons();
+  const localSettings = await localDB.getSettings();
+
+  const { data: cloudRows, error: cloudError } = await cloud.database
+    .from('coupons')
+    .select('*')
+    .order('end_date', { ascending: true });
+
+  if (cloudError) {
+    return {
+      ok: false,
+      cloudCount: 0,
+      pushed: 0,
+      total: localCoupons.length,
+      settingsPushed: false,
+      error: cloudError.message,
+    };
+  }
+
+  const cloudCoupons = (cloudRows ?? []).map((row: Record<string, unknown>) => rowToCoupon(row));
+  const cloudMap = new Map(cloudCoupons.map((c) => [c.id, c]));
+
+  const toPush: Coupon[] = [];
+  if (sameOwner) {
+    for (const local of localCoupons) {
+      const remote = cloudMap.get(local.id);
+      if (!remote) {
+        toPush.push(local);
+      } else if (recordTime(local) > recordTime(remote)) {
+        toPush.push(local);
+      }
+    }
+  }
+
+  let pushed = 0;
+  for (const coupon of toPush) {
+    const row = couponToRow(coupon);
+    const { error } = cloudMap.has(coupon.id)
+      ? await cloud.database.from('coupons').update(row as any).eq('id', coupon.id)
+      : await cloud.database.from('coupons').insert(row as any);
+    if (!error) pushed += 1;
+    else console.warn('[cloud] migrate coupon failed:', coupon.id, error.message);
+  }
+
+  let settingsPushed = false;
+  if (sameOwner && localSettings) {
+    const { data: cloudSettings, error: settingsError } = await cloud.database
+      .from('settings')
+      .select('id')
+      .eq('id', 'current')
+      .maybeSingle();
+    if (!settingsError && !cloudSettings) {
+      const row = settingsToRow(localSettings);
+      const { error } = await cloud.database.from('settings').insert(row as any);
+      settingsPushed = !error;
+    }
+  }
+
+  // 以云端为最终真相，回写本地缓存
+  const { data: finalRows, error: finalError } = await cloud.database
+    .from('coupons')
+    .select('*')
+    .order('end_date', { ascending: true });
+
+  if (finalError) {
+    return {
+      ok: false,
+      cloudCount: cloudCoupons.length,
+      pushed,
+      total: localCoupons.length,
+      settingsPushed,
+      error: finalError.message,
+    };
+  }
+
+  const finalCoupons = (finalRows ?? []).map((row: Record<string, unknown>) => rowToCoupon(row));
+  await localDB.clearCoupons();
+  await localDB.putCoupons(finalCoupons);
+
+  const { data: cloudSettings } = await cloud.database
+    .from('settings')
+    .select('*')
+    .eq('id', 'current')
+    .maybeSingle();
+
+  if (cloudSettings) {
+    await localDB.putSettings(rowToSettings(cloudSettings as Record<string, unknown>));
+  } else if (!sameOwner) {
+    // 切换账号且新账号还没有设置：清空上一个账号残留的本地设置（含 AI Key）
+    await localDB.putSettings(EMPTY_SETTINGS);
+  }
+
+  try {
+    localStorage.setItem(LAST_USER_KEY, currentUserId);
+  } catch {
+    /* localStorage 不可用时忽略 */
+  }
+
+  return {
+    ok: true,
+    cloudCount: cloudCoupons.length,
+    pushed,
+    total: finalCoupons.length,
+    settingsPushed,
+  };
 }

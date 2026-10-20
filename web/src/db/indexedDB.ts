@@ -93,7 +93,7 @@ export async function putSyncCheckpoint(checkpoint: SyncCheckpoint): Promise<voi
 // Settings
 export async function getSettings(): Promise<AppSettings | undefined> {
   const d = await getDB();
-  return d.get('settings', 2);
+  return d.get('settings', 2 as unknown as string);
 }
 
 export async function putSettings(settings: AppSettings): Promise<void> {

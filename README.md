@@ -17,8 +17,8 @@
 
 ## 在线使用
 
-- **网页端**：https://clq12.github.io/clq-yhqgl
-- **安卓 APK**：在 [Releases](https://github.com/clq12/clq-yhqgl/releases) 页面下载最新 APK
+- **网页端**：https://clq-yhqgl-web.app.workbuddy.host/?sharecode=EHMXXINRSS
+- **安卓 APK**：在 [Releases](https://github.com/clq12/clq-yhqgl/releases) 页面下载最新 APK（推送 `v*.*.*` 标签后自动构建上传）
 
 ## 快速开始
 

@@ -3,7 +3,7 @@
  * 与 shared/rules/coupon-rules.md 保持一致
  */
 
-import type { Coupon, DiscountType } from './coupon';
+import type { Coupon } from './coupon';
 
 const BEIJING_OFFSET_MS = 8 * 60 * 60 * 1000;
 

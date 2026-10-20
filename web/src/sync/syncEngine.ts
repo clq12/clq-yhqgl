@@ -2,9 +2,7 @@ import type { Coupon, CouponDataPackage, SyncCheckpoint } from '../types/coupon'
 import {
   clearCoupons,
   getSettings,
-  getSyncCheckpoint,
   listCoupons,
-  putCoupon,
   putCoupons,
   putSyncCheckpoint,
 } from '../db/indexedDB';
@@ -93,8 +91,7 @@ export async function sync(): Promise<SyncResult> {
     } else if (local && remote) {
       const { coupon, conflict } = mergeRecords(local, remote);
       if (conflict) conflictCount++;
-      if (!coupon.isDeleted) merged.push(coupon);
-      else deletedIds.add(id);
+      merged.push(coupon);
     }
   }
 

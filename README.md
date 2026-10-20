@@ -15,6 +15,11 @@
 - **状态栏提醒**：安卓 WorkManager + Notification；网页 Service Worker + 浏览器通知。
 - **可插拔 AI**：默认 Agnes，预留其他 OpenAI 兼容 Provider。
 
+## 在线使用
+
+- **网页端**：https://clq12.github.io/clq-yhqgl
+- **安卓 APK**：在 [Releases](https://github.com/clq12/clq-yhqgl/releases) 页面下载最新 APK
+
 ## 快速开始
 
 ### 安卓
@@ -25,6 +30,8 @@ cd android
 ./gradlew assembleDebug
 ```
 
+发布 release 时会自动打包 APK 并上传到 Release 附件。
+
 ### 网页
 
 ```bash
@@ -32,6 +39,8 @@ cd web
 npm install
 npm run dev
 ```
+
+push 到 `main` 分支会自动部署到 GitHub Pages。
 
 ## 文档
 

@@ -22,7 +22,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.clq.yhqgl.data.local.AppDatabase
-import com.clq.yhqgl.data.local.toDomain
 import com.clq.yhqgl.data.settings.SettingsStore
 import com.clq.yhqgl.rules.CouponRules
 

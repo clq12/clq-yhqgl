@@ -37,6 +37,7 @@ import androidx.compose.ui.window.Dialog
 import com.clq.yhqgl.model.Coupon
 import com.clq.yhqgl.model.DiscountType
 import java.time.LocalDate
+import java.util.UUID
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -222,9 +223,11 @@ fun CouponFormScreen(
                                 val parsedDiscount = discountAmount.toDoubleOrNull()
                                 val parsedFull = fullAmount.toDoubleOrNull()
                                 val candidate = (coupon ?: Coupon(
+                                    id = UUID.randomUUID().toString(),
                                     title = "",
                                     startDate = startDate,
-                                    endDate = endDate
+                                    endDate = endDate,
+                                    createdAt = LocalDate.now().toString()
                                 )).copy(
                                     title = title.trim(),
                                     description = description.trim().ifEmpty { null },

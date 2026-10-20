@@ -2,7 +2,6 @@ package com.clq.yhqgl.data.repository
 
 import android.content.Context
 import com.clq.yhqgl.data.local.CouponDao
-import com.clq.yhqgl.data.local.toDomain
 import com.clq.yhqgl.data.local.toEntity
 import com.clq.yhqgl.model.Coupon
 import com.clq.yhqgl.data.settings.SettingsStore

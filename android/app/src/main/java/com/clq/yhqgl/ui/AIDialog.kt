@@ -30,7 +30,6 @@ import com.clq.yhqgl.data.ai.AIContext
 import com.clq.yhqgl.data.ai.AiIntent
 import com.clq.yhqgl.data.ai.AgnesProvider
 import com.clq.yhqgl.data.local.AppDatabase
-import com.clq.yhqgl.data.local.toDomain
 import com.clq.yhqgl.data.local.toEntity
 import com.clq.yhqgl.data.settings.SettingsStore
 import com.clq.yhqgl.model.Coupon

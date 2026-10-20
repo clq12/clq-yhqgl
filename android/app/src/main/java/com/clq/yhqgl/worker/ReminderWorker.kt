@@ -14,7 +14,6 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.clq.yhqgl.MainActivity
 import com.clq.yhqgl.data.local.AppDatabase
-import com.clq.yhqgl.data.local.toDomain
 import com.clq.yhqgl.data.settings.SettingsStore
 import com.clq.yhqgl.rules.CouponRules
 import java.util.concurrent.TimeUnit

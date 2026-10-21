@@ -7,7 +7,21 @@ const DB_NAME = 'clq-yhqgl-v2';
 const CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 小时
 const REMIND_DAYS = [7, 3, 1];
 
+/**
+ * 只在库已经存在时才打开。
+ *
+ * 库版本是 1，一旦 SW 抢在主线程之前把库建出来（空的、没有 object store），
+ * 主线程再用同样的版本号 open 就不会触发 upgrade，只能走「删库重建」的兜底 —— 数据白丢一次。
+ * 所以这里先探一下库存不存在，不存在就算了，等页面自己建。
+ */
+async function dbExists() {
+  if (!indexedDB.databases) return true; // 老浏览器没有这个 API，只能乐观尝试
+  const list = await indexedDB.databases();
+  return list.some((d) => d.name === DB_NAME);
+}
+
 async function getDB() {
+  if (!(await dbExists())) return null;
   return new Promise((resolve, reject) => {
     // 不指定版本号：拿到浏览器里已有的最新版本，避免和主线程的升级打架
     const req = indexedDB.open(DB_NAME);
@@ -19,7 +33,7 @@ async function getDB() {
 async function listCouponsFromSW() {
   const db = await getDB();
   // 库还没被主线程建立过：当作没有数据，不要抛错
-  if (!db.objectStoreNames.contains('coupons')) return [];
+  if (!db || !db.objectStoreNames.contains('coupons')) return [];
   return new Promise((resolve, reject) => {
     const tx = db.transaction('coupons', 'readonly');
     const req = tx.objectStore('coupons').getAll();
@@ -31,7 +45,7 @@ async function listCouponsFromSW() {
 /** 把"已经提醒过"写回本地库，否则每小时都会重复弹同一条 */
 async function markReminded(id, days) {
   const db = await getDB();
-  if (!db.objectStoreNames.contains('coupons')) return;
+  if (!db || !db.objectStoreNames.contains('coupons')) return;
   return new Promise((resolve) => {
     const tx = db.transaction('coupons', 'readwrite');
     const store = tx.objectStore('coupons');
@@ -51,7 +65,7 @@ async function markReminded(id, days) {
 /** 本地设置（和主线程共用 'settings' store，主键是 schemaVersion=2） */
 async function readSettingsFromSW() {
   const db = await getDB();
-  if (!db.objectStoreNames.contains('settings')) return null;
+  if (!db || !db.objectStoreNames.contains('settings')) return null;
   return new Promise((resolve) => {
     const tx = db.transaction('settings', 'readonly');
     const req = tx.objectStore('settings').get(2);

@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertCircle, Save, X } from 'lucide-react';
 import type { Coupon, DiscountType } from '../types/coupon';
 import { beijingNow } from '../rules/couponRules';
-import { putCoupon, SyncConflictError } from '../db/appDb';
+import { listCoupons, putCoupon, SyncConflictError } from '../db/appDb';
+import { normalizeTags } from '../rules/couponRules';
 import { bumpVersion } from '../sync/syncEngine';
 import { notifyDataChanged } from '../lib/dataBus';
 import { Button, Card, Input, Select, Textarea, useToast } from './ui';
+import { TagEditor } from './TagEditor';
 
 interface CouponFormProps {
   coupon?: Coupon;
@@ -43,6 +45,23 @@ export function CouponForm({ coupon, onCancel, onSaved }: CouponFormProps) {
   const [endHour, setEndHour] = useState(coupon?.endHour ?? 23);
   const [endMinute, setEndMinute] = useState(coupon?.endMinute ?? 59);
   const [notes, setNotes] = useState(coupon?.notes ?? '');
+  const [tags, setTags] = useState<string[]>(normalizeTags(coupon?.tags ?? []));
+  // 历史券只为统计用过哪些标签，读一次就够
+  const [allCoupons, setAllCoupons] = useState<Coupon[]>([]);
+
+  useEffect(() => {
+    let alive = true;
+    listCoupons()
+      .then((list) => {
+        if (alive) setAllCoupons(list);
+      })
+      .catch(() => {
+        // 读不到历史也不影响保存，标签栏退化成只剩常用标签
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const [errors, setErrors] = useState<Errors>({});
   const [summary, setSummary] = useState<string | null>(null);
@@ -92,6 +111,7 @@ export function CouponForm({ coupon, onCancel, onSaved }: CouponFormProps) {
       remindedDays: coupon?.remindedDays ?? [],
       isUsed: coupon?.isUsed ?? false,
       notes: notes.trim() || null,
+      tags: normalizeTags(tags),
       createdAt: coupon?.createdAt ?? beijingNow().toISOString(),
       updatedAt: beijingNow().toISOString(),
       version: coupon?.version ?? null,
@@ -252,6 +272,8 @@ export function CouponForm({ coupon, onCancel, onSaved }: CouponFormProps) {
           rows={2}
           placeholder="例如：需要会员日使用（可选）"
         />
+
+        <TagEditor value={tags} onChange={setTags} contextText={title} allCoupons={allCoupons} />
       </Card>
 
       <div className="flex justify-end gap-2">

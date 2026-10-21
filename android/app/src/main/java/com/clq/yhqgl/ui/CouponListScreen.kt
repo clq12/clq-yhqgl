@@ -94,6 +94,8 @@ fun CouponListScreen(modifier: Modifier = Modifier, initialCouponId: String? = n
     var showAI by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
     var filterIndex by remember { mutableIntStateOf(0) }
+    // null = 不按标签筛选
+    var tagFilter by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(initialCouponId) {
         initialCouponId?.let { id ->
@@ -127,7 +129,15 @@ fun CouponListScreen(modifier: Modifier = Modifier, initialCouponId: String? = n
             FilterKey.EXPIRED to coupons.count { !it.isUsed && CouponRules.isExpired(it) }
         )
     }
-    val visible = remember(coupons, search, filter) {
+    val tagOptions = remember(coupons) {
+        coupons.flatMap { it.tags }
+            .groupingBy { it }
+            .eachCount()
+            .entries
+            .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+    }
+
+    val visible = remember(coupons, search, filter, tagFilter) {
         val keyword = search.trim()
         coupons.filter { c ->
             val matchFilter = when (filter) {
@@ -136,10 +146,12 @@ fun CouponListScreen(modifier: Modifier = Modifier, initialCouponId: String? = n
                 FilterKey.USED -> c.isUsed
                 FilterKey.EXPIRED -> !c.isUsed && CouponRules.isExpired(c)
             }
+            val matchTag = tagFilter == null || c.tags.contains(tagFilter)
             val matchKeyword = keyword.isEmpty() ||
                 c.title.contains(keyword, ignoreCase = true) ||
-                (c.description?.contains(keyword, ignoreCase = true) == true)
-            matchFilter && matchKeyword
+                (c.description?.contains(keyword, ignoreCase = true) == true) ||
+                c.tags.any { it.contains(keyword, ignoreCase = true) }
+            matchFilter && matchTag && matchKeyword
         }
     }
 
@@ -227,6 +239,31 @@ fun CouponListScreen(modifier: Modifier = Modifier, initialCouponId: String? = n
                             )
                         }
                     )
+                }
+            }
+
+            if (tagOptions.isNotEmpty()) {
+                androidx.compose.foundation.lazy.LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    item {
+                        FilterChip(
+                            selected = tagFilter == null,
+                            onClick = { tagFilter = null },
+                            label = { Text("全部标签", fontSize = 11.sp) }
+                        )
+                    }
+                    items(tagOptions, key = { it.key }) { entry ->
+                        FilterChip(
+                            selected = tagFilter == entry.key,
+                            onClick = {
+                                tagFilter = if (tagFilter == entry.key) null else entry.key
+                            },
+                            label = { Text("${entry.key} ${entry.value}", fontSize = 11.sp) }
+                        )
+                    }
                 }
             }
 
@@ -420,6 +457,17 @@ private fun CouponCard(
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                if (coupon.tags.isNotEmpty()) {
+                    Text(
+                        buildString {
+                            append(coupon.tags.take(3).joinToString(" · "))
+                            if (coupon.tags.size > 3) append(" +${coupon.tags.size - 3}")
+                        },
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1
+                    )
+                }
             }
 
             Column(horizontalAlignment = Alignment.End) {

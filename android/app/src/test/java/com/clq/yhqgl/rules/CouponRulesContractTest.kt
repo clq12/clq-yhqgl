@@ -95,6 +95,55 @@ class CouponRulesContractTest {
                 CouponRules.extractStore(coupon.title)
             )
         }
+
+        // ---- 标签归一化：逐条比对，null 也要能对上
+        val expectedTagCases = expectedRoot["tagCases"]?.jsonArray?.map { it.jsonObject } ?: emptyList()
+        val actualTagCases = casesRoot["tagCases"]?.jsonArray?.map { it.jsonObject } ?: emptyList()
+        assertEquals("标签用例数量与期望值数量不一致", expectedTagCases.size, actualTagCases.size)
+        for (index in actualTagCases.indices) {
+            val raw = actualTagCases[index]["raw"]?.jsonPrimitive?.contentOrNull
+            val expectedValue = expectedTagCases[index]["normalized"]
+                ?.jsonPrimitive
+                ?.contentOrNull
+                ?.takeIf { it != "null" }
+            assertEquals(
+                "[标签 #${index + 1}] normalizeTag($raw)",
+                expectedValue,
+                CouponRules.normalizeTag(raw)
+            )
+        }
+
+        // ---- 标签推荐：频次降序 → 同频字符序 → 常用标签补位
+        val suggestCase = casesRoot["suggestCase"]?.jsonObject
+        val suggestExpected = expectedRoot["suggestCase"]?.jsonObject
+        if (suggestCase != null && suggestExpected != null) {
+            val existing = suggestCase["existing"]!!.jsonArray.map { row ->
+                row.jsonArray.mapNotNull { it.jsonPrimitive.contentOrNull }
+            }
+            val exclude = suggestCase["exclude"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }
+                ?: emptyList()
+            val limit = suggestCase["limit"]?.jsonPrimitive?.intOrNull ?: 8
+            val expectedTags = suggestExpected["expected"]!!.jsonArray.mapNotNull {
+                it.jsonPrimitive.contentOrNull
+            }
+
+            // 只用到 tags 字段，其余字段给空值即可
+            val coupons = existing.mapIndexed { i, tags ->
+                Coupon(
+                    id = "tag-case-$i",
+                    title = "",
+                    startDate = "2026-01-01",
+                    endDate = "2026-12-31",
+                    createdAt = "2026-01-01T00:00:00+08:00",
+                    tags = tags
+                )
+            }
+            assertEquals(
+                "[标签推荐] suggestTags",
+                expectedTags,
+                CouponRules.suggestTags(coupons, exclude, limit)
+            )
+        }
     }
 
     private fun toCoupon(obj: JsonObject): Coupon {

@@ -58,3 +58,20 @@
 - `discountType=full` 时，`fullAmount > 0` 且 `discountAmount > 0`。
 - `discountType=amount|percentage` 时，`discountAmount > 0`。
 - `endHour` 必须在 0-23，`endMinute` 必须在 0-59。
+
+## 标签（tags）
+
+标签是自由文本，用来按平台/场景归类（抖音、拼多多、淘宝、美团…），不是店铺识别名单的替代品：
+`extractStore` 仍然从标题猜店铺，标签是用户自己打的、可以多个、可以自定义。
+
+双端必须一致的规则（`shared/types/{typescript,kotlin}` + `shared/data/tags.json`）：
+
+| 规则 | 说明 |
+|---|---|
+| `normalizeTag(raw)` | 连续空白（含全角空格 `\u3000`）压成一个空格；去掉开头的 `#` / `＃`（可多个）；首尾去空白；超过 12 个字符截断；空串或纯空白返回 `null` |
+| `normalizeTags(list)` | 逐项归一化，丢 `null`、去重、保持首次出现顺序 |
+| `suggestTags(coupons, exclude, limit)` | 统计历史标签频次 → 频次降序、**同频按字符序**（不能用 locale 相关比较器，否则两端顺序不同）→ 排除 `exclude` → 不足 `limit` 时用 `defaultTags` 按默认顺序补位 |
+| `detectTags(text)` | 文本包含哪个常用标签就返回哪个，按 `defaultTags` 顺序 |
+
+`shared/data/tags.json` 是常用标签的唯一真相源，顺序即推荐顺序；`scripts/contract-check.mjs`
+会校验 TS 与 Kotlin 的两份内联拷贝与它逐项、逐序一致。

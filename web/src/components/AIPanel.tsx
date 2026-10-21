@@ -5,7 +5,7 @@ import { createProvider } from '../ai/agnesProvider';
 import { deleteCouponLocal, getSettings, listCoupons, putCoupon } from '../db/appDb';
 import { bumpVersion } from '../sync/syncEngine';
 import type { Coupon, DiscountType } from '../types/coupon';
-import { beijingNow } from '../rules/couponRules';
+import { beijingNow, normalizeTags } from '../rules/couponRules';
 import { notifyDataChanged } from '../lib/dataBus';
 import { Button, Modal, Textarea, useToast } from './ui';
 
@@ -18,6 +18,15 @@ type Preview =
   | { kind: 'update'; before: Coupon; after: Coupon }
   | { kind: 'delete'; coupon: Coupon }
   | { kind: 'query'; message: string };
+
+/**
+ * AI 给的 tags 可能是 "抖音,美团" 这种串，统一按中文/英文逗号与空白切开再归一化。
+ * 没给就留空，不要瞎猜。
+ */
+function parseIntentTags(raw: string | undefined | null): string[] {
+  if (!raw) return [];
+  return normalizeTags(raw.split(/[,，、\s]+/));
+}
 
 function buildCoupon(intent: AiIntent): Coupon {
   const changes = intent.changes;
@@ -36,6 +45,7 @@ function buildCoupon(intent: AiIntent): Coupon {
     remindedDays: [],
     isUsed: false,
     notes: changes.notes || null,
+    tags: parseIntentTags(changes.tags),
     createdAt: beijingNow().toISOString(),
     updatedAt: beijingNow().toISOString(),
     version: null,
@@ -55,6 +65,8 @@ function applyChanges(existing: Coupon, intent: AiIntent): Coupon {
     startDate: c.startDate || existing.startDate,
     endDate: c.endDate || existing.endDate,
     notes: c.notes ?? existing.notes,
+    // AI 明确给了 tags 才覆盖，没提就保留原标签
+    tags: c.tags ? parseIntentTags(c.tags) : existing.tags,
     updatedAt: beijingNow().toISOString(),
     modifiedAt: beijingNow().toISOString(),
   };

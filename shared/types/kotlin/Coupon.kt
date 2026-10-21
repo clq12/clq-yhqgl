@@ -33,6 +33,11 @@ import kotlinx.serialization.Serializable
     @SerialName("isUsed")
     val isUsed: Boolean = false,
     val notes: String? = null,
+    /**
+     * 标签（自由文本，已归一化去重）。
+     * 用途：按平台/场景筛选（抖音、拼多多、淘宝、美团…），录入时自动复用历史标签。
+     */
+    val tags: List<String> = emptyList(),
     @SerialName("createdAt")
     val createdAt: String,
     @SerialName("updatedAt")

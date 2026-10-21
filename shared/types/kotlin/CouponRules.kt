@@ -195,4 +195,90 @@ import java.time.format.DateTimeFormatter
         }
         return map.values.sortedByDescending { it.amount }
     }
+    // ---------------------------------------------------------------- 标签
+
+    /** 标签最大长度（UTF-16 单元），双端一致 */
+    const val TAG_MAX_LENGTH = 12
+
+    /**
+     * 常用标签（与 shared/data/tags.json 一致，contract-check 会校验不得漂移）。
+     * 顺序即推荐顺序：新用户没有历史标签时按这个顺序补位。
+     */
+    val defaultTags = listOf(
+        "抖音", "拼多多", "淘宝", "天猫", "京东", "美团", "饿了么", "支付宝", "微信支付",
+        "云闪付", "星巴克", "瑞幸", "肯德基", "麦当劳", "蜜雪冰城", "盒马", "山姆",
+        "屈臣氏", "加油", "电影票", "话费"
+    )
+
+    private val TAG_BLANK = Regex("[\\s\\u3000]+")
+
+    /**
+     * 归一化单个标签：
+     * - 连续的空白（含全角空格）压成一个空格，首尾去空白
+     * - 去掉开头 # / ＃
+     * - 超长截断到 [TAG_MAX_LENGTH]
+     * - 空串返回 null
+     */
+    fun normalizeTag(raw: String?): String? {
+        if (raw == null) return null
+        var s = TAG_BLANK.replace(raw, " ").trim()
+        while (s.startsWith("#") || s.startsWith("＃")) {
+            s = s.substring(1).trim()
+        }
+        if (s.isEmpty()) return null
+        return if (s.length > TAG_MAX_LENGTH) s.substring(0, TAG_MAX_LENGTH) else s
+    }
+
+    /** 归一化一组标签：丢空、去重、保持首次出现的顺序 */
+    fun normalizeTags(list: List<String?>?): List<String> {
+        if (list == null) return emptyList()
+        val out = mutableListOf<String>()
+        for (raw in list) {
+            val t = normalizeTag(raw) ?: continue
+            if (!out.contains(t)) out.add(t)
+        }
+        return out
+    }
+
+    /**
+     * 推荐标签：先按历史使用频次（高的在前，同频按字符序，保证两端结果一致），
+     * 不够 limit 个再用常用标签补位。
+     */
+    fun suggestTags(
+        coupons: List<Coupon>,
+        exclude: List<String> = emptyList(),
+        limit: Int = 8
+    ): List<String> {
+        val counts = mutableMapOf<String, Int>()
+        for (c in coupons) {
+            for (raw in c.tags) {
+                val t = normalizeTag(raw) ?: continue
+                counts[t] = (counts[t] ?: 0) + 1
+            }
+        }
+
+        val excluded = normalizeTags(exclude).toSet()
+        val ranked = counts.entries
+            .filter { !excluded.contains(it.key) }
+            // 频次降序；同频按字符串比较，不能用 locale 相关比较器，否则两端顺序会不一样
+            .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+            .map { it.key }
+            .toMutableList()
+
+        for (t in defaultTags) {
+            if (ranked.size >= limit) break
+            if (!excluded.contains(t) && !ranked.contains(t)) ranked.add(t)
+        }
+        return ranked.take(limit)
+    }
+
+    /** 从文本里识别标签（录入时按标题自动点选） */
+    fun detectTags(text: String, candidates: List<String> = defaultTags): List<String> {
+        if (text.isEmpty()) return emptyList()
+        val out = mutableListOf<String>()
+        for (c in candidates) {
+            if (text.contains(c) && !out.contains(c)) out.add(c)
+        }
+        return out
+    }
 }

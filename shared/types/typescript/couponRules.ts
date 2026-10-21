@@ -188,3 +188,92 @@ export function groupByStore(coupons: Coupon[]) {
     .map(([name, data]) => ({ name, ...data }))
     .sort((a, b) => b.amount - a.amount);
 }
+
+// ---------------------------------------------------------------- 标签
+
+/** 标签最大长度（UTF-16 单元），双端一致 */
+export const TAG_MAX_LENGTH = 12;
+
+/**
+ * 常用标签（与 shared/data/tags.json 一致，contract-check 会校验不得漂移）。
+ * 顺序即推荐顺序：新用户没有历史标签时按这个顺序补位。
+ */
+export const defaultTags = [
+  '抖音', '拼多多', '淘宝', '天猫', '京东', '美团', '饿了么', '支付宝', '微信支付',
+  '云闪付', '星巴克', '瑞幸', '肯德基', '麦当劳', '蜜雪冰城', '盒马', '山姆',
+  '屈臣氏', '加油', '电影票', '话费'
+];
+
+/**
+ * 归一化单个标签：
+ * - 连续的空白（含全角空格）压成一个空格，首尾去空白
+ * - 去掉用户习惯性输入的开头 # / ＃
+ * - 超长截断到 TAG_MAX_LENGTH
+ * - 空串返回 null
+ */
+export function normalizeTag(raw: string | null | undefined): string | null {
+  if (raw == null) return null;
+  let s = raw.replace(/[\s\u3000]+/g, ' ').trim();
+  while (s.startsWith('#') || s.startsWith('＃')) {
+    s = s.slice(1).trim();
+  }
+  if (!s) return null;
+  return s.length > TAG_MAX_LENGTH ? s.slice(0, TAG_MAX_LENGTH) : s;
+}
+
+/** 归一化一组标签：丢空、去重、保持首次出现的顺序 */
+export function normalizeTags(list: Array<string | null | undefined> | null | undefined): string[] {
+  if (!list) return [];
+  const out: string[] = [];
+  for (const raw of list) {
+    const t = normalizeTag(raw);
+    if (t && !out.includes(t)) out.push(t);
+  }
+  return out;
+}
+
+/**
+ * 推荐标签：先按历史使用频次（高的在前，同频按字符序，保证两端结果一致），
+ * 不够 limit 个再用常用标签补位。
+ *
+ * @param exclude 已经在券上用过的标签，不再推荐
+ */
+export function suggestTags(
+  coupons: Array<{ tags?: string[] | null }>,
+  exclude: string[] = [],
+  limit = 8
+): string[] {
+  const counts = new Map<string, number>();
+  for (const c of coupons) {
+    for (const raw of c.tags ?? []) {
+      const t = normalizeTag(raw);
+      if (!t) continue;
+      counts.set(t, (counts.get(t) ?? 0) + 1);
+    }
+  }
+
+  const excluded = new Set(normalizeTags(exclude));
+  const ranked = Array.from(counts.entries())
+    .filter(([t]) => !excluded.has(t))
+    .sort((a, b) => (b[1] - a[1]) || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+    .map(([t]) => t);
+
+  for (const t of defaultTags) {
+    if (ranked.length >= limit) break;
+    if (!excluded.has(t) && !ranked.includes(t)) ranked.push(t);
+  }
+  return ranked.slice(0, limit);
+}
+
+/**
+ * 从文本里识别标签（录入时按标题自动点选）。
+ * 按候选列表顺序返回，不做去重以外的处理 —— 保持可预测。
+ */
+export function detectTags(text: string, candidates: string[] = defaultTags): string[] {
+  if (!text) return [];
+  const out: string[] = [];
+  for (const c of candidates) {
+    if (text.includes(c) && !out.includes(c)) out.push(c);
+  }
+  return out;
+}

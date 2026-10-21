@@ -1,6 +1,30 @@
 {
   "$comment": "双端业务规则的契约用例。nowIso 是固定的『当前时间』，让两端可以在同一时刻下比对结果。expected 由 scripts/contract-check.mjs 用 TypeScript 实现生成，Android 单测必须跑出完全一致的结论。",
   "nowIso": "2026-10-21T10:00:00+08:00",
+  "tagCases": [
+    { "raw": " 抖音 ", "note": "首尾空格" },
+    { "raw": "＃淘宝", "note": "全角井号前缀" },
+    { "raw": "##拼多多", "note": "多个井号前缀" },
+    { "raw": "美  团", "note": "连续空格压成一个" },
+    { "raw": "　饿了么　", "note": "全角空格" },
+    { "raw": "   ", "note": "纯空白 → null" },
+    { "raw": "#", "note": "只有井号 → null" },
+    { "raw": "一二三四五六七八九十一二三", "note": "超长截断到 12" }
+  ],
+  "suggestCase": {
+    "$comment": "existing 是已有的券各自的标签；suggest 应先按频次、同频按字符序，不够 limit 再用常用标签补位。",
+    "existing": [
+      ["美团", "抖音"],
+      ["美团", "淘宝"],
+      ["美团"],
+      ["拼多多", "抖音"],
+      ["淘宝"],
+      [],
+      [" 抖音 "]
+    ],
+    "exclude": ["淘宝"],
+    "limit": 5
+  },
   "cases": [
     {
       "name": "今天到期（不足一天）",

@@ -54,6 +54,21 @@ function CouponRow({
           <span className="truncate text-xs text-slate-400">{coupon.description}</span>
         )}
       </div>
+      {(coupon.tags ?? []).length > 0 && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1">
+          {coupon.tags.slice(0, 3).map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600"
+            >
+              {tag}
+            </span>
+          ))}
+          {coupon.tags.length > 3 && (
+            <span className="text-[10px] text-slate-400">+{coupon.tags.length - 3}</span>
+          )}
+        </div>
+      )}
     </button>
   );
 }
@@ -63,6 +78,8 @@ export function CouponList({ selectedId, onSelect }: CouponListProps) {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<FilterKey>('active');
   const [sort, setSort] = useState<SortKey>('deadline');
+  // null = 不按标签筛选
+  const [tag, setTag] = useState<string | null>(null);
 
   const counts = useMemo(() => {
     let active = 0;
@@ -74,6 +91,17 @@ export function CouponList({ selectedId, onSelect }: CouponListProps) {
       else active += 1;
     }
     return { all: coupons.length, active, used, expired };
+  }, [coupons]);
+
+  // 可选标签：只列当前数据里真实用过的，数量降序、同数量按字符序
+  const tagOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const c of coupons) {
+      for (const t of c.tags ?? []) counts.set(t, (counts.get(t) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+      .map(([name, count]) => ({ name, count }));
   }, [coupons]);
 
   const tabs: TabItem<FilterKey>[] = [
@@ -89,11 +117,13 @@ export function CouponList({ selectedId, onSelect }: CouponListProps) {
       if (filter === 'active' && (c.isUsed || isExpired(c))) return false;
       if (filter === 'used' && !c.isUsed) return false;
       if (filter === 'expired' && (c.isUsed || !isExpired(c))) return false;
+      if (tag && !(c.tags ?? []).includes(tag)) return false;
       if (!keyword) return true;
       return (
         c.title.toLowerCase().includes(keyword) ||
         (c.description ?? '').toLowerCase().includes(keyword) ||
-        (c.notes ?? '').toLowerCase().includes(keyword)
+        (c.notes ?? '').toLowerCase().includes(keyword) ||
+        (c.tags ?? []).some((t) => t.toLowerCase().includes(keyword))
       );
     });
 
@@ -108,7 +138,7 @@ export function CouponList({ selectedId, onSelect }: CouponListProps) {
     });
 
     return list;
-  }, [coupons, filter, search, sort]);
+  }, [coupons, filter, search, sort, tag]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -164,6 +194,36 @@ export function CouponList({ selectedId, onSelect }: CouponListProps) {
             </select>
           </label>
         </div>
+
+        {tagOptions.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setTag(null)}
+              className={`rounded-full px-2 py-0.5 text-xs transition ${
+                tag === null
+                  ? 'bg-rose-600 text-white'
+                  : 'border border-slate-200 text-slate-600 hover:border-rose-300 hover:text-rose-600'
+              }`}
+            >
+              全部标签
+            </button>
+            {tagOptions.map(({ name, count }) => (
+              <button
+                key={name}
+                type="button"
+                onClick={() => setTag(tag === name ? null : name)}
+                className={`rounded-full px-2 py-0.5 text-xs transition ${
+                  tag === name
+                    ? 'bg-rose-600 text-white'
+                    : 'border border-slate-200 text-slate-600 hover:border-rose-300 hover:text-rose-600'
+                }`}
+              >
+                {name} {count}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="scroll-area min-h-0 flex-1 overflow-y-auto">

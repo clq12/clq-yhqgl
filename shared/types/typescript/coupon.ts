@@ -25,6 +25,11 @@ export interface Coupon {
   remindedDays: number[];
   isUsed: boolean;
   notes: string | null;
+  /**
+   * 标签（自由文本，已归一化去重）。
+   * 用途：按平台/场景筛选（抖音、拼多多、淘宝、美团…），录入时自动复用历史标签。
+   */
+  tags: string[];
   createdAt: string; // ISO 8601 with +08:00 or timezone-less interpreted as +08:00
   updatedAt: string | null;
   version: VersionVectorEntry | null;

@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [CouponEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -86,6 +86,65 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v2 → v3：加标签列 tagsJson。
+         *
+         * 同样用重建表而不是 `ALTER TABLE ADD COLUMN ... DEFAULT '[]'`：
+         * 带 DEFAULT 的列会让 Room 的 schema 校验认为「实体没声明默认值但表里有」，
+         * 迁移通过后一启动就抛 MigrationDidNotProperlyHandle。
+         */
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS coupons_new (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        description TEXT,
+                        discountType TEXT,
+                        discountAmount REAL,
+                        fullAmount REAL,
+                        startDate TEXT NOT NULL,
+                        endDate TEXT NOT NULL,
+                        endHour INTEGER,
+                        endMinute INTEGER,
+                        isReminded INTEGER NOT NULL,
+                        remindedDaysJson TEXT NOT NULL,
+                        isUsed INTEGER NOT NULL,
+                        notes TEXT,
+                        tagsJson TEXT NOT NULL,
+                        createdAt TEXT NOT NULL,
+                        updatedAt TEXT,
+                        versionJson TEXT,
+                        modifiedAt TEXT,
+                        deletedAt TEXT,
+                        dirty INTEGER NOT NULL,
+                        conflict INTEGER NOT NULL,
+                        ownerId TEXT
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO coupons_new (
+                        id, title, description, discountType, discountAmount, fullAmount,
+                        startDate, endDate, endHour, endMinute, isReminded, remindedDaysJson,
+                        isUsed, notes, tagsJson, createdAt, updatedAt, versionJson, modifiedAt,
+                        deletedAt, dirty, conflict, ownerId
+                    )
+                    SELECT
+                        id, title, description, discountType, discountAmount, fullAmount,
+                        startDate, endDate, endHour, endMinute, isReminded, remindedDaysJson,
+                        isUsed, notes, '[]', createdAt, updatedAt, versionJson, modifiedAt,
+                        deletedAt, dirty, conflict, ownerId
+                    FROM coupons
+                    """.trimIndent()
+                )
+                db.execSQL("DROP TABLE coupons")
+                db.execSQL("ALTER TABLE coupons_new RENAME TO coupons")
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -93,7 +152,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "yhqgl.db"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { INSTANCE = it }
             }

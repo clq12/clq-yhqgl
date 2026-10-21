@@ -383,6 +383,22 @@ export function CouponDetail({ couponId, onClose, onChange, onSelect }: CouponDe
           </div>
         </Card>
 
+        {(coupon.tags ?? []).length > 0 && (
+          <Card className="mt-4 p-4">
+            <h3 className="text-sm font-semibold text-slate-800">标签</h3>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {coupon.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </Card>
+        )}
+
         {(coupon.description || coupon.notes) && (
           <div className="mt-4 space-y-3">
             {coupon.description && (

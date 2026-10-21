@@ -31,6 +31,8 @@ function couponToRow(c: Coupon): Record<string, unknown> {
     reminded_days: c.remindedDays,
     is_used: c.isUsed,
     notes: c.notes,
+    // 云端列是 jsonb 数组；老记录可能没有这一列，读的时候兜底成空数组
+    tags: c.tags ?? [],
     created_at: c.createdAt,
     updated_at: c.updatedAt,
     version: c.version,
@@ -55,6 +57,7 @@ function rowToCoupon(row: Record<string, unknown>): Coupon {
     remindedDays: Array.isArray(row.reminded_days) ? row.reminded_days.map(Number) : [],
     isUsed: Boolean(row.is_used),
     notes: row.notes === null ? null : String(row.notes),
+    tags: Array.isArray(row.tags) ? row.tags.map(String) : [],
     createdAt: String(row.created_at),
     updatedAt: row.updated_at === null ? null : String(row.updated_at),
     version: row.version as Coupon['version'],

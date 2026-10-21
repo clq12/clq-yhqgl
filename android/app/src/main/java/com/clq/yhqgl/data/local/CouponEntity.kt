@@ -35,6 +35,8 @@ data class CouponEntity(
     val remindedDaysJson: String,
     val isUsed: Boolean,
     val notes: String?,
+    /** 标签，JSON 数组字面量（如 ["抖音","美团"]），理由同 remindedDaysJson */
+    val tagsJson: String,
     val createdAt: String,
     val updatedAt: String?,
     val versionJson: String?,
@@ -64,6 +66,9 @@ data class CouponEntity(
             ?.let { json.decodeFromString(ListSerializer(Int.serializer()), it) } ?: emptyList(),
         isUsed = isUsed,
         notes = notes,
+        tags = tagsJson.takeIf { it.isNotBlank() }
+            ?.let { runCatching { json.decodeFromString(ListSerializer(String.serializer()), it) }.getOrNull() }
+            ?: emptyList(),
         createdAt = createdAt,
         updatedAt = updatedAt,
         version = versionJson?.let { json.decodeFromString(VersionVectorEntry.serializer(), it) },
@@ -98,6 +103,7 @@ fun Coupon.toEntity(
     remindedDaysJson = Json.encodeToString(ListSerializer(Int.serializer()), remindedDays),
     isUsed = isUsed,
     notes = notes,
+    tagsJson = Json.encodeToString(ListSerializer(String.serializer()), tags),
     createdAt = createdAt,
     updatedAt = updatedAt,
     versionJson = version?.let { Json.encodeToString(VersionVectorEntry.serializer(), it) },

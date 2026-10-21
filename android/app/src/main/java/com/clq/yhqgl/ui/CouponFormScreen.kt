@@ -2,11 +2,15 @@ package com.clq.yhqgl.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -26,13 +30,22 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import com.clq.yhqgl.di.ServiceLocator
+import com.clq.yhqgl.rules.CouponRules
 import androidx.compose.ui.window.Dialog
 import com.clq.yhqgl.model.Coupon
 import com.clq.yhqgl.model.DiscountType
@@ -58,6 +71,14 @@ fun CouponFormScreen(
     var endHour by remember { mutableStateOf(coupon?.endHour ?: 23) }
     var endMinute by remember { mutableStateOf(coupon?.endMinute ?: 59) }
     var notes by remember { mutableStateOf(coupon?.notes ?: "") }
+    var tags by remember { mutableStateOf(CouponRules.normalizeTags(coupon?.tags ?: emptyList())) }
+    var tagDraft by remember { mutableStateOf("") }
+    // 历史券只为统计"用过哪些标签"，进页面读一次
+    var allCoupons by remember { mutableStateOf<List<Coupon>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        allCoupons = runCatching { ServiceLocator.repository.localCoupons() }.getOrDefault(emptyList())
+    }
 
     var typeExpanded by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -203,6 +224,20 @@ fun CouponFormScreen(
                         minLines = 2
                     )
 
+                    TagEditor(
+                        tags = tags,
+                        draft = tagDraft,
+                        onDraftChange = { tagDraft = it },
+                        onAdd = { raw ->
+                            val tag = CouponRules.normalizeTag(raw)
+                            if (tag != null && !tags.contains(tag)) tags = tags + tag
+                            tagDraft = ""
+                        },
+                        onRemove = { tag -> tags = tags - tag },
+                        suggestions = CouponRules.suggestTags(allCoupons, tags, 8),
+                        detected = CouponRules.detectTags(title).filter { !tags.contains(it) }
+                    )
+
                     error?.let {
                         Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
@@ -238,7 +273,8 @@ fun CouponFormScreen(
                                     endDate = endDate,
                                     endHour = endHour,
                                     endMinute = endMinute,
-                                    notes = notes.trim().ifEmpty { null }
+                                    notes = notes.trim().ifEmpty { null },
+                                    tags = CouponRules.normalizeTags(tags)
                                 )
                                 // 简单校验
                                 if (candidate.title.isBlank()) {
@@ -255,6 +291,126 @@ fun CouponFormScreen(
                         ) {
                             Text("保存")
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * 标签编辑器。
+ *
+ * 复用逻辑三层：历史高频（suggestions）→ 常用标签补位 → 标题里认出来的（detected，只给建议不自动加）。
+ * 自动加标签看起来聪明，实际会在用户没注意时污染数据，所以这里一律要用户点一下。
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TagEditor(
+    tags: List<String>,
+    draft: String,
+    onDraftChange: (String) -> Unit,
+    onAdd: (String) -> Unit,
+    onRemove: (String) -> Unit,
+    suggestions: List<String>,
+    detected: List<String>
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("标签", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Text(
+                "用于按平台筛选",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        if (tags.isNotEmpty()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                tags.forEach { tag ->
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .clickable { onRemove(tag) }
+                                .padding(start = 10.dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                tag,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Icon(
+                                Icons.Default.Close,
+                                contentDescription = "移除 $tag",
+                                modifier = Modifier.size(12.dp),
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = draft,
+                onValueChange = onDraftChange,
+                label = { Text("加标签") },
+                singleLine = true,
+                modifier = Modifier.weight(1f)
+            )
+            Button(onClick = { onAdd(draft) }, enabled = draft.isNotBlank()) {
+                Text("添加")
+            }
+        }
+
+        if (detected.isNotEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("标题里有：", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                detected.forEach { tag ->
+                    Text(
+                        " $tag ",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .clickable { onAdd(tag) }
+                            .padding(horizontal = 2.dp)
+                    )
+                }
+            }
+        }
+
+        if (suggestions.isNotEmpty()) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                suggestions.forEach { tag ->
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            tag,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .clickable { onAdd(tag) }
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
                     }
                 }
             }

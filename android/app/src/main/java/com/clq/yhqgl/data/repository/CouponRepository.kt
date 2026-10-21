@@ -43,6 +43,9 @@ class CouponRepository(
 
     suspend fun localCount(): Int = dao.getAllActive().size
 
+    /** 一次性取本地全部有效券（标签推荐、AI 上下文这类"读一次就够"的场景用） */
+    suspend fun localCoupons(): List<Coupon> = dao.getAllActive().map { it.toDomain() }
+
     suspend fun pendingCount(): Int = dao.dirtyCount()
 
     /** 新建或修改。会递增版本向量并打上 dirty，等同步引擎推上去。 */

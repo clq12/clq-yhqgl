@@ -43,7 +43,7 @@
 
 `coupons` 主要列：`id` / `owner_id` / `title` / `discount_type` / `discount_amount` /
 `full_amount` / `start_date` / `end_date` / `end_hour` / `end_minute` / `is_used` / `notes` /
-`created_at` / `updated_at` / `modified_at` / `version` / `deleted_at`。
+`created_at` / `updated_at` / `modified_at` / `version` / `deleted_at` / `tags`。
 
 `is_reminded` / `reminded_days` 两列仍在表里，但**不参与同步** —— 提醒状态以各设备本地为准。
 
@@ -58,6 +58,19 @@
 5. 换账号 → 先清掉属于上一个账号的本地残留（同账号才认领，不串号）。
 6. 首次登录若本机有数据 → 弹一屏让用户选「上传本地 / 只拉云端 / 先清空再拉」。
 
+### 标签
+
+标签是自由文本数组（`tags`），用来按平台/场景归类：抖音、拼多多、淘宝、美团… 与「店铺识别」
+（从标题猜店铺）是两件事——标签是用户自己打的，可以多个、可以自定义。
+
+录入时自动复用，分三层：
+
+1. **历史高频**：统计已有券用过的标签，按频次降序排在最前面，点一下即可加上；
+2. **常用标签补位**：历史不够时用 `shared/data/tags.json` 的默认名单补齐；
+3. **标题识别**：标题里出现平台名时给一个「+ 抖音」的一键添加按钮，但**不自动加**。
+
+两端都支持按标签筛选（网页左侧标签条、安卓列表标签行），搜索也会命中标签。
+
 ### 规则防漂移
 
 业务规则在 TS 与 Kotlin 各有一份实现（`shared/types/typescript/couponRules.*`、
@@ -68,9 +81,13 @@ node --experimental-strip-types scripts/contract-check.mjs          # 校验
 node --experimental-strip-types scripts/contract-check.mjs --write  # 规则改动后重新生成期望值
 ```
 
-- 店铺名单必须与 `shared/data/stores.json` 逐项一致。
+- 店铺名单必须与 `shared/data/stores.json` 逐项一致；常用标签名单必须与 `shared/data/tags.json`
+  逐项、**逐序**一致（顺序就是推荐顺序）。
 - `shared/data/contract-cases.json` 的固定用例在固定时刻下，两端结论必须完全相同。
+- 行为用例里同时包含时间/状态/折扣文案与标签归一化、标签推荐排序。
 - Android 侧对应单测：`CouponRulesContractTest`。
+- 安卓工程通过 `sourceSets["main"].java.srcDir("../../shared/types/kotlin")` 直接编译共享源码，
+  不再维护第二份复制件。
 - CI：`.github/workflows/shared-contract.yml`。
 
 > 已修的真实分歧：已过期券的「剩余天数」，网页端算 -1、安卓端算 0。

@@ -45,8 +45,8 @@ android {
         applicationId = "com.clq.yhqgl"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "2.1.1"
+        versionCode = 4
+        versionName = "2.2.0"
     }
 
     kotlinOptions {
@@ -57,6 +57,15 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
+
+    /**
+     * 直接把共享 Kotlin 源码挂进源码集。
+     *
+     * 之前是手动把 shared/types/kotlin 下的文件复制到 app 的 model、rules 包目录里，
+     * 结果那份复制件早就和 shared 里的真相源漂移了（少了 deletedAt、多了旧实现），
+     * 靠人记着「改完记得复制」是不可能可靠的。挂 srcDir 之后只有一份源码。
+     */
+    sourceSets["main"].java.srcDir("../../shared/types/kotlin")
 }
 
 dependencies {

@@ -24,6 +24,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
 
 const STORES_JSON = resolve(root, 'shared/data/stores.json');
+const TAGS_JSON = resolve(root, 'shared/data/tags.json');
 const CASES_JSON = resolve(root, 'shared/data/contract-cases.json');
 const EXPECTED_JSON = resolve(root, 'shared/data/contract-expected.json');
 const TS_RULES = resolve(root, 'shared/types/typescript/couponRules.ts');
@@ -74,6 +75,31 @@ function diff(label, actual) {
 diff('TypeScript', tsStores);
 diff('Kotlin', ktStores);
 
+// ------------------------------------------------- 1b. 常用标签（顺序也有意义：推荐顺序）
+const canonicalTags = JSON.parse(readFileSync(TAGS_JSON, 'utf8')).tags;
+
+function diffOrdered(label, actual, expected) {
+  if (!actual) {
+    problems.push(`[${label}] 找不到常用标签名单，检查起来源是否改名`);
+    return;
+  }
+  if (actual.join('\u0001') !== expected.join('\u0001')) {
+    const missing = expected.filter((x) => !actual.includes(x));
+    const extra = actual.filter((x) => !expected.includes(x));
+    const detail = [
+      missing.length ? `缺少：${missing.join('、')}` : '',
+      extra.length ? `多出：${extra.join('、')}` : '',
+      !missing.length && !extra.length ? '内容相同但顺序不同' : '',
+    ]
+      .filter(Boolean)
+      .join('；');
+    problems.push(`[${label}] 与 tags.json 不一致（${detail}）`);
+  }
+}
+
+diffOrdered('TypeScript 标签', extractQuoted(tsSource, /const defaultTags\s*=\s*\[/), canonicalTags);
+diffOrdered('Kotlin 标签', extractQuoted(ktSource, /val defaultTags\s*=\s*listOf\(/), canonicalTags);
+
 // ---------------------------------------------------------------- 2. 行为契约
 const casesFile = JSON.parse(readFileSync(CASES_JSON, 'utf8'));
 const nowMs = Date.parse(casesFile.nowIso);
@@ -86,6 +112,25 @@ const rules = await import(`file://${TS_RULES.replace(/\\/g, '/')}`);
 const computed = {
   nowIso: casesFile.nowIso,
   nowMs,
+  tagCases: (casesFile.tagCases ?? []).map(({ raw, note }) => ({
+    raw,
+    note,
+    normalized: rules.normalizeTag(raw),
+  })),
+  suggestCase: (() => {
+    const s = casesFile.suggestCase;
+    if (!s) return null;
+    return {
+      existing: s.existing,
+      exclude: s.exclude ?? [],
+      limit: s.limit ?? 8,
+      expected: rules.suggestTags(
+        s.existing.map((tags) => ({ tags })),
+        s.exclude ?? [],
+        s.limit ?? 8,
+      ),
+    };
+  })(),
   cases: casesFile.cases.map(({ name, coupon }) => ({
     name,
     deadlineMs: rules.deadlineTimestamp(coupon),
@@ -108,6 +153,14 @@ if (write) {
   const expected = JSON.parse(readFileSync(EXPECTED_JSON, 'utf8'));
   if (expected.nowMs !== computed.nowMs) {
     problems.push(`[契约] nowMs 不一致：expected=${expected.nowMs} 现在=${computed.nowMs}`);
+  }
+  // 标签归一化与推荐顺序：单独比对，格式和上面的一致性检查无关
+  for (const key of ['tagCases', 'suggestCase']) {
+    if (JSON.stringify(expected[key]) !== JSON.stringify(computed[key])) {
+      problems.push(
+        `[契约] ${key} 变了：expected=${JSON.stringify(expected[key])} 现在=${JSON.stringify(computed[key])}（规则改动是有意的就重跑 --write）`,
+      );
+    }
   }
   for (let i = 0; i < computed.cases.length; i += 1) {
     const e = expected.cases[i];

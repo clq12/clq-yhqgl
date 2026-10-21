@@ -9,6 +9,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
@@ -192,6 +193,7 @@ class CouponCloudApi(
             put("end_minute", c.endMinute)
             put("is_used", c.isUsed)
             put("notes", c.notes)
+            put("tags", buildJsonArray { c.tags.forEach { add(JsonPrimitive(it)) } })
             put("created_at", c.createdAt)
             put("updated_at", c.updatedAt)
             put("modified_at", c.modifiedAt)
@@ -224,6 +226,9 @@ class CouponCloudApi(
                 remindedDays = emptyList(),
                 isUsed = obj["is_used"]?.jsonPrimitive?.contentOrNull?.toBooleanStrictOrNull() ?: false,
                 notes = obj["notes"].str(),
+                tags = obj["tags"]?.let { raw ->
+                    runCatching { raw.jsonArray.mapNotNull { it.jsonPrimitive.contentOrNull } }.getOrNull()
+                } ?: emptyList(),
                 createdAt = obj["created_at"].str() ?: "",
                 updatedAt = obj["updated_at"].str(),
                 version = obj["version"]?.let { v ->

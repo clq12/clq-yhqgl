@@ -51,7 +51,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.clq.yhqgl.data.sync.WebDAVClient
 import com.clq.yhqgl.di.ServiceLocator
+import com.clq.yhqgl.data.ai.AiAssistants
 import com.clq.yhqgl.model.AISettings
+import com.clq.yhqgl.model.AiAssistant
 import com.clq.yhqgl.model.WebDAVSettings
 import com.clq.yhqgl.rules.CouponRules
 import com.clq.yhqgl.ui.theme.Danger
@@ -95,6 +97,12 @@ fun SettingsScreen(
     var aiModel by remember { mutableStateOf(settings.ai.model ?: "") }
 
     var autoSync by remember { mutableStateOf(settings.sync.autoSync) }
+    // 多 AI 助手
+    var assistants by remember { mutableStateOf(AiAssistants.effective(settings)) }
+    var activeAssistantId by remember { mutableStateOf(AiAssistants.active(settings)?.id) }
+    var assistantDraft by remember { mutableStateOf<AiAssistant?>(null) }
+    var assistantIsNew by remember { mutableStateOf(false) }
+
     var reminderEnabled by remember { mutableStateOf(settings.reminder.enabled) }
     var remindDays by remember { mutableStateOf(settings.reminder.remindDays) }
 
@@ -318,53 +326,91 @@ fun SettingsScreen(
         }
 
         // ------------------------------------------------------------ AI
-        SettingsCard("AI 识别") {
-            OutlinedTextField(
-                value = aiProvider,
-                onValueChange = { aiProvider = it },
-                label = { Text("Provider") },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next)
+        SettingsCard("AI 助手") {
+            Text(
+                "可配置多个助手。识图添加只会用勾了「支持图片」的助手，纯文本用便宜的小模型更划算。",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = aiKey,
-                onValueChange = { aiKey = it },
-                label = { Text("API Key（只存本机加密存储）") },
-                visualTransformation = PasswordVisualTransformation(),
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
-            )
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = aiBaseUrl,
-                onValueChange = { aiBaseUrl = it },
-                label = { Text("Base URL（可选）") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
-                value = aiModel,
-                onValueChange = { aiModel = it },
-                label = { Text("模型（可选）") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(10.dp))
+
+            if (assistants.isEmpty()) {
+                Text(
+                    "还没有助手，先添加一个",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+
+            assistants.forEach { assistant ->
+                val isActive = assistant.id == activeAssistantId
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(assistant.name, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            if (isActive) {
+                                Spacer(Modifier.width(6.dp))
+                                Text("默认", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary)
+                            }
+                            if (assistant.vision) {
+                                Spacer(Modifier.width(6.dp))
+                                Text("识图", fontSize = 10.sp, color = MaterialTheme.colorScheme.tertiary)
+                            }
+                        }
+                        Text(
+                            listOfNotNull(
+                                assistant.provider,
+                                assistant.model,
+                                if (assistant.apiKey.isNullOrBlank()) "未填 Key" else null
+                            ).joinToString(" · "),
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Row {
+                        if (!isActive) {
+                            TextButton(onClick = {
+                                activeAssistantId = assistant.id
+                                store.updateAssistants(assistants, assistant.id)
+                            }) { Text("设为默认", fontSize = 12.sp) }
+                        }
+                        TextButton(onClick = {
+                            assistantDraft = assistant
+                            assistantIsNew = false
+                        }) { Text("编辑", fontSize = 12.sp) }
+                        TextButton(onClick = {
+                            val next = assistants.filter { it.id != assistant.id }
+                            val nextActive = if (isActive) next.firstOrNull()?.id else activeAssistantId
+                            assistants = next
+                            activeAssistantId = nextActive
+                            store.updateAssistants(next, nextActive)
+                        }) { Text("删除", fontSize = 12.sp, color = Danger) }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(6.dp))
             Button(
                 onClick = {
-                    store.updateAI(
-                        AISettings(
-                            provider = aiProvider.trim().ifBlank { "agnes" },
-                            apiKey = aiKey.trim().ifBlank { null },
-                            baseUrl = aiBaseUrl.trim().ifBlank { null },
-                            model = aiModel.trim().ifBlank { null }
-                        )
+                    assistantDraft = AiAssistant(
+                        id = "ai-" + java.util.UUID.randomUUID().toString().take(8),
+                        name = "",
+                        provider = "agnes",
+                        model = null,
+                        apiKey = null,
+                        baseUrl = null,
+                        vision = false
                     )
-                    Toast.makeText(context, "AI 设置已保存", Toast.LENGTH_SHORT).show()
+                    assistantIsNew = true
                 },
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("保存 AI 设置") }
+            ) { Text("添加助手") }
         }
+
 
         // ------------------------------------------------------------ 标签
         SettingsCard("标签") {
@@ -569,6 +615,104 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { confirmRestore = false }) { Text("取消") }
+            }
+        )
+    }
+
+    // ------------------------------------------------------------ AI 助手：编辑
+    assistantDraft?.let { draft ->
+        AlertDialog(
+            onDismissRequest = { assistantDraft = null },
+            title = { Text(if (assistantIsNew) "添加 AI 助手" else "编辑 AI 助手") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = draft.name,
+                        onValueChange = { assistantDraft = draft.copy(name = it) },
+                        label = { Text("名称") },
+                        placeholder = { Text("例如：文本助手 / 识图助手") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = draft.provider,
+                        onValueChange = { assistantDraft = draft.copy(provider = it) },
+                        label = { Text("Provider") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = draft.model ?: "",
+                        onValueChange = { assistantDraft = draft.copy(model = it.ifBlank { null }) },
+                        label = { Text("模型") },
+                        placeholder = { Text("agnes-chat / gpt-4o-mini") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = draft.apiKey ?: "",
+                        onValueChange = { assistantDraft = draft.copy(apiKey = it.ifBlank { null }) },
+                        label = { Text("API Key") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = draft.baseUrl ?: "",
+                        onValueChange = { assistantDraft = draft.copy(baseUrl = it.ifBlank { null }) },
+                        label = { Text("Base URL（可选）") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("支持图片（识图）", fontSize = 13.sp)
+                            Text(
+                                "要用多模态模型，否则接口会报错",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = draft.vision,
+                            onCheckedChange = { assistantDraft = draft.copy(vision = it) }
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val current = assistantDraft ?: return@TextButton
+                    val saved = current.copy(
+                        name = current.name.trim().ifBlank {
+                            current.provider.trim().ifBlank { "AI 助手" }
+                        },
+                        provider = current.provider.trim().ifBlank { "agnes" }
+                    )
+                    val list = if (assistantIsNew) {
+                        assistants + saved
+                    } else {
+                        assistants.map { if (it.id == saved.id) saved else it }
+                    }
+                    val nextActive = activeAssistantId ?: saved.id
+                    assistants = list
+                    activeAssistantId = nextActive
+                    store.updateAssistants(list, nextActive)
+                    assistantDraft = null
+                    Toast.makeText(context, "已保存助手", Toast.LENGTH_SHORT).show()
+                }) { Text("保存") }
+            },
+            dismissButton = {
+                TextButton(onClick = { assistantDraft = null }) { Text("取消") }
             }
         )
     }

@@ -44,6 +44,26 @@ import kotlinx.serialization.Serializable
     val model: String? = null
 )
 
+/**
+ * 一个 AI 助手配置。
+ *
+ * 为什么要多个：识别文字指令和识别图片往往不是同一个模型最划算
+ * （文本用便宜的小模型，识图要上多模态），而且不同家的 key 也想分开存。
+ */
+@Serializable
+ data class AiAssistant(
+    val id: String,
+    val name: String,
+    val provider: String = "agnes",
+    @SerialName("baseUrl")
+    val baseUrl: String? = null,
+    val model: String? = null,
+    @SerialName("apiKey")
+    val apiKey: String? = null,
+    /** 是否支持图片输入：识图添加只会列出勾了这个的助手 */
+    val vision: Boolean = false
+)
+
 @Serializable
  data class AppSettings(
     @SerialName("schemaVersion")
@@ -52,6 +72,12 @@ import kotlinx.serialization.Serializable
     val sync: SyncSettings = SyncSettings(),
     val reminder: ReminderSettings = ReminderSettings(),
     val ai: AISettings = AISettings(),
+    /** 多个 AI 助手；空列表表示还没配置过，用 ai 作为唯一助手 */
+    @SerialName("aiAssistants")
+    val aiAssistants: List<AiAssistant> = emptyList(),
+    /** 当前选中的助手 id；null 时取列表第一个 */
+    @SerialName("activeAssistantId")
+    val activeAssistantId: String? = null,
     /**
      * 用户维护的标签库（设置页里增删改的就是它）。
      * 空列表 = 还没动过，用 shared/data/tags.json 的默认名单。

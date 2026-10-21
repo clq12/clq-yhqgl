@@ -68,6 +68,23 @@ export interface ReminderSettings {
   quietEnd: string | null;   // HH:mm
 }
 
+/**
+ * 一个 AI 助手配置。
+ *
+ * 为什么要多个：识别文字指令和识别图片往往不是同一个模型最划算
+ * （文本用便宜的小模型，识图要上多模态），而且不同家的 key 也想分开存。
+ */
+export interface AiAssistant {
+  id: string;
+  name: string;
+  provider: string;
+  baseUrl: string | null;
+  model: string | null;
+  apiKey: string | null;
+  /** 是否支持图片输入：识图添加只会列出勾了这个的助手 */
+  vision: boolean;
+}
+
 export interface AISettings {
   provider: string;
   apiKey: string | null;
@@ -85,6 +102,10 @@ export interface AppSettings {
   };
   reminder: ReminderSettings;
   ai: AISettings;
+  /** 多个 AI 助手；空数组表示还没配置过，用上面的 ai 作为唯一助手 */
+  aiAssistants: AiAssistant[];
+  /** 当前选中的助手 id；null 时取列表第一个 */
+  activeAssistantId: string | null;
   /**
    * 用户维护的标签库（设置页里增删改的就是它）。
    * 空数组 = 还没动过，用 shared/data/tags.json 的默认名单。

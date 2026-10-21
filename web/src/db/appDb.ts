@@ -74,6 +74,8 @@ function settingsToRow(s: AppSettings): Record<string, unknown> {
     reminder: s.reminder,
     ai: s.ai,
     tags: s.tagLibrary ?? [],
+    ai_assistants: s.aiAssistants ?? [],
+    active_assistant_id: s.activeAssistantId ?? null,
     updated_at: s.schemaVersion ? new Date().toISOString() : null,
   };
 }
@@ -95,6 +97,13 @@ function rowToSettings(row: Record<string, unknown>): AppSettings {
     reminder: reminder ?? { enabled: true, remindDays: [7, 3, 1], quietStart: null, quietEnd: null },
     ai: ai ?? { provider: 'agnes', apiKey: null, baseUrl: null, model: null },
     tagLibrary: Array.isArray(row.tags) ? (row.tags as unknown[]).map(String) : [],
+    aiAssistants: Array.isArray(row.ai_assistants)
+      ? (row.ai_assistants as AppSettings['aiAssistants'])
+      : [],
+    activeAssistantId:
+      row.active_assistant_id === null || row.active_assistant_id === undefined
+        ? null
+        : String(row.active_assistant_id),
   };
 }
 
@@ -289,6 +298,8 @@ const EMPTY_SETTINGS: AppSettings = {
   reminder: { enabled: true, remindDays: [7, 3, 1], quietStart: null, quietEnd: null },
   ai: { provider: 'agnes', apiKey: null, baseUrl: null, model: null },
   tagLibrary: [],
+  aiAssistants: [],
+  activeAssistantId: null,
 };
 
 /**

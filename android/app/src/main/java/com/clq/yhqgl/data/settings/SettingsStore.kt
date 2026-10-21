@@ -5,6 +5,7 @@ import androidx.core.content.edit
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.clq.yhqgl.model.AISettings
+import com.clq.yhqgl.model.AiAssistant
 import com.clq.yhqgl.model.AppSettings
 import com.clq.yhqgl.model.ReminderSettings
 import com.clq.yhqgl.model.SyncSettings
@@ -58,7 +59,11 @@ import kotlinx.serialization.json.Json
             ),
             tagLibrary = prefs.getString("tagLibrary", null)?.let {
                 json.decodeFromString(ListSerializer(String.serializer()), it)
-            } ?: emptyList()
+            } ?: emptyList(),
+            aiAssistants = prefs.getString("aiAssistants", null)?.let {
+                json.decodeFromString(ListSerializer(AiAssistant.serializer()), it)
+            } ?: emptyList(),
+            activeAssistantId = prefs.getString("activeAssistantId", null)
         )
         set(value) {
             prefs.edit {
@@ -78,6 +83,11 @@ import kotlinx.serialization.json.Json
                     "tagLibrary",
                     json.encodeToString(ListSerializer(String.serializer()), value.tagLibrary)
                 )
+                putString(
+                    "aiAssistants",
+                    json.encodeToString(ListSerializer(AiAssistant.serializer()), value.aiAssistants)
+                )
+                putString("activeAssistantId", value.activeAssistantId)
             }
         }
 
@@ -93,6 +103,10 @@ import kotlinx.serialization.json.Json
 
     fun updateAI(ai: AISettings) {
         settings = settings.copy(ai = ai)
+    }
+
+    fun updateAssistants(assistants: List<AiAssistant>, activeId: String?) {
+        settings = settings.copy(aiAssistants = assistants, activeAssistantId = activeId)
     }
 
     fun updateTagLibrary(library: List<String>) {

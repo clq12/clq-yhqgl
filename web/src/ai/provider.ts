@@ -25,4 +25,6 @@ export interface AIProvider {
   name: string;
   chat(messages: ChatMessage[], signal?: AbortSignal): Promise<string>;
   parseIntent(text: string, context: AIContext, signal?: AbortSignal): Promise<AiIntent>;
+  /** 识图：传 data URL（data:image/jpeg;base64,...），返回与文字指令一致的结构 */
+  recognizeImage?(imageDataUrl: string, context: AIContext, signal?: AbortSignal): Promise<AiIntent>;
 }

@@ -33,13 +33,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.clq.yhqgl.data.ai.AIContext
 import com.clq.yhqgl.data.ai.AgnesProvider
+import com.clq.yhqgl.data.ai.AiAssistants
 import com.clq.yhqgl.data.ai.AiIntent
 import com.clq.yhqgl.di.ServiceLocator
 import com.clq.yhqgl.model.Coupon
 import com.clq.yhqgl.model.DiscountType
 import com.clq.yhqgl.rules.CouponRules
 import com.clq.yhqgl.ui.theme.Danger
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -73,6 +76,8 @@ fun AIDialog(
     var intent by remember { mutableStateOf<AiIntent?>(null) }
     var plan by remember { mutableStateOf<AiPlan?>(null) }
     var done by remember { mutableStateOf(false) }
+    var visionLoading by remember { mutableStateOf(false) }
+    var pickedImage by remember { mutableStateOf<android.net.Uri?>(null) }
 
     fun reset() {
         intent = null
@@ -103,6 +108,53 @@ fun AIDialog(
         }
     }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val imagePicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        pickedImage = uri
+        scope.launch {
+            visionLoading = true
+            reset()
+            try {
+                val settings = ServiceLocator.settingsStore.settings
+                val candidates = AiAssistants.vision(settings)
+                if (candidates.isEmpty()) {
+                    error = "还没有勾选「支持图片」的助手。请到「设置 → AI 助手」里勾上识图，并选多模态模型。"
+                    return@launch
+                }
+                val assistant = candidates.firstOrNull { it.id == AiAssistants.active(settings)?.id }
+                    ?: candidates.first()
+                val key = assistant.apiKey
+                if (key.isNullOrBlank()) {
+                    error = "该助手还没有 API Key，请先去设置里填写"
+                    return@launch
+                }
+
+                val dataUrl = withContext(Dispatchers.IO) { readImageAsDataUrl(context, uri) }
+                    ?: run {
+                        error = "读不到这张图片，换一张试试"
+                        return@launch
+                    }
+
+                val coupons = ServiceLocator.database.couponDao().getAllActive().map { it.toDomain() }
+                val provider = AgnesProvider(
+                    key,
+                    assistant.baseUrl ?: "https://api.agnes.ai/v1",
+                    assistant.model ?: "agnes-chat"
+                )
+                val parsed = provider.recognizeImage(dataUrl).getOrThrow()
+                intent = parsed
+                plan = buildPlan(parsed, coupons)
+            } catch (e: Exception) {
+                error = e.message ?: "识图失败，换一张更清晰的截图试试"
+            } finally {
+                visionLoading = false
+            }
+        }
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("AI 助手") },
@@ -128,9 +180,10 @@ fun AIDialog(
                             reset()
                             try {
                                 val settings = ServiceLocator.settingsStore.settings
-                                val key = settings.ai.apiKey
-                                if (key.isNullOrBlank()) {
-                                    error = "请先配置 AI API Key"
+                                val assistant = AiAssistants.active(settings)
+                                val key = assistant?.apiKey
+                                if (assistant == null || key.isNullOrBlank()) {
+                                    error = "请先在「设置 → AI 助手」里添加助手并填写 API Key"
                                     return@launch
                                 }
                                 val coupons = ServiceLocator.database.couponDao()
@@ -138,14 +191,14 @@ fun AIDialog(
                                     .map { it.toDomain() }
                                 val ctx = AIContext(
                                     coupons = coupons,
-                                    defaultProvider = settings.ai.provider,
+                                    defaultProvider = assistant.provider,
                                     apiKey = key,
-                                    baseUrl = settings.ai.baseUrl
+                                    baseUrl = assistant.baseUrl
                                 )
                                 val provider = AgnesProvider(
                                     key,
-                                    ctx.baseUrl ?: "https://api.agnes.ai/v1",
-                                    settings.ai.model ?: "agnes-chat"
+                                    assistant.baseUrl ?: "https://api.agnes.ai/v1",
+                                    assistant.model ?: "agnes-chat"
                                 )
                                 val parsed = provider.parseIntent(input, ctx).getOrThrow()
                                 intent = parsed
@@ -162,6 +215,20 @@ fun AIDialog(
                 ) {
                     if (loading) CircularProgressIndicator(modifier = Modifier.height(18.dp))
                     else Text("解析")
+                }
+
+                Button(
+                    onClick = { imagePicker.launch("image/*") },
+                    enabled = !loading && !visionLoading,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (visionLoading) {
+                        CircularProgressIndicator(modifier = Modifier.height(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("识别中…")
+                    } else {
+                        Text("识图添加（选一张截图）")
+                    }
                 }
 
                 error?.let {
@@ -389,3 +456,52 @@ private fun diffRows(before: Coupon, after: Coupon): List<Triple<String, String,
     add("备注", before.notes ?: "—", after.notes ?: "—")
     return rows
 }
+
+/**
+ * 把用户选的图片压成 data URL（base64 JPEG）。
+ *
+ * 手机截图动辄三五 MB，base64 还要再涨三分之一，很多接口对请求体有上限。
+ * 这里按 1280 长边、JPEG 80 压一遍，通常 150-400 KB，文字仍然清楚。
+ * 返回 null 表示这张图读不出来（损坏 / 权限被拒）。
+ */
+private fun readImageAsDataUrl(
+    context: android.content.Context,
+    uri: android.net.Uri,
+    maxSize: Int = 1280
+): String? = runCatching {
+    val resolver = context.contentResolver
+
+    // 先只读尺寸，算好采样率再真正解码，避免大图直接 OOM
+    val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    resolver.openInputStream(uri)?.use {
+        android.graphics.BitmapFactory.decodeStream(it, null, bounds)
+    }
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+
+    var sample = 1
+    while (bounds.outWidth / (sample * 2) >= maxSize || bounds.outHeight / (sample * 2) >= maxSize) {
+        sample *= 2
+    }
+
+    val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+    val bitmap = resolver.openInputStream(uri)?.use {
+        android.graphics.BitmapFactory.decodeStream(it, null, opts)
+    } ?: return null
+
+    val scale = minOf(1f, maxSize.toFloat() / maxOf(bitmap.width, bitmap.height))
+    val scaled = if (scale < 1f) {
+        android.graphics.Bitmap.createScaledBitmap(
+            bitmap,
+            (bitmap.width * scale).toInt().coerceAtLeast(1),
+            (bitmap.height * scale).toInt().coerceAtLeast(1),
+            true
+        )
+    } else {
+        bitmap
+    }
+
+    val out = java.io.ByteArrayOutputStream()
+    scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, out)
+    val base64 = android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP)
+    "data:image/jpeg;base64,$base64"
+}.getOrNull()

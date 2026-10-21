@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { AlertCircle, Bot, Check, Sparkles, Trash2, Wand2 } from 'lucide-react';
+import { AlertCircle, Bot, Check, ImagePlus, Sparkles, Trash2, Wand2, X } from 'lucide-react';
 import type { AIContext, AiIntent } from '../ai/provider';
 import { createProvider } from '../ai/agnesProvider';
 import { deleteCouponLocal, getSettings, listCoupons, putCoupon } from '../db/appDb';
 import { bumpVersion } from '../sync/syncEngine';
 import type { Coupon, DiscountType } from '../types/coupon';
 import { beijingNow, normalizeTags } from '../rules/couponRules';
+import { activeAssistant, toContext, visionAssistants } from '../ai/assistants';
+import { fileToDataUrl } from '../ai/image';
 import { notifyDataChanged } from '../lib/dataBus';
 import { Button, Modal, Textarea, useToast } from './ui';
 
@@ -81,6 +83,8 @@ export function AIPanel({ onSelectCoupon }: AIPanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [intent, setIntent] = useState<AiIntent | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
+  // 识图：预览缩略图 + 是否正在识别
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   const reset = () => {
     setInput('');
@@ -102,18 +106,12 @@ export function AIPanel({ onSelectCoupon }: AIPanelProps) {
     setPreview(null);
     try {
       const [coupons, settings] = await Promise.all([listCoupons(), getSettings()]);
-      const key = settings?.ai.apiKey;
-      if (!key) {
+      const assistant = activeAssistant(settings);
+      if (!assistant?.apiKey) {
         setError('请先在「设置 → AI 助手」中配置 API Key');
         return;
       }
-      const context: AIContext = {
-        coupons,
-        provider: settings.ai.provider || 'agnes',
-        apiKey: key,
-        baseUrl: settings.ai.baseUrl,
-        model: settings.ai.model,
-      };
+      const context: AIContext = toContext(assistant, coupons);
       const provider = createProvider(context);
       const result = await provider.parseIntent(input, context);
       setIntent(result);
@@ -139,6 +137,44 @@ export function AIPanel({ onSelectCoupon }: AIPanelProps) {
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'AI 解析失败，请稍后重试');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** 识图：选一张截图 → 压图 → 多模态模型 → 走和文字一样的 create 预览流程 */
+  const handleImage = async (file: File) => {
+    setLoading(true);
+    setError(null);
+    setIntent(null);
+    setPreview(null);
+    try {
+      const [coupons, settings] = await Promise.all([listCoupons(), getSettings()]);
+      const candidates = visionAssistants(settings);
+      if (candidates.length === 0) {
+        setError('还没有勾选「支持图片」的助手。请到「设置 → AI 助手」里给助手勾上识图，并选择多模态模型。');
+        return;
+      }
+      const assistant = candidates.find((a) => a === activeAssistant(settings)) ?? candidates[0];
+      if (!assistant.apiKey) {
+        setError('该助手还没有 API Key，请先去设置里填写');
+        return;
+      }
+
+      const dataUrl = await fileToDataUrl(file);
+      setImagePreview(dataUrl);
+
+      const context = toContext(assistant, coupons);
+      const provider = createProvider(context);
+      if (!provider.recognizeImage) {
+        setError('当前助手不支持识图');
+        return;
+      }
+      const result = await provider.recognizeImage(dataUrl, context);
+      setIntent(result);
+      setPreview({ kind: 'create', coupon: buildCoupon(result) });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '识图失败，请换一张更清晰的截图');
     } finally {
       setLoading(false);
     }
@@ -232,15 +268,54 @@ export function AIPanel({ onSelectCoupon }: AIPanelProps) {
             hint="支持创建、修改、删除和查询，例如「把星巴克那张改成 12 月 31 日到期」"
           />
 
-          <Button
-            onClick={handleParse}
-            loading={loading}
-            disabled={!input.trim()}
-            icon={<Wand2 className="h-4 w-4" />}
-            className="w-full"
-          >
-            解析并预览
-          </Button>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Button
+              onClick={handleParse}
+              loading={loading}
+              disabled={!input.trim()}
+              icon={<Wand2 className="h-4 w-4" />}
+            >
+              解析并预览
+            </Button>
+
+            {/* 识图添加：手机上会优先调相机，桌面上就是选文件 */}
+            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700">
+              <ImagePlus className="h-4 w-4" aria-hidden />
+              识图添加
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (file) void handleImage(file);
+                }}
+              />
+            </label>
+          </div>
+
+          {imagePreview && (
+            <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-2">
+              <img
+                src={imagePreview}
+                alt="待识别的优惠券截图"
+                className="h-16 w-16 rounded object-cover"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-slate-700">已识别这张图</p>
+                <p className="text-[11px] text-slate-400">识别结果在下面预览，确认后再保存</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setImagePreview(null)}
+                className="rounded p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-600"
+                aria-label="清除图片"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
 
           {error && (
             <div

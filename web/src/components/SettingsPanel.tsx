@@ -17,6 +17,8 @@ import type { AppSettings } from '../types/coupon';
 import { useAuth } from '../context/AuthContext';
 import { Button, Card, Input, Skeleton, useToast } from './ui';
 import { TagLibraryEditor } from './TagLibraryEditor';
+import { AiAssistantSettings } from './AiAssistantSettings';
+import { activeAssistant, effectiveAssistants } from '../ai/assistants';
 import { defaultTags, tagLibraryOf } from '../rules/couponRules';
 
 /** 提醒档位：够用的一组预设，不让人填奇怪的数字 */
@@ -29,6 +31,8 @@ const defaultSettings: AppSettings = {
   reminder: { enabled: true, remindDays: [7, 3, 1], quietStart: null, quietEnd: null },
   ai: { provider: 'agnes', apiKey: null, baseUrl: null, model: null },
   tagLibrary: [],
+  aiAssistants: [],
+  activeAssistantId: null,
 };
 
 function Section({
@@ -263,36 +267,15 @@ export function SettingsPanel() {
       <Section
         icon={<Bot className="h-4 w-4" />}
         title="AI 助手"
-        description="使用你自己的 API Key，仅保存在本地与账号设置中"
+        description="可配置多个助手；勾了「支持图片」的才会用于识图添加"
       >
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Input
-            label="Provider"
-            value={settings.ai.provider}
-            onChange={(e) => update({ ai: { ...settings.ai, provider: e.target.value } })}
-            placeholder="agnes"
-          />
-          <Input
-            label="模型"
-            value={settings.ai.model ?? ''}
-            onChange={(e) => update({ ai: { ...settings.ai, model: e.target.value || null } })}
-            placeholder="agnes-chat"
-          />
-          <Input
-            label="API Key"
-            type="password"
-            value={settings.ai.apiKey ?? ''}
-            onChange={(e) => update({ ai: { ...settings.ai, apiKey: e.target.value || null } })}
-            placeholder="sk-…"
-            autoComplete="off"
-          />
-          <Input
-            label="Base URL"
-            value={settings.ai.baseUrl ?? ''}
-            onChange={(e) => update({ ai: { ...settings.ai, baseUrl: e.target.value || null } })}
-            placeholder="https://api.example.com/v1"
-          />
-        </div>
+        <AiAssistantSettings
+          assistants={effectiveAssistants(settings)}
+          activeId={activeAssistant(settings)?.id ?? null}
+          onChange={(list, activeId) =>
+            update({ aiAssistants: list, activeAssistantId: activeId })
+          }
+        />
       </Section>
 
       <Section

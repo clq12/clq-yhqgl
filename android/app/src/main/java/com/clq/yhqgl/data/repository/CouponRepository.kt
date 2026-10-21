@@ -165,6 +165,52 @@ class CouponRepository(
 
     suspend fun restore(): BackupReport = backupEngine.restore()
 
+    // ------------------------------------------------------------------ 冲突裁决
+
+    /**
+     * 冲突裁决：保留本机版本（强制覆盖云端）。
+     *
+     * 乐观锁只是"别悄悄覆盖"，不是"永远不许覆盖"。用户看过两边之后选择本地，
+     * 就按 [CloudSyncEngine.forcePush] 强推，并把返回的新时间戳回写本地。
+     */
+    suspend fun resolveKeepLocal(coupon: Coupon): Result<Unit> {
+        val session = auth.currentSession()
+            ?: return Result.failure(CloudException("当前是游客模式，未登录"))
+        val result = syncEngine.forcePush(coupon)
+        return result.map { forced ->
+            dao.insert(forced.toEntity(dirty = false, conflict = false, ownerId = session.userId))
+        }
+    }
+
+    /**
+     * 冲突裁决：采用云端版本（丢弃本机改动）。
+     *
+     * 提醒状态仍取本地的 —— 提醒是按设备各自算的，跟内容归属无关。
+     * 云端那条不存在了（别的设备刚删掉）时，反过来把本地推上去，避免删了又冒出来。
+     */
+    suspend fun resolveKeepRemote(coupon: Coupon): Result<Unit> {
+        val session = auth.currentSession()
+            ?: return Result.failure(CloudException("当前是游客模式，未登录"))
+        val remote = syncEngine.fetchRemote(coupon.id).getOrElse { return Result.failure(it) }
+
+        if (remote == null) {
+            return syncEngine.forcePush(coupon).map { forced ->
+                dao.insert(forced.toEntity(dirty = false, conflict = false, ownerId = session.userId))
+            }
+        }
+
+        dao.insert(
+            remote.copy(
+                isReminded = coupon.isReminded,
+                remindedDays = coupon.remindedDays
+            ).toEntity(dirty = false, conflict = false, ownerId = session.userId)
+        )
+        return Result.success(Unit)
+    }
+
+    /** 冲突卡片上展示"云端版本"用 */
+    suspend fun remoteVersionOf(id: String): Result<Coupon?> = syncEngine.fetchRemote(id)
+
     private suspend fun autoSync() {
         if (!auth.isSignedIn()) return
         if (!settingsStore.settings.sync.autoSync) return

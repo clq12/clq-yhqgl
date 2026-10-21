@@ -82,11 +82,13 @@ fun CouponListScreen(modifier: Modifier = Modifier, initialCouponId: String? = n
     val repo = ServiceLocator.repository
     val scope = rememberCoroutineScope()
     val coupons by repo.observeAll().collectAsState(initial = emptyList())
+    val conflicts by repo.observeConflicts().collectAsState(initial = emptyList())
     val session by ServiceLocator.session.collectAsState()
     val syncing by ServiceLocator.syncing.collectAsState()
     val snackbar = remember { SnackbarHostState() }
 
     var showForm by remember { mutableStateOf(false) }
+    var showConflicts by remember { mutableStateOf(false) }
     var editingCoupon by remember { mutableStateOf<Coupon?>(null) }
     var deletingCoupon by remember { mutableStateOf<Coupon?>(null) }
     var showAI by remember { mutableStateOf(false) }
@@ -139,6 +141,14 @@ fun CouponListScreen(modifier: Modifier = Modifier, initialCouponId: String? = n
                 (c.description?.contains(keyword, ignoreCase = true) == true)
             matchFilter && matchKeyword
         }
+    }
+
+    // 有待解决冲突时整屏切到处理页：冲突没处理完，列表里的数据就不完全可信
+    if (showConflicts) {
+        Surface(modifier = Modifier.fillMaxSize()) {
+            ConflictScreen(onClose = { showConflicts = false })
+        }
+        return
     }
 
     Scaffold(
@@ -217,6 +227,39 @@ fun CouponListScreen(modifier: Modifier = Modifier, initialCouponId: String? = n
                             )
                         }
                     )
+                }
+            }
+
+            if (conflicts.isNotEmpty()) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 4.dp)
+                        .clickable { showConflicts = true },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Warning.copy(alpha = 0.12f)),
+                    border = BorderStroke(1.dp, Warning.copy(alpha = 0.35f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "${conflicts.size} 张券两边都改过",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Warning
+                            )
+                            Text(
+                                "同步没替你选，点这里处理",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text("去处理", fontSize = 12.sp, color = Warning, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
 

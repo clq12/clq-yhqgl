@@ -204,6 +204,26 @@ class CloudSyncEngine(
         return sync()
     }
 
+    /**
+     * 冲突裁决之一：以本地为准，强推覆盖云端。
+     *
+     * 与 [sync] 里的推不同，这里**不再比较** modified_at —— 用户已经明确选了本地版本，
+     * 所以先把 modified_at 推到当前时刻再写，云端那条会被本地内容覆盖。
+     *
+     * @return 实际写进云端的那个版本（时间戳已被刷新），调用方要用它回写本地，
+     *         否则本地还留着旧的 modified_at，下一轮同步会又被判成冲突。
+     */
+    suspend fun forcePush(coupon: Coupon): Result<Coupon> {
+        val forced = bumpVersion(coupon)
+        val remote = api.getById(forced.id).getOrElse { return Result.failure(it) }
+        // PATCH 命中 0 行也返回 204，所以先探一次决定用 POST 还是 PATCH
+        val write = if (remote == null) api.insert(forced) else api.update(forced)
+        return write.map { forced }
+    }
+
+    /** 冲突裁决用：取云端当前版本（null 表示云端已经没有这条） */
+    suspend fun fetchRemote(id: String): Result<Coupon?> = api.getById(id)
+
     /** UTC 毫秒。容忍三种写法：带偏移、Z 结尾、无时区（按北京时间解释） */
     fun parseTime(raw: String?): Long {
         if (raw.isNullOrBlank()) return 0L

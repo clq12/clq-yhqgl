@@ -67,6 +67,10 @@ export function SettingsPanel() {
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // 浏览器通知权限：只有 granted 时 Service Worker 才弹得出来，所以要在界面上说清楚
+  const [notifyPermission, setNotifyPermission] = useState<NotificationPermission | null>(
+    typeof Notification !== 'undefined' ? Notification.permission : null,
+  );
 
   useEffect(() => {
     getSettings().then((s) => {
@@ -85,6 +89,32 @@ export function SettingsPanel() {
 
   const update = (patch: Partial<AppSettings>) => {
     setSettings((prev) => ({ ...prev, ...patch }));
+  };
+
+  /**
+   * 开关到期提醒。
+   *
+   * 浏览器通知不是"打开开关就能用"——必须先拿到 Notification 权限，
+   * 而且 requestPermission 只能在用户手势里调，所以放在这个 onChange 里而不是 effect 里。
+   */
+  const toggleReminder = async (checked: boolean) => {
+    update({ reminder: { ...settings.reminder, enabled: checked } });
+    if (!checked) return;
+
+    if (typeof Notification === 'undefined') {
+      setNotifyPermission(null);
+      return;
+    }
+    let permission = Notification.permission;
+    if (permission === 'default') {
+      permission = await Notification.requestPermission();
+    }
+    setNotifyPermission(permission);
+    if (permission === 'granted') {
+      // 让 SW 立刻跑一次，不用等下一个整点
+      const reg = await navigator.serviceWorker?.ready.catch(() => null);
+      reg?.active?.postMessage('check-expiry');
+    }
   };
 
   const handleSave = async () => {
@@ -273,10 +303,25 @@ export function SettingsPanel() {
           <input
             type="checkbox"
             checked={settings.reminder.enabled}
-            onChange={(e) => update({ reminder: { ...settings.reminder, enabled: e.target.checked } })}
+            onChange={(e) => void toggleReminder(e.target.checked)}
             className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
           />
         </label>
+        {notifyPermission === 'denied' && (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            浏览器已拒绝通知权限，提醒不会弹出。点地址栏左侧的站点图标，把「通知」改成允许后重新打开这个开关。
+          </p>
+        )}
+        {notifyPermission === 'default' && settings.reminder.enabled && (
+          <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+            还没给通知权限，开关下会弹一次授权请求；拒绝后需要手动在浏览器设置里放开。
+          </p>
+        )}
+        {notifyPermission === 'granted' && (
+          <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+            已允许通知。网页关掉也能提醒，但浏览器必须仍在运行。
+          </p>
+        )}
       </Section>
 
       <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">

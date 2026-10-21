@@ -290,3 +290,68 @@ export function detectTags(text: string, candidates: string[] = defaultTags): st
   }
   return out;
 }
+
+// ---------------------------------------------------------------- 今日待办
+
+/**
+ * 北京时间的「今天」日期串（YYYY-MM-DD）。
+ *
+ * 不能用本地时区：用户可能在别的时区旅行，但券的截止时刻是按北京时间写的，
+ * 「今天到期」必须和截止判定用同一个时区，否则会提前或滞后一天。
+ */
+export function beijingDateOf(nowMs: number = Date.now()): string {
+  return new Date(nowMs + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+export interface DueBuckets {
+  /** 今天到期（还没过期） */
+  today: Coupon[];
+  /** 1-3 天内到期 */
+  soon: Coupon[];
+  /** 高价值待使用：金额最大的几张 */
+  highValue: Coupon[];
+  /** 已过期但没标已使用 */
+  expired: Coupon[];
+}
+
+/**
+ * 首页「今日待办」分组。已使用的一律不进任何组。
+ * 组内按截止时刻升序，高价值组按金额降序（同额按 id 升序，保证两端顺序一致）。
+ */
+export function dueBuckets(
+  coupons: Coupon[],
+  nowMs: number = Date.now(),
+  highValueLimit = 3,
+): DueBuckets {
+  const today = beijingDateOf(nowMs);
+  const byDeadline = (a: Coupon, b: Coupon): number =>
+    deadlineTimestamp(a) - deadlineTimestamp(b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+  const byAmount = (a: Coupon, b: Coupon): number =>
+    (b.discountAmount ?? 0) - (a.discountAmount ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+  const todayList: Coupon[] = [];
+  const soonList: Coupon[] = [];
+  const expiredList: Coupon[] = [];
+  const valuable: Coupon[] = [];
+
+  for (const c of coupons) {
+    if (c.isUsed) continue;
+    if (isExpired(c, nowMs)) {
+      expiredList.push(c);
+      continue;
+    }
+    if (c.endDate === today) {
+      todayList.push(c);
+    } else if (c.endDate > today && remainingDays(c, nowMs) <= 3) {
+      soonList.push(c);
+    }
+    if ((c.discountAmount ?? 0) > 0) valuable.push(c);
+  }
+
+  return {
+    today: todayList.sort(byDeadline),
+    soon: soonList.sort(byDeadline),
+    highValue: valuable.sort(byAmount).slice(0, highValueLimit),
+    expired: expiredList.sort(byDeadline),
+  };
+}

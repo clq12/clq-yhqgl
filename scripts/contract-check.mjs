@@ -131,6 +131,40 @@ const computed = {
       ),
     };
   })(),
+  bucketCase: (() => {
+    const bc = casesFile.bucketCase;
+    if (!bc) return null;
+    const list = bc.coupons.map((c) => ({
+      id: c.id,
+      title: c.id,
+      description: null,
+      discountType: 'amount',
+      discountAmount: c.discountAmount ?? 0,
+      fullAmount: null,
+      startDate: '2026-01-01',
+      endDate: c.endDate,
+      endHour: c.endHour ?? 23,
+      endMinute: c.endMinute ?? 59,
+      isReminded: false,
+      remindedDays: [],
+      isUsed: !!c.isUsed,
+      notes: null,
+      tags: [],
+      createdAt: '2026-01-01T00:00:00+08:00',
+      updatedAt: null,
+      version: null,
+      modifiedAt: null,
+    }));
+    const buckets = rules.dueBuckets(list, nowMs, 3);
+    const ids = (arr) => arr.map((c) => c.id);
+    return {
+      beijingDate: rules.beijingDateOf(nowMs),
+      today: ids(buckets.today),
+      soon: ids(buckets.soon),
+      highValue: ids(buckets.highValue),
+      expired: ids(buckets.expired),
+    };
+  })(),
   cases: casesFile.cases.map(({ name, coupon }) => ({
     name,
     deadlineMs: rules.deadlineTimestamp(coupon),
@@ -155,7 +189,7 @@ if (write) {
     problems.push(`[契约] nowMs 不一致：expected=${expected.nowMs} 现在=${computed.nowMs}`);
   }
   // 标签归一化与推荐顺序：单独比对，格式和上面的一致性检查无关
-  for (const key of ['tagCases', 'suggestCase']) {
+  for (const key of ['tagCases', 'suggestCase', 'bucketCase']) {
     if (JSON.stringify(expected[key]) !== JSON.stringify(computed[key])) {
       problems.push(
         `[契约] ${key} 变了：expected=${JSON.stringify(expected[key])} 现在=${JSON.stringify(computed[key])}（规则改动是有意的就重跑 --write）`,

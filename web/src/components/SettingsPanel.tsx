@@ -19,6 +19,9 @@ import { Button, Card, Input, Skeleton, useToast } from './ui';
 import { TagLibraryEditor } from './TagLibraryEditor';
 import { defaultTags, tagLibraryOf } from '../rules/couponRules';
 
+/** 提醒档位：够用的一组预设，不让人填奇怪的数字 */
+const REMIND_DAY_PRESETS = [1, 3, 5, 7, 14, 30];
+
 const defaultSettings: AppSettings = {
   schemaVersion: 2,
   webdav: { url: '', username: '', password: '', rootPath: '/yhqgl/v2' },
@@ -72,6 +75,10 @@ export function SettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   // 浏览器通知权限：只有 granted 时 Service Worker 才弹得出来，所以要在界面上说清楚
+  const remindDays = useMemo(
+    () => [...(settings.reminder.remindDays ?? [])].sort((a, b) => b - a),
+    [settings.reminder.remindDays],
+  );
   const [notifyPermission, setNotifyPermission] = useState<NotificationPermission | null>(
     typeof Notification !== 'undefined' ? Notification.permission : null,
   );
@@ -339,6 +346,42 @@ export function SettingsPanel() {
             已允许通知。网页关掉也能提醒，但浏览器必须仍在运行。
           </p>
         )}
+
+        <div className="rounded-lg border border-slate-200 px-3 py-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-slate-700">提前几天提醒</span>
+            <span className="text-[11px] text-slate-400">
+              当前：{remindDays.length > 0 ? remindDays.map((d) => `${d} 天`).join(' / ') : '不提醒'}
+            </span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {REMIND_DAY_PRESETS.map((day) => {
+              const on = remindDays.includes(day);
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={() => {
+                    const next = on
+                      ? remindDays.filter((d) => d !== day)
+                      : [...remindDays, day].sort((a, b) => b - a);
+                    update({ reminder: { ...settings.reminder, remindDays: next } });
+                  }}
+                  className={`rounded-full px-2.5 py-1 text-xs transition ${
+                    on
+                      ? 'bg-rose-600 text-white'
+                      : 'border border-slate-200 text-slate-600 hover:border-rose-300 hover:text-rose-600'
+                  }`}
+                >
+                  {day} 天
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[11px] text-slate-400">
+            到点后会按最接近的那一档提醒一次，提醒过的不再重复；已使用和已过期的券不提醒。
+          </p>
+        </div>
       </Section>
 
       <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3">

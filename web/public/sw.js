@@ -93,9 +93,11 @@ async function checkAndNotify() {
   // 用户在设置里关掉了提醒就彻底不弹；云端模式下本地可能没有设置，那就按默认开处理
   const settings = await readSettingsFromSW().catch(() => null);
   if (settings?.reminder?.enabled === false) return;
-  const remindDays = Array.isArray(settings?.reminder?.remindDays) && settings.reminder.remindDays.length
-    ? settings.reminder.remindDays
-    : REMIND_DAYS;
+
+  // 用户可能把档位全取消（明确表示"别提醒"）——这时不能用默认值兜底，否则等于无视设置
+  const configured = settings?.reminder?.remindDays;
+  if (Array.isArray(configured) && configured.length === 0) return;
+  const remindDays = Array.isArray(configured) && configured.length ? configured : REMIND_DAYS;
 
   const coupons = await listCouponsFromSW();
   const reminders = [];

@@ -144,6 +144,37 @@ class CouponRulesContractTest {
                 CouponRules.suggestTags(coupons, exclude, limit)
             )
         }
+        // ---- 今日待办分组：今天到期 / 3 天内 / 高价值 / 已过期未用
+        val bucketCase = casesRoot["bucketCase"]?.jsonObject
+        val bucketExpected = expectedRoot["bucketCase"]?.jsonObject
+        if (bucketCase != null && bucketExpected != null) {
+            val list = bucketCase["coupons"]!!.jsonArray.map { row ->
+                val obj = row.jsonObject
+                Coupon(
+                    id = obj["id"]!!.jsonPrimitive.content,
+                    title = obj["id"]!!.jsonPrimitive.content,
+                    discountType = DiscountType.AMOUNT,
+                    discountAmount = obj["discountAmount"]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull(),
+                    startDate = "2026-01-01",
+                    endDate = obj["endDate"]!!.jsonPrimitive.content,
+                    endHour = obj["endHour"]?.jsonPrimitive?.intOrNull ?: 23,
+                    endMinute = obj["endMinute"]?.jsonPrimitive?.intOrNull ?: 59,
+                    isUsed = obj["isUsed"]?.jsonPrimitive?.booleanOrNull ?: false,
+                    createdAt = "2026-01-01T00:00:00+08:00"
+                )
+            }
+
+            fun ids(key: String): List<String> =
+                bucketExpected[key]!!.jsonArray.mapNotNull { it.jsonPrimitive.contentOrNull }
+
+            val buckets = CouponRules.dueBuckets(list, nowUtc, 3)
+            assertEquals("[今日待办] 北京时间今天", bucketExpected["beijingDate"]!!.jsonPrimitive.content,
+                CouponRules.beijingDateOf(nowUtc))
+            assertEquals("[今日待办] today", ids("today"), buckets.today.map { it.id })
+            assertEquals("[今日待办] soon", ids("soon"), buckets.soon.map { it.id })
+            assertEquals("[今日待办] highValue", ids("highValue"), buckets.highValue.map { it.id })
+            assertEquals("[今日待办] expired", ids("expired"), buckets.expired.map { it.id })
+        }
     }
 
     private fun toCoupon(obj: JsonObject): Coupon {

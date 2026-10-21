@@ -80,6 +80,23 @@
       "京东"
     ]
   },
+  "bucketCase": {
+    "beijingDate": "2026-10-21",
+    "today": [
+      "b-today"
+    ],
+    "soon": [
+      "b-soon"
+    ],
+    "highValue": [
+      "b-rich",
+      "b-soon",
+      "b-later"
+    ],
+    "expired": [
+      "b-expired"
+    ]
+  },
   "cases": [
     {
       "name": "今天到期（不足一天）",

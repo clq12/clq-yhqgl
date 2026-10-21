@@ -25,6 +25,17 @@
     "exclude": ["淘宝"],
     "limit": 5
   },
+  "bucketCase": {
+    "$comment": "今日待办分组。nowIso 是 2026-10-21 10:00（北京时间），所以「今天」= 2026-10-21。",
+    "coupons": [
+      { "id": "b-today", "endDate": "2026-10-21", "endHour": 23, "endMinute": 59, "isUsed": false, "discountAmount": 20 },
+      { "id": "b-today-used", "endDate": "2026-10-21", "endHour": 23, "endMinute": 59, "isUsed": true, "discountAmount": 30 },
+      { "id": "b-soon", "endDate": "2026-10-23", "endHour": 12, "endMinute": 0, "isUsed": false, "discountAmount": 100 },
+      { "id": "b-later", "endDate": "2026-11-10", "endHour": 23, "endMinute": 59, "isUsed": false, "discountAmount": 50 },
+      { "id": "b-expired", "endDate": "2026-10-20", "endHour": 23, "endMinute": 59, "isUsed": false, "discountAmount": 80 },
+      { "id": "b-rich", "endDate": "2026-10-25", "endHour": 23, "endMinute": 59, "isUsed": false, "discountAmount": 200 }
+    ]
+  },
   "cases": [
     {
       "name": "今天到期（不足一天）",

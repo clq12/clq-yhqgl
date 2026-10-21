@@ -17,7 +17,7 @@ import {
 import type { Coupon } from '../types/coupon';
 import { deleteCouponLocal, putCoupon, SyncConflictError } from '../db/appDb';
 import { bumpVersion } from '../sync/syncEngine';
-import { extractStore, isExpired, remainingDays, statusLabel } from '../rules/couponRules';
+import { dueBuckets, extractStore, isExpired, remainingDays, statusLabel } from '../rules/couponRules';
 import { notifyDataChanged } from '../lib/dataBus';
 import { useCoupons } from '../hooks/useCoupons';
 import { Badge, Button, Card, EmptyState, IconButton, Modal, Skeleton, useToast } from './ui';
@@ -84,6 +84,42 @@ function Overview({ onAdd, onSelect }: { onAdd: () => void; onSelect: (id: strin
     .filter((c) => c.isUsed)
     .reduce((sum, c) => sum + (c.discountAmount ?? 0), 0);
   const within7 = active.filter((c) => remainingDays(c) <= 7).length;
+  // 今日待办：今天到期 / 3 天内 / 高价值 / 已过期未用（已使用的不会出现在任何一组）
+  const buckets = dueBuckets(coupons);
+  const todoRows = [
+    {
+      key: 'today',
+      label: '今天到期',
+      hint: '今天 23:59 前要用掉',
+      count: buckets.today.length,
+      tone: 'text-rose-600',
+      first: buckets.today[0],
+    },
+    {
+      key: 'soon',
+      label: '3 天内到期',
+      hint: '别拖到最后一天',
+      count: buckets.soon.length,
+      tone: 'text-amber-600',
+      first: buckets.soon[0],
+    },
+    {
+      key: 'highValue',
+      label: '高价值待使用',
+      hint: '金额最大的几张，优先安排',
+      count: buckets.highValue.length,
+      tone: 'text-slate-900',
+      first: buckets.highValue[0],
+    },
+    {
+      key: 'expired',
+      label: '已过期未使用',
+      hint: '清一清，别占着列表',
+      count: buckets.expired.length,
+      tone: 'text-slate-500',
+      first: buckets.expired[0],
+    },
+  ];
   const soon = [...active].sort((a, b) => remainingDays(a) - remainingDays(b)).slice(0, 4);
 
   if (loading) {
@@ -140,11 +176,54 @@ function Overview({ onAdd, onSelect }: { onAdd: () => void; onSelect: (id: strin
           <Card className="p-3.5">
             <div className="flex items-center gap-1.5 text-xs text-slate-500">
               <Clock3 className="h-3.5 w-3.5" aria-hidden />
-              7 天内到期
+              今天到期
             </div>
-            <p className="tabular mt-1 text-xl font-semibold text-amber-600">{within7} 张</p>
+            <p
+              className={`tabular mt-1 text-xl font-semibold ${
+                buckets.today.length > 0 ? 'text-rose-600' : 'text-slate-900'
+              }`}
+            >
+              {buckets.today.length} 张
+            </p>
           </Card>
         </div>
+
+        <Card className="mt-4 p-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-800">今日待办</h3>
+            <span className="text-xs text-slate-400">已使用的不计入</span>
+          </div>
+          <ul className="mt-2 divide-y divide-slate-100">
+            {todoRows.map((row) => (
+              <li key={row.key}>
+                <button
+                  type="button"
+                  disabled={!row.first}
+                  onClick={() => row.first && onSelect(row.first.id)}
+                  className={`flex w-full items-center justify-between gap-3 py-2.5 text-left transition-colors ${
+                    row.first ? 'hover:bg-slate-50' : 'cursor-default opacity-60'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <p className={`text-sm font-medium ${row.count > 0 ? row.tone : 'text-slate-600'}`}>
+                      {row.label}
+                    </p>
+                    <p className="truncate text-xs text-slate-400">
+                      {row.first ? row.first.title : row.hint}
+                    </p>
+                  </div>
+                  <span
+                    className={`tabular shrink-0 text-sm font-semibold ${
+                      row.count > 0 ? row.tone : 'text-slate-300'
+                    }`}
+                  >
+                    {row.count}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Card>
 
         <Card className="mt-4 p-4">
           <div className="flex items-center justify-between">

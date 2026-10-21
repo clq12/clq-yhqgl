@@ -294,4 +294,74 @@ import java.time.format.DateTimeFormatter
         }
         return out
     }
+    // ---------------------------------------------------------------- 今日待办
+
+    /**
+     * 北京时间的「今天」日期串（YYYY-MM-DD）。
+     *
+     * 不能用系统默认时区：券的截止时刻是按北京时间写的，
+     * 「今天到期」必须和截止判定用同一个时区，否则会提前或滞后一天。
+     */
+    fun beijingDateOf(nowUtc: Long = System.currentTimeMillis()): String =
+        java.time.Instant.ofEpochMilli(nowUtc).atOffset(BEIJING_OFFSET).toLocalDate().toString()
+
+    /** 首页「今日待办」分组 */
+    data class DueBuckets(
+        val today: List<Coupon>,
+        val soon: List<Coupon>,
+        val highValue: List<Coupon>,
+        val expired: List<Coupon>
+    )
+
+    /**
+     * 分组规则：已使用的一律不进任何组；组内按截止时刻升序，
+     * 高价值组按金额降序（同额按 id 升序，保证两端顺序一致）。
+     */
+    fun dueBuckets(
+        coupons: List<Coupon>,
+        nowUtc: Long = System.currentTimeMillis(),
+        highValueLimit: Int = 3
+    ): DueBuckets {
+        val today = beijingDateOf(nowUtc)
+
+        val byDeadline = Comparator<Coupon> { a, b ->
+            val diff = deadlineTimestamp(a) - deadlineTimestamp(b)
+            if (diff != 0L) diff.toInt() else a.id.compareTo(b.id)
+        }
+        val byAmount = Comparator<Coupon> { a, b ->
+            val diff = (b.discountAmount ?: 0.0) - (a.discountAmount ?: 0.0)
+            if (diff != 0.0) {
+                // 只关心正负，避免大数值转 Int 溢出
+                if (diff > 0) 1 else -1
+            } else {
+                a.id.compareTo(b.id)
+            }
+        }
+
+        val todayList = mutableListOf<Coupon>()
+        val soonList = mutableListOf<Coupon>()
+        val expiredList = mutableListOf<Coupon>()
+        val valuable = mutableListOf<Coupon>()
+
+        for (c in coupons) {
+            if (c.isUsed) continue
+            if (isExpired(c, nowUtc)) {
+                expiredList.add(c)
+                continue
+            }
+            if (c.endDate == today) {
+                todayList.add(c)
+            } else if (c.endDate > today && remainingDays(c, nowUtc) <= 3) {
+                soonList.add(c)
+            }
+            if ((c.discountAmount ?: 0.0) > 0) valuable.add(c)
+        }
+
+        return DueBuckets(
+            today = todayList.sortedWith(byDeadline),
+            soon = soonList.sortedWith(byDeadline),
+            highValue = valuable.sortedWith(byAmount).take(highValueLimit),
+            expired = expiredList.sortedWith(byDeadline)
+        )
+    }
 }

@@ -129,6 +129,9 @@ fun CouponListScreen(modifier: Modifier = Modifier, initialCouponId: String? = n
             FilterKey.EXPIRED to coupons.count { !it.isUsed && CouponRules.isExpired(it) }
         )
     }
+    // 今日待办：今天到期 / 3 天内 / 高价值 / 已过期未用（已使用的不计入）
+    val buckets = remember(coupons) { CouponRules.dueBuckets(coupons) }
+
     val tagOptions = remember(coupons) {
         coupons.flatMap { it.tags }
             .groupingBy { it }
@@ -263,6 +266,34 @@ fun CouponListScreen(modifier: Modifier = Modifier, initialCouponId: String? = n
                             },
                             label = { Text("${entry.key} ${entry.value}", fontSize = 11.sp) }
                         )
+                    }
+                }
+            }
+
+            if (buckets.today.isNotEmpty() || buckets.soon.isNotEmpty() ||
+                buckets.highValue.isNotEmpty() || buckets.expired.isNotEmpty()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TodoPill("今天到期", buckets.today.size, Danger, Modifier.weight(1f)) {
+                        filterIndex = FilterKey.ACTIVE.ordinal
+                        tagFilter = null
+                    }
+                    TodoPill("3 天内", buckets.soon.size, Warning, Modifier.weight(1f)) {
+                        filterIndex = FilterKey.ACTIVE.ordinal
+                        tagFilter = null
+                    }
+                    TodoPill("高价值", buckets.highValue.size, MaterialTheme.colorScheme.primary, Modifier.weight(1f)) {
+                        filterIndex = FilterKey.ACTIVE.ordinal
+                        tagFilter = null
+                    }
+                    TodoPill("已过期", buckets.expired.size, MaterialTheme.colorScheme.outline, Modifier.weight(1f)) {
+                        filterIndex = FilterKey.EXPIRED.ordinal
+                        tagFilter = null
                     }
                 }
             }
@@ -491,6 +522,46 @@ private fun CouponCard(
                     }
                 }
             }
+        }
+    }
+}
+
+/** 今日待办的小格子：数字大、标签小，点击切到对应筛选 */
+@Composable
+private fun TodoPill(
+    label: String,
+    count: Int,
+    color: androidx.compose.ui.graphics.Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (count > 0) color.copy(alpha = 0.10f) else MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                count.toString(),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (count > 0) color else MaterialTheme.colorScheme.outline
+            )
+            Text(
+                label,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1
+            )
         }
     }
 }

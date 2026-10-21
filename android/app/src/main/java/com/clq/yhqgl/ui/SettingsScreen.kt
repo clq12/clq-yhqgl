@@ -24,6 +24,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -56,6 +57,9 @@ import com.clq.yhqgl.rules.CouponRules
 import com.clq.yhqgl.ui.theme.Danger
 import kotlinx.coroutines.launch
 
+/** 提醒档位预设：够用的一组，不让人填奇怪数字 */
+private val REMIND_DAY_PRESETS = listOf(1, 3, 5, 7, 14, 30)
+
 /**
  * 设置页。
  *
@@ -64,6 +68,7 @@ import kotlinx.coroutines.launch
  * 顺序是有意的：账号在最上面，因为「数据存在哪」是用户最先要确认的事；
  * 备份紧跟其后，因为它的语义依赖账号（备份的是云端那份数据）。
  */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     modifier: Modifier = Modifier,
@@ -91,6 +96,7 @@ fun SettingsScreen(
 
     var autoSync by remember { mutableStateOf(settings.sync.autoSync) }
     var reminderEnabled by remember { mutableStateOf(settings.reminder.enabled) }
+    var remindDays by remember { mutableStateOf(settings.reminder.remindDays) }
 
     // 标签库：空配置时展示默认名单（tagLibraryOf 负责兜底）
     var tagLibrary by remember { mutableStateOf(CouponRules.tagLibraryOf(settings.tagLibrary)) }
@@ -499,6 +505,34 @@ fun SettingsScreen(
                     store.settings = store.settings.copy(reminder = store.settings.reminder.copy(enabled = it))
                 })
             }
+
+            Spacer(Modifier.height(10.dp))
+            Text("提前几天提醒", fontSize = 13.sp)
+            Spacer(Modifier.height(6.dp))
+            androidx.compose.foundation.layout.FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                REMIND_DAY_PRESETS.forEach { day ->
+                    val on = remindDays.contains(day)
+                    FilterChip(
+                        selected = on,
+                        onClick = {
+                            val next = if (on) remindDays - day else (remindDays + day).sortedDescending()
+                            remindDays = next
+                            store.settings = store.settings.copy(
+                                reminder = store.settings.reminder.copy(remindDays = next)
+                            )
+                        },
+                        label = { Text("$day 天", fontSize = 12.sp) }
+                    )
+                }
+            }
+            Text(
+                "到点按最接近的一档提醒一次，提醒过的不重复；已使用和已过期的券不提醒。",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.outline
+            )
         }
 
         Spacer(Modifier.height(32.dp))

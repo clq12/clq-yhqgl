@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   BarChart3,
   CloudOff,
@@ -149,9 +149,12 @@ function MobileNav({ view, onChange }: { view: View; onChange: (v: View) => void
 function CouponsView({
   selectedId,
   onSelect,
+  onBack,
 }: {
   selectedId: string | null;
   onSelect: (id: string | null) => void;
+  /** 从详情退回列表：会顺带把浏览器历史里那条记录消费掉 */
+  onBack: () => void;
 }) {
   return (
     <div className="flex h-full min-h-0">
@@ -165,7 +168,7 @@ function CouponsView({
       <div className={`min-w-0 flex-1 bg-white lg:bg-transparent ${selectedId ? 'block' : 'hidden lg:block'}`}>
         <CouponDetail
           couponId={selectedId}
-          onClose={() => onSelect(null)}
+          onClose={onBack}
           onChange={() => onSelect(null)}
           onSelect={onSelect}
         />
@@ -182,6 +185,39 @@ function AppContent() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [dismissedSyncToast, setDismissedSyncToast] = useState(false);
+
+  /**
+   * 详情页的历史记录。
+   *
+   * 手机上「返回」是系统手势/硬件键，不是页面按钮 —— 不压一条历史记录的话，
+   * 用户按返回会直接退出整个页面。这里在打开详情时压一条，返回时消费掉它。
+   */
+  const detailPushedRef = useRef(false);
+
+  useEffect(() => {
+    if (selectedId && !detailPushedRef.current) {
+      detailPushedRef.current = true;
+      window.history.pushState({ couponDetail: true }, '');
+    }
+  }, [selectedId]);
+
+  useEffect(() => {
+    const onPop = () => {
+      detailPushedRef.current = false;
+      setSelectedId(null);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  const backToList = useCallback(() => {
+    if (detailPushedRef.current) {
+      // 让 history.back() 触发 popstate，由上面的监听统一收口，避免历史记录越堆越多
+      window.history.back();
+    } else {
+      setSelectedId(null);
+    }
+  }, []);
 
   useEffect(() => {
     initDB().then(() => setReady(true));
@@ -265,7 +301,7 @@ function AppContent() {
         </header>
 
         <div className="min-h-0 flex-1 overflow-hidden pb-14 lg:pb-0">
-          {view === 'coupons' && <CouponsView selectedId={selectedId} onSelect={setSelectedId} />}
+          {view === 'coupons' && <CouponsView selectedId={selectedId} onSelect={setSelectedId} onBack={backToList} />}
           {view === 'stats' && (
             <div className="scroll-area h-full overflow-y-auto p-4 lg:p-6">
               <StatDashboard />

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ArrowLeft,
   CalendarDays,
@@ -189,6 +189,17 @@ export function CouponDetail({ couponId, onClose, onChange, onSelect }: CouponDe
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  // Esc 退回列表。桌面端常用，比找右上角按钮顺手
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (editing || confirmDelete) return;
+      onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [editing, confirmDelete, onClose]);
+
   if (couponId === 'new') {
     return (
       <div className="scroll-area h-full overflow-y-auto p-4 lg:p-6">
@@ -305,10 +316,17 @@ export function CouponDetail({ couponId, onClose, onChange, onSelect }: CouponDe
   return (
     <div className="scroll-area h-full overflow-y-auto">
       <div className="mx-auto max-w-3xl p-4 lg:p-6">
-        <div className="mb-4 flex items-center justify-between lg:hidden">
-          <Button variant="ghost" size="sm" onClick={onClose} icon={<ArrowLeft className="h-4 w-4" />}>
+        {/* 返回入口：之前只写了 lg:hidden，桌面宽度下被藏起来，导致详情页没有退路 */}
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden />
             返回列表
-          </Button>
+          </button>
+          <span className="hidden text-xs text-slate-400 lg:inline">按 Esc 也可以返回</span>
         </div>
 
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -426,6 +444,15 @@ export function CouponDetail({ couponId, onClose, onChange, onSelect }: CouponDe
           </Button>
           <Button variant="danger" onClick={() => setConfirmDelete(true)} icon={<Trash2 className="h-4 w-4" />}>
             删除
+          </Button>
+          {/* 手机上滚到最底部时，返回入口也在拇指够得着的地方 */}
+          <Button
+            variant="ghost"
+            onClick={onClose}
+            icon={<ArrowLeft className="h-4 w-4" />}
+            className="lg:hidden"
+          >
+            返回列表
           </Button>
         </div>
 

@@ -25,6 +25,12 @@
   - 首次使用需邮箱验证码登录；登录后数据存在云端，换设备直接可用。
 - **安卓 APK**：[Releases](https://github.com/clq12/clq-yhqgl/releases)
   - 推送 `v*.*.*` 标签后 GitHub Actions 自动构建并上传 APK。
+  - Release 包用固定 keystore 签名（材料在仓库 Secrets：`ANDROID_KEYSTORE_B64` /
+    `ANDROID_STORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`），
+    后续版本可直接覆盖安装升级。
+  - ⚠️ Release 签名与 debug 签名不同，从 debug 包换过来必须先卸载旧版，否则报签名冲突。
+  - 本地要出签名包：把 `android/keystore.properties`（已 gitignore）指到本机 keystore 即可，
+    `storeFile` 相对 `android/app/` 解析。
 
 ## 云服务
 

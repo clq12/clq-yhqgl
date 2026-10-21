@@ -29,6 +29,8 @@ export interface Coupon {
   updatedAt: string | null;
   version: VersionVectorEntry | null;
   modifiedAt: string | null;
+  /** 软删除标记：非 null 表示已删除。唯一真相，不要再引第二个布尔字段。 */
+  deletedAt?: string | null;
 }
 
 export interface CouponDataPackage {

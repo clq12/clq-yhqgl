@@ -92,12 +92,14 @@ export async function getDB(): Promise<IDBPDatabase<YhqDB>> {
 // Coupon CRUD
 export async function listCoupons(): Promise<Coupon[]> {
   const d = await getDB();
-  return d.getAll('coupons');
+  const all = await d.getAll('coupons');
+  return all.filter((c) => !c.deletedAt);
 }
 
 export async function getCoupon(id: string): Promise<Coupon | undefined> {
   const d = await getDB();
-  return d.get('coupons', id);
+  const coupon = await d.get('coupons', id);
+  return coupon && !coupon.deletedAt ? coupon : undefined;
 }
 
 export async function putCoupon(coupon: Coupon): Promise<void> {

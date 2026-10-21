@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { AlertCircle, Save, X } from 'lucide-react';
 import type { Coupon, DiscountType } from '../types/coupon';
 import { beijingNow } from '../rules/couponRules';
-import { putCoupon } from '../db/appDb';
+import { putCoupon, SyncConflictError } from '../db/appDb';
 import { bumpVersion } from '../sync/syncEngine';
 import { notifyDataChanged } from '../lib/dataBus';
 import { Button, Card, Input, Select, Textarea, useToast } from './ui';
@@ -104,7 +104,12 @@ export function CouponForm({ coupon, onCancel, onSaved }: CouponFormProps) {
       notifyDataChanged();
       onSaved(withVersion);
     } catch (err) {
-      const message = err instanceof Error ? err.message : '保存失败';
+      const message =
+        err instanceof SyncConflictError
+          ? '这张券已在别的设备上被修改过。请返回列表刷新后重新编辑，避免覆盖那边的改动。'
+          : err instanceof Error
+            ? err.message
+            : '保存失败';
       setSummary(message);
       showToast(message, 'error');
     } finally {

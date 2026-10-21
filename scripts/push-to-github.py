@@ -76,10 +76,19 @@ def should_ignore(path: Path) -> bool:
     parts = path.parts
     if ".workbuddy" in parts or ".git" in parts or "node_modules" in parts or ".gradle" in parts:
         return True
-    if "web/dist" in path.as_posix():
+    if ".kotlin" in parts:
+        return True
+    posix = path.as_posix()
+    if "web/dist" in posix:
+        return True
+    # 构建产物与本地环境文件绝不能进仓库：
+    # android/app/build 里动辄上万个文件（含 APK），推上去会直接撑爆提交
+    if "/build/" in posix or posix.startswith("build/"):
         return True
     name = path.name
-    if name.endswith(".genie"):
+    if name.endswith(".genie") or name.endswith(".apk") or name.endswith(".aab"):
+        return True
+    if name == "local.properties":
         return True
     return False
 

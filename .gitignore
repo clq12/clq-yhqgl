@@ -1,0 +1,23 @@
+# 构建产物
+build/
+*/build/
+android/app/build/
+android/build/
+web/dist/
+.kotlin/
+
+# 依赖
+node_modules/
+.gradle/
+
+# 本地环境
+local.properties
+*.apk
+*.aab
+*.genie
+
+# 工作区数据
+.workbuddy/
+.DS_Store
+Thumbs.db
+*.log

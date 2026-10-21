@@ -1,0 +1,72 @@
+{
+  "nowIso": "2026-10-21T10:00:00+08:00",
+  "nowMs": 1792548000000,
+  "cases": [
+    {
+      "name": "今天到期（不足一天）",
+      "deadlineMs": 1792598399000,
+      "remainingDays": 0,
+      "expired": false,
+      "active": true,
+      "statusText": "仅剩 0 天",
+      "statusTone": "warning",
+      "discountLabel": "5 折",
+      "store": "瑞幸"
+    },
+    {
+      "name": "三天内到期",
+      "deadlineMs": 1792857599000,
+      "remainingDays": 3,
+      "expired": false,
+      "active": true,
+      "statusText": "仅剩 3 天",
+      "statusTone": "warning",
+      "discountLabel": "满 ¥200 减 ¥30",
+      "store": "京东"
+    },
+    {
+      "name": "还早",
+      "deadlineMs": 1796047259000,
+      "remainingDays": 40,
+      "expired": false,
+      "active": true,
+      "statusText": "剩余 40 天",
+      "statusTone": "success",
+      "discountLabel": "减 ¥30",
+      "store": "山姆"
+    },
+    {
+      "name": "已使用",
+      "deadlineMs": 1792684799000,
+      "remainingDays": 1,
+      "expired": false,
+      "active": false,
+      "statusText": "已使用",
+      "statusTone": "neutral",
+      "discountLabel": "团购券",
+      "store": "星巴克"
+    },
+    {
+      "name": "已过期",
+      "deadlineMs": 1792463459000,
+      "remainingDays": -1,
+      "expired": true,
+      "active": false,
+      "statusText": "已过期",
+      "statusTone": "danger",
+      "discountLabel": "减 ¥5",
+      "store": "麦当劳"
+    },
+    {
+      "name": "没有折扣类型",
+      "deadlineMs": 1798732799000,
+      "remainingDays": 71,
+      "expired": false,
+      "active": true,
+      "statusText": "剩余 71 天",
+      "statusTone": "success",
+      "discountLabel": "无门槛",
+      "store": "某小店代金券"
+    }
+  ]
+}

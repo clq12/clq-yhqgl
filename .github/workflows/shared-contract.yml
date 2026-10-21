@@ -1,0 +1,41 @@
+name: Shared Contract
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # 直接跑 TypeScript 规则（node 的类型擦除），不做额外编译。
+      # 校验两件事：店铺名单两端不漂移；固定用例下两端结论一致。
+      - name: Contract check (stores + behaviour fixtures)
+        run: node --experimental-strip-types scripts/contract-check.mjs
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x android/gradlew
+
+      # Android 端用同一份 fixture 重算一遍，任何一边改了规则都会红
+      - name: Android rule contract test
+        working-directory: ./android
+        run: ./gradlew :app:testDebugUnitTest --no-daemon

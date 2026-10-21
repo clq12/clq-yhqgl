@@ -15,9 +15,9 @@ import {
   Wallet,
 } from 'lucide-react';
 import type { Coupon } from '../types/coupon';
-import { deleteCouponLocal, putCoupon } from '../db/appDb';
+import { deleteCouponLocal, putCoupon, SyncConflictError } from '../db/appDb';
 import { bumpVersion } from '../sync/syncEngine';
-import { extractStore, isExpired, remainingDays } from '../rules/couponRules';
+import { extractStore, isExpired, remainingDays, statusLabel } from '../rules/couponRules';
 import { notifyDataChanged } from '../lib/dataBus';
 import { useCoupons } from '../hooks/useCoupons';
 import { Badge, Button, Card, EmptyState, IconButton, Modal, Skeleton, useToast } from './ui';
@@ -245,15 +245,7 @@ export function CouponDetail({ couponId, onClose, onChange, onSelect }: CouponDe
     );
   }
 
-  const expired = isExpired(coupon);
-  const days = remainingDays(coupon);
-  const status = coupon.isUsed
-    ? { tone: 'neutral' as const, text: '已使用' }
-    : expired
-      ? { tone: 'danger' as const, text: '已过期' }
-      : days <= 3
-        ? { tone: 'warning' as const, text: `仅剩 ${days} 天` }
-        : { tone: 'success' as const, text: `剩余 ${days} 天` };
+  const status = statusLabel(coupon);
 
   const handleToggleUsed = async () => {
     setBusy(true);
@@ -262,8 +254,17 @@ export function CouponDetail({ couponId, onClose, onChange, onSelect }: CouponDe
       await putCoupon(updated);
       notifyDataChanged();
       showToast(coupon.isUsed ? '已标记为未使用' : '已标记为已使用', 'success');
+      onChange();
     } catch (e) {
-      showToast(e instanceof Error ? e.message : '操作失败', 'error');
+      showToast(
+        e instanceof SyncConflictError
+          ? '这张券已在别的设备上被修改过，已为你刷新到最新状态。'
+          : e instanceof Error
+            ? e.message
+            : '操作失败',
+        'error',
+      );
+      if (e instanceof SyncConflictError) onChange();
     } finally {
       setBusy(false);
     }
@@ -377,7 +378,7 @@ export function CouponDetail({ couponId, onClose, onChange, onSelect }: CouponDe
             <MetaItem
               icon={<Check className="h-3.5 w-3.5" />}
               label="使用状态"
-              value={coupon.isUsed ? '已使用' : expired ? '已过期未使用' : '待使用'}
+              value={coupon.isUsed ? '已使用' : isExpired(coupon) ? '已过期未使用' : '待使用'}
             />
           </div>
         </Card>

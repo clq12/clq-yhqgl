@@ -35,42 +35,54 @@ import java.time.format.DateTimeFormatter
     /**
      * 剩余小时数（可负数）
      */
-    fun remainingHours(coupon: Coupon): Long {
-        val nowUtc = System.currentTimeMillis()
+    fun remainingHours(coupon: Coupon, nowUtc: Long = System.currentTimeMillis()): Long {
         val deadline = deadlineTimestamp(coupon)
-        return (deadline - nowUtc) / (1000 * 60 * 60)
+        // 必须用 floorDiv：Kotlin 的 `/` 对负数向零截断，而网页端 Math.floor 向负无穷取整，
+        // 已过期的券两端会算出不同的天数（-1 天 vs 0 天）。
+        return Math.floorDiv(deadline - nowUtc, 3_600_000L)
     }
 
     /**
      * 剩余天数
      */
-    fun remainingDays(coupon: Coupon): Long = remainingHours(coupon) / 24
+    fun remainingDays(coupon: Coupon, nowUtc: Long = System.currentTimeMillis()): Long =
+        Math.floorDiv(remainingHours(coupon, nowUtc), 24L)
 
     /**
      * 是否已过期
      */
-    fun isExpired(coupon: Coupon): Boolean = remainingHours(coupon) < 0
+    fun isExpired(coupon: Coupon, nowUtc: Long = System.currentTimeMillis()): Boolean =
+        remainingHours(coupon, nowUtc) < 0
 
     /**
      * 是否有效（未使用且未过期）
      */
-    fun isActive(coupon: Coupon): Boolean = !coupon.isUsed && !isExpired(coupon)
+    fun isActive(coupon: Coupon, nowUtc: Long = System.currentTimeMillis()): Boolean =
+        !coupon.isUsed && !isExpired(coupon, nowUtc)
 
     /**
      * 是否需要在指定天数内提醒
      */
-    fun shouldRemindWithinDays(coupon: Coupon, days: Int): Boolean {
+    fun shouldRemindWithinDays(
+        coupon: Coupon,
+        days: Int,
+        nowUtc: Long = System.currentTimeMillis()
+    ): Boolean {
         if (coupon.isUsed) return false
-        val hours = remainingHours(coupon)
+        val hours = remainingHours(coupon, nowUtc)
         return hours >= 0 && hours < days * 24
     }
 
     /**
      * 获取当前应提醒的天数（返回 0 表示无需提醒）
      */
-    fun currentRemindDays(coupon: Coupon, remindDays: List<Int>): Int {
+    fun currentRemindDays(
+        coupon: Coupon,
+        remindDays: List<Int>,
+        nowUtc: Long = System.currentTimeMillis()
+    ): Int {
         for (days in remindDays.sortedDescending()) {
-            if (shouldRemindWithinDays(coupon, days) && !coupon.remindedDays.contains(days)) {
+            if (shouldRemindWithinDays(coupon, days, nowUtc) && !coupon.remindedDays.contains(days)) {
                 return days
             }
         }
@@ -108,6 +120,39 @@ import java.time.format.DateTimeFormatter
             else -> { /* no-op */ }
         }
         return Result.success(Unit)
+    }
+
+    /**
+     * 优惠力度的展示文案。
+     *
+     * 两端必须一模一样，所以放在共享规则里 —— 安卓和网页各自算会导致
+     * 同一张券在手机和电脑上显示成两种说法。
+     */
+    fun discountLabel(coupon: Coupon): String = when (coupon.discountType) {
+        DiscountType.AMOUNT -> "减 ¥${formatAmount(coupon.discountAmount ?: 0.0)}"
+        DiscountType.PERCENTAGE -> "${formatAmount(coupon.discountAmount ?: 0.0)} 折"
+        DiscountType.FULL -> "满 ¥${formatAmount(coupon.fullAmount ?: 0.0)} 减 ¥${formatAmount(coupon.discountAmount ?: 0.0)}"
+        DiscountType.GROUP -> "团购券"
+        null -> "无门槛"
+    }
+
+    /** 金额展示：整数不带小数点，其余最多两位 */
+    fun formatAmount(value: Double): String {
+        val rounded = Math.round(value * 100.0) / 100.0
+        return if (rounded % 1.0 == 0.0) rounded.toLong().toString() else rounded.toString()
+    }
+
+    /**
+     * 状态标签（与网页端 CouponList 的 statusOf 一致）
+     */
+    data class StatusLabel(val text: String, val tone: String)
+
+    fun statusLabel(coupon: Coupon, nowUtc: Long = System.currentTimeMillis()): StatusLabel {
+        if (coupon.isUsed) return StatusLabel("已使用", "neutral")
+        if (isExpired(coupon, nowUtc)) return StatusLabel("已过期", "danger")
+        val days = remainingDays(coupon, nowUtc)
+        return if (days <= 3) StatusLabel("仅剩 $days 天", "warning")
+        else StatusLabel("剩余 $days 天", "success")
     }
 
     /**

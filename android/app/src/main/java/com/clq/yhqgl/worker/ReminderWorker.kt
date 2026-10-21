@@ -27,12 +27,12 @@ import java.util.concurrent.TimeUnit
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        val settings = SettingsStore(applicationContext)
-        if (!settings.settings.sync.autoSync) return Result.success()
+        val settings = SettingsStore(applicationContext).settings
+        if (!settings.reminder.enabled) return Result.success()
 
-        val remindDays = listOf(7, 3, 1) // 后续从 settings 读取
-        val db = AppDatabase.getInstance(applicationContext)
-        val coupons = db.couponDao().getAll().map { it.toDomain() }
+        val remindDays = settings.reminder.remindDays
+        val dao = AppDatabase.getInstance(applicationContext).couponDao()
+        val coupons = dao.getAllActive().map { it.toDomain() }
 
         val reminders = coupons
             .filter { !it.isUsed }
@@ -41,9 +41,22 @@ import java.util.concurrent.TimeUnit
                 if (days > 0) coupon to days else null
             }
 
-        if (reminders.isNotEmpty()) {
-            showNotification(reminders.size, reminders.first().first.id)
+        if (reminders.isEmpty()) return Result.success()
+
+        // 提醒状态只写本地，不标 dirty、不上云 ——
+        // 提醒是按设备各自计算的，同步过去会让另一台设备以为自己已经提醒过。
+        for ((coupon, days) in reminders) {
+            val entity = dao.getById(coupon.id) ?: continue
+            val marked = (coupon.remindedDays + days).distinct().sorted()
+            dao.insert(
+                entity.copy(
+                    isReminded = true,
+                    remindedDaysJson = marked.joinToString(prefix = "[", postfix = "]", separator = ",")
+                )
+            )
         }
+
+        showNotification(reminders.size, reminders.first().first.id)
         return Result.success()
     }
 

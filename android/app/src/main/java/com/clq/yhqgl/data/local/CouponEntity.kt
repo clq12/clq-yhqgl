@@ -10,7 +10,13 @@ import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
 /**
- * Room 实体，字段与 Coupon 一一对应
+ * Room 实体，业务字段与 Coupon 一一对应；后面几列是同步专用的本地状态，不上云。
+ *
+ * - [deletedAt]：软删除标记，与云端 deleted_at 对应。删除状态只认它。
+ * - [dirty]：本地有未上传的改动，补传队列就是它。
+ * - [conflict]：上次补传时云端版本更新被拦下，等用户在「待解决」里处理。
+ * - [ownerId]：这条记录属于哪个账号。游客模式下为 null；
+ *   登录后只有 ownerId 为 null 或等于当前账号时才允许上传（同账号才认领）。
  */
 @Entity(tableName = "coupons")
 data class CouponEntity(
@@ -33,7 +39,10 @@ data class CouponEntity(
     val updatedAt: String?,
     val versionJson: String?,
     val modifiedAt: String?,
-    val isDeleted: Boolean
+    val deletedAt: String?,
+    val dirty: Boolean,
+    val conflict: Boolean,
+    val ownerId: String?
 ) {
     companion object {
         private val json = Json { ignoreUnknownKeys = true }
@@ -43,7 +52,7 @@ data class CouponEntity(
         id = id,
         title = title,
         description = description,
-        discountType = discountType?.let { DiscountType.valueOf(it) },
+        discountType = discountType?.let { name -> DiscountType.entries.firstOrNull { it.name == name } },
         discountAmount = discountAmount,
         fullAmount = fullAmount,
         startDate = startDate,
@@ -59,11 +68,22 @@ data class CouponEntity(
         updatedAt = updatedAt,
         version = versionJson?.let { json.decodeFromString(VersionVectorEntry.serializer(), it) },
         modifiedAt = modifiedAt,
-        isDeleted = isDeleted
+        deletedAt = deletedAt
     )
 }
 
-fun Coupon.toEntity(): CouponEntity = CouponEntity(
+/**
+ * 领域模型 → 实体。
+ *
+ * @param dirty 是否标记为「待上传」。本地新建/修改/删除都置 true，从云端拉回来的置 false。
+ * @param conflict 是否处于「待解决」状态。
+ * @param ownerId 归属账号；游客数据为 null，登录后按「同账号才认领」规则处理。
+ */
+fun Coupon.toEntity(
+    dirty: Boolean = false,
+    conflict: Boolean = false,
+    ownerId: String? = null
+): CouponEntity = CouponEntity(
     id = id,
     title = title,
     description = description,
@@ -82,5 +102,8 @@ fun Coupon.toEntity(): CouponEntity = CouponEntity(
     updatedAt = updatedAt,
     versionJson = version?.let { Json.encodeToString(VersionVectorEntry.serializer(), it) },
     modifiedAt = modifiedAt,
-    isDeleted = isDeleted
+    deletedAt = deletedAt,
+    dirty = dirty,
+    conflict = conflict,
+    ownerId = ownerId
 )

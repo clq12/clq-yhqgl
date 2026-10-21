@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Clock3, Plus, Search, Ticket, X } from 'lucide-react';
 import type { Coupon } from '../types/coupon';
 import { useCoupons } from '../hooks/useCoupons';
-import { isExpired, remainingDays, extractStore } from '../rules/couponRules';
+import { discountLabel, statusLabel, extractStore, isExpired } from '../rules/couponRules';
 import { Badge, Button, EmptyState, ListSkeleton, Tabs, type TabItem } from './ui';
 
 interface CouponListProps {
@@ -13,28 +13,8 @@ interface CouponListProps {
 type FilterKey = 'active' | 'all' | 'used' | 'expired';
 type SortKey = 'deadline' | 'recent' | 'amount';
 
-function discountLabel(coupon: Coupon): string {
-  switch (coupon.discountType) {
-    case 'amount':
-      return `减 ¥${coupon.discountAmount ?? 0}`;
-    case 'percentage':
-      return `${coupon.discountAmount ?? 0} 折`;
-    case 'full':
-      return `满 ¥${coupon.fullAmount ?? 0} 减 ¥${coupon.discountAmount ?? 0}`;
-    case 'group':
-      return '团购券';
-    default:
-      return '无门槛';
-  }
-}
-
-function statusOf(coupon: Coupon): { tone: 'success' | 'warning' | 'danger' | 'neutral'; text: string } {
-  if (coupon.isUsed) return { tone: 'neutral', text: '已使用' };
-  if (isExpired(coupon)) return { tone: 'danger', text: '已过期' };
-  const days = remainingDays(coupon);
-  if (days <= 0) return { tone: 'danger', text: '今天到期' };
-  if (days <= 3) return { tone: 'warning', text: `剩 ${days} 天` };
-  return { tone: 'success', text: `剩 ${days} 天` };
+function statusOf(coupon: Coupon) {
+  return statusLabel(coupon);
 }
 
 function CouponRow({

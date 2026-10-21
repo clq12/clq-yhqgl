@@ -92,7 +92,7 @@ fun AIDialog(
                                     loading = false
                                     return@launch
                                 }
-                                val coupons = db.couponDao().getAll().map { it.toDomain() }
+                                val coupons = db.couponDao().getAllActive().map { it.toDomain() }
                                 val ctx = AIContext(
                                     coupons = coupons,
                                     defaultProvider = settings.ai.provider,

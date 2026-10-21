@@ -30,46 +30,54 @@ export function deadlineTimestamp(coupon: Coupon): number {
 /**
  * 剩余小时数
  */
-export function remainingHours(coupon: Coupon): number {
-  return Math.floor((deadlineTimestamp(coupon) - Date.now()) / (1000 * 60 * 60));
+export function remainingHours(coupon: Coupon, nowMs: number = Date.now()): number {
+  return Math.floor((deadlineTimestamp(coupon) - nowMs) / (1000 * 60 * 60));
 }
 
 /**
  * 剩余天数
  */
-export function remainingDays(coupon: Coupon): number {
-  return Math.floor(remainingHours(coupon) / 24);
+export function remainingDays(coupon: Coupon, nowMs: number = Date.now()): number {
+  return Math.floor(remainingHours(coupon, nowMs) / 24);
 }
 
 /**
  * 是否已过期
  */
-export function isExpired(coupon: Coupon): boolean {
-  return remainingHours(coupon) < 0;
+export function isExpired(coupon: Coupon, nowMs: number = Date.now()): boolean {
+  return remainingHours(coupon, nowMs) < 0;
 }
 
 /**
  * 是否有效
  */
-export function isActive(coupon: Coupon): boolean {
-  return !coupon.isUsed && !isExpired(coupon);
+export function isActive(coupon: Coupon, nowMs: number = Date.now()): boolean {
+  return !coupon.isUsed && !isExpired(coupon, nowMs);
 }
 
 /**
  * 是否应在指定天数内提醒
  */
-export function shouldRemindWithinDays(coupon: Coupon, days: number): boolean {
+export function shouldRemindWithinDays(
+  coupon: Coupon,
+  days: number,
+  nowMs: number = Date.now(),
+): boolean {
   if (coupon.isUsed) return false;
-  const hours = remainingHours(coupon);
+  const hours = remainingHours(coupon, nowMs);
   return hours >= 0 && hours < days * 24;
 }
 
 /**
  * 当前应提醒的天数（0 表示无需提醒）
  */
-export function currentRemindDays(coupon: Coupon, remindDays: number[]): number {
+export function currentRemindDays(
+  coupon: Coupon,
+  remindDays: number[],
+  nowMs: number = Date.now(),
+): number {
   for (const days of [...remindDays].sort((a, b) => b - a)) {
-    if (shouldRemindWithinDays(coupon, days) && !coupon.remindedDays.includes(days)) {
+    if (shouldRemindWithinDays(coupon, days, nowMs) && !coupon.remindedDays.includes(days)) {
       return days;
     }
   }
@@ -100,6 +108,49 @@ export function validateCoupon(coupon: Coupon): { ok: true } | { ok: false; erro
     return { ok: false, error: '折扣金额必须大于0' };
   }
   return { ok: true };
+}
+
+/**
+ * 优惠力度的展示文案。
+ *
+ * 两端必须一模一样，所以放在共享规则里 —— 安卓和网页各自算会导致
+ * 同一张券在手机和电脑上显示成两种说法。
+ */
+export function discountLabel(coupon: Coupon): string {
+  switch (coupon.discountType) {
+    case 'amount':
+      return `减 ¥${formatAmount(coupon.discountAmount ?? 0)}`;
+    case 'percentage':
+      return `${formatAmount(coupon.discountAmount ?? 0)} 折`;
+    case 'full':
+      return `满 ¥${formatAmount(coupon.fullAmount ?? 0)} 减 ¥${formatAmount(coupon.discountAmount ?? 0)}`;
+    case 'group':
+      return '团购券';
+    default:
+      return '无门槛';
+  }
+}
+
+/** 金额展示：整数不带小数点，其余最多两位 */
+export function formatAmount(value: number): string {
+  const rounded = Math.round(value * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+}
+
+export type StatusTone = 'success' | 'warning' | 'danger' | 'neutral';
+
+export interface StatusLabel {
+  tone: StatusTone;
+  text: string;
+}
+
+/** 状态标签，与 Android CouponRules.statusLabel 一致 */
+export function statusLabel(coupon: Coupon, nowMs: number = Date.now()): StatusLabel {
+  if (coupon.isUsed) return { tone: 'neutral', text: '已使用' };
+  if (isExpired(coupon, nowMs)) return { tone: 'danger', text: '已过期' };
+  const days = remainingDays(coupon, nowMs);
+  if (days <= 3) return { tone: 'warning', text: `仅剩 ${days} 天` };
+  return { tone: 'success', text: `剩余 ${days} 天` };
 }
 
 /**

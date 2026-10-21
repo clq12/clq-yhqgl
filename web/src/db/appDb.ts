@@ -35,6 +35,7 @@ function couponToRow(c: Coupon): Record<string, unknown> {
     updated_at: c.updatedAt,
     version: c.version,
     modified_at: c.modifiedAt,
+    deleted_at: c.deletedAt ?? null,
   };
 }
 
@@ -58,6 +59,7 @@ function rowToCoupon(row: Record<string, unknown>): Coupon {
     updatedAt: row.updated_at === null ? null : String(row.updated_at),
     version: row.version as Coupon['version'],
     modifiedAt: row.modified_at === null ? null : String(row.modified_at),
+    deletedAt: row.deleted_at === null || row.deleted_at === undefined ? null : String(row.deleted_at),
   };
 }
 
@@ -101,7 +103,10 @@ export async function listCoupons(): Promise<Coupon[]> {
       console.warn('[cloud] listCoupons failed, fallback to local:', error.message);
       return localDB.listCoupons();
     }
-    return (data ?? []).map((row: Record<string, unknown>) => rowToCoupon(row));
+    // 软删除记录不能出现在列表里
+    return (data ?? [])
+      .map((row: Record<string, unknown>) => rowToCoupon(row))
+      .filter((c: Coupon) => !c.deletedAt);
   }
   return localDB.listCoupons();
 }
@@ -110,22 +115,63 @@ export async function getCoupon(id: string): Promise<Coupon | undefined> {
   if (await isCloudReady()) {
     const { data, error } = await cloud.database.from('coupons').select('*').eq('id', id).maybeSingle();
     if (error || !data) return undefined;
-    return rowToCoupon(data as Record<string, unknown>);
+    const coupon = rowToCoupon(data as Record<string, unknown>);
+    return coupon.deletedAt ? undefined : coupon;
   }
   return localDB.getCoupon(id);
 }
 
+/**
+ * 乐观锁冲突：云端这一条比本地提交的更新。
+ * 上层应把 remote 的当前值展示给用户，由用户决定保留哪一版。
+ */
+export class SyncConflictError extends Error {
+  readonly remote: Coupon;
+  constructor(remote: Coupon) {
+    super('这张券在别的设备上刚被改过');
+    this.name = 'SyncConflictError';
+    this.remote = remote;
+  }
+}
+
+function timestampOf(c: Coupon): number {
+  const raw = c.modifiedAt || c.updatedAt || c.createdAt;
+  const t = raw ? Date.parse(raw) : NaN;
+  return Number.isNaN(t) ? 0 : t;
+}
+
 export async function putCoupon(coupon: Coupon): Promise<void> {
   if (await isCloudReady()) {
-    const { data: existing } = await cloud.database.from('coupons').select('id').eq('id', coupon.id).maybeSingle();
-    const row = couponToRow(coupon);
-    const { error } = existing
-      ? await cloud.database.from('coupons').update(row as any).eq('id', coupon.id)
-      : await cloud.database.from('coupons').insert(row as any);
-    if (error) {
-      console.warn('[cloud] putCoupon failed, fallback to local:', error.message);
+    const { data: existing, error: readError } = await cloud.database
+      .from('coupons')
+      .select('*')
+      .eq('id', coupon.id)
+      .maybeSingle();
+    if (readError) {
+      console.warn('[cloud] putCoupon pre-read failed, fallback to local:', readError.message);
       await localDB.putCoupon(coupon);
       return;
+    }
+    const row = couponToRow(coupon);
+    if (existing) {
+      // 乐观锁：云端更晚才被改过，就拒绝这次写入
+      const remote = rowToCoupon(existing as Record<string, unknown>);
+      if (timestampOf(remote) > timestampOf(coupon)) {
+        throw new SyncConflictError(remote);
+      }
+      const { error } = await cloud.database.from('coupons').update(row as any).eq('id', coupon.id);
+      if (error) {
+        console.warn('[cloud] putCoupon failed, fallback to local:', error.message);
+        await localDB.putCoupon(coupon);
+        return;
+      }
+    } else {
+      const { error } = await cloud.database.from('coupons').insert(row as any);
+      if (error) {
+        console.warn('[cloud] putCoupon failed, fallback to local:', error.message);
+        await localDB.putCoupon(coupon);
+        return;
+      }
     }
   }
   await localDB.putCoupon(coupon);
@@ -137,12 +183,24 @@ export async function putCoupons(coupons: Coupon[]): Promise<void> {
   }
 }
 
+/** 软删除：只打 deleted_at 标记，不物理删除，两端都不会把已删数据复活 */
 export async function deleteCouponLocal(id: string): Promise<void> {
+  const nowIso = new Date().toISOString();
   if (await isCloudReady()) {
-    const { error } = await cloud.database.from('coupons').delete().eq('id', id);
-    if (error) {
-      console.warn('[cloud] deleteCoupon failed, fallback to local:', error.message);
-      await localDB.deleteCouponLocal(id);
+    const { data: existing } = await cloud.database.from('coupons').select('*').eq('id', id).maybeSingle();
+    if (existing) {
+      const remote = rowToCoupon(existing as Record<string, unknown>);
+      const { error } = await cloud.database
+        .from('coupons')
+        .update({ deleted_at: nowIso, modified_at: nowIso, updated_at: nowIso } as any)
+        .eq('id', id);
+      if (error) {
+        console.warn('[cloud] soft delete failed, fallback to local:', error.message);
+        await localDB.deleteCouponLocal(id);
+        return;
+      }
+      // 本地同步打标记，避免离线时又把它当正常数据推回去
+      await localDB.putCoupon({ ...remote, deletedAt: nowIso, modifiedAt: nowIso, updatedAt: nowIso });
       return;
     }
   }
@@ -150,8 +208,12 @@ export async function deleteCouponLocal(id: string): Promise<void> {
 }
 
 export async function clearCoupons(): Promise<void> {
+  const nowIso = new Date().toISOString();
   if (await isCloudReady()) {
-    const { error } = await cloud.database.from('coupons').delete().neq('id', '');
+    const { error } = await cloud.database
+      .from('coupons')
+      .update({ deleted_at: nowIso, modified_at: nowIso } as any)
+      .neq('id', '');
     if (error) {
       console.warn('[cloud] clearCoupons failed, fallback to local:', error.message);
       await localDB.clearCoupons();
@@ -265,12 +327,15 @@ export async function syncAccountData(): Promise<AccountSyncResult> {
     };
   }
 
-  const cloudCoupons = (cloudRows ?? []).map((row: Record<string, unknown>) => rowToCoupon(row));
+  const cloudCoupons = (cloudRows ?? [])
+    .map((row: Record<string, unknown>) => rowToCoupon(row))
+    .filter((c: Coupon) => !c.deletedAt);
   const cloudMap = new Map(cloudCoupons.map((c) => [c.id, c]));
 
   const toPush: Coupon[] = [];
   if (sameOwner) {
     for (const local of localCoupons) {
+      if (local.deletedAt) continue; // 已删除的本地记录不再推上云
       const remote = cloudMap.get(local.id);
       if (!remote) {
         toPush.push(local);
@@ -321,7 +386,9 @@ export async function syncAccountData(): Promise<AccountSyncResult> {
     };
   }
 
-  const finalCoupons = (finalRows ?? []).map((row: Record<string, unknown>) => rowToCoupon(row));
+  const finalCoupons = (finalRows ?? [])
+    .map((row: Record<string, unknown>) => rowToCoupon(row))
+    .filter((c: Coupon) => !c.deletedAt);
   await localDB.clearCoupons();
   await localDB.putCoupons(finalCoupons);
 

@@ -40,9 +40,16 @@ import kotlinx.serialization.Serializable
     val version: VersionVectorEntry? = null,
     @SerialName("modifiedAt")
     val modifiedAt: String? = null,
-    @SerialName("isDeleted")
-    val isDeleted: Boolean = false
+    /**
+     * 软删除标记：非 null 表示已删除。
+     * 删除状态只认这一个字段，[isDeleted] 是它的派生。
+     */
+    @SerialName("deletedAt")
+    val deletedAt: String? = null
 ) {
+    /** 是否已删除（派生属性，不参与序列化） */
+    val isDeleted: Boolean get() = deletedAt != null
+
     companion object {
         const val SCHEMA_VERSION = 2
     }

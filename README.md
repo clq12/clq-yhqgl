@@ -4,53 +4,71 @@
 
 - `android/`：安卓原生 App（Kotlin + Jetpack Compose + Room + WorkManager）
 - `web/`：电脑网页端（React + TypeScript + Vite + WorkBuddy 云服务）
-- `shared/`：双端共享的数据模型、JSON Schema、业务规则、同步协议
-- `docs/`：重构分析与实施计划
+- `shared/`：双端共享的数据模型、JSON Schema、业务规则、契约用例
+- `scripts/`：契约检查与仓库工具
 
 ## 核心设计
 
-- **双存储**：网页端使用 WorkBuddy 云数据库（按用户隔离，跨设备同步），本地 IndexedDB 作为离线缓存；安卓端 Room + WebDAV 自托管同步。
-- **离线优先**：本地先写后同步，网络异常时自动回退本地缓存。
-- **版本向量同步**：解决多端并发写冲突，支持字段级合并。
-- **状态栏提醒**：安卓 WorkManager + Notification；网页 Service Worker + 浏览器通知。
-- **可插拔 AI**：默认 Agnes，预留其他 OpenAI 兼容 Provider。
+- **云数据库是唯一真相源**。表 `coupons` / `settings`，RLS 按 `owner_id = auth.uid()` 隔离。
+  网页端与安卓端登录同一个邮箱账号，看到的是同一份数据。
+- **安卓直连云 API，不需要自建后端**：`x-wb-webapp-access-key` + `Bearer` token，
+  数据面是标准 PostgREST，登录走邮箱验证码三步链。
+- **本地离线优先**：所有写操作先落本地（Room / IndexedDB）并打 `dirty` 标记，联网后补传。
+- **乐观锁代替合并**：写前比较云端 `modified_at`，云端更新则整条拦下并提示，不做字段级合并。
+- **软删除**：`deleted_at` 非空即已删除，两端都不会把已删除的数据「复活」。
+- **WebDAV 只是备份**：安卓设置页两个手动按钮（备份 / 恢复），不参与同步、不自动跑。
+- **提醒按设备各算**：提醒状态只存本地，电脑上提醒过不会让手机静默。
 
 ## 在线使用
 
 - **网页端**：https://clq-yhqgl-web.app.workbuddy.host/?sharecode=EHMXXINRSS
-  - 首次使用需邮箱验证码登录；登录后数据保存在云端，换设备可直接访问。
-- **安卓 APK**：[v2.0.5 Release](https://github.com/clq12/clq-yhqgl/releases/download/v2.0.5/app-release-unsigned.apk)
+  - 首次使用需邮箱验证码登录；登录后数据存在云端，换设备直接可用。
+- **安卓 APK**：[Releases](https://github.com/clq12/clq-yhqgl/releases)
   - 推送 `v*.*.*` 标签后 GitHub Actions 自动构建并上传 APK。
 
-## 云服务（网页端）
+## 云服务
 
-网页端已接入 WorkBuddy 云服务：
-
-| 模块 | 状态 |
+| 模块 | 说明 |
 |---|---|
-| 数据库 | `coupons`、`settings` 两张表，RLS 按 `owner_id = auth.uid()` 隔离 |
-| 认证 | 邮箱验证码登录/注册（`cloud.auth.sendOtp` + `verifyOtp`） |
-| 登录同步 | 登录后自动拉取该账号的云端数据；首次登录会把本地历史数据补传上云 |
-| 离线降级 | 云端写入失败时自动写本地 IndexedDB，不影响操作 |
+| 数据库 | `coupons`、`settings`，RLS 按 `owner_id = auth.uid()` 隔离 |
+| 认证 | 邮箱验证码（`/.cloud/auth/v1/verification` → `verify` → `signin`），两端同一条链 |
+| 删除 | 软删除，`coupons.deleted_at`（2026-10-21 新增） |
+| 冲突 | 乐观锁，比较 `modified_at` |
 
-数据库结构：
+`coupons` 主要列：`id` / `owner_id` / `title` / `discount_type` / `discount_amount` /
+`full_amount` / `start_date` / `end_date` / `end_hour` / `end_minute` / `is_used` / `notes` /
+`created_at` / `updated_at` / `modified_at` / `version` / `deleted_at`。
 
-- `coupons`：优惠券主表（id/title/discount_type/start_date/end_date/reminder/version 等）
-- `settings`：用户设置（WebDAV/AI/提醒配置，JSONB 存储）
+`is_reminded` / `reminded_days` 两列仍在表里，但**不参与同步** —— 提醒状态以各设备本地为准。
 
-### 登录后的账号数据同步
+## 双端数据一致性
 
-`web/src/db/appDb.ts` 的 `syncAccountData()` 负责账号与数据库对齐：
+完整协议见 [shared/rules/sync-protocol.md](./shared/rules/sync-protocol.md)。要点：
 
-1. 读取当前账号在云端的全部优惠券（RLS 保证只返回自己的记录）。
-2. 与本地 IndexedDB 缓存合并：
-   - 云端没有、本地有 → 视为该账号的历史数据，补传上云；
-   - 两端都有 → 取修改时间较新的一份；
-   - 云端有、本地没有 → 直接拉取。
-3. 以云端结果覆盖本地缓存，保证离线打开也有数据。
-4. 记录最后登录的账号 ID；同一设备切换账号时只拉取不推送，避免把上一个账号的本地数据带到新账号。
+1. 登录后拉取云端全量（含墓碑），本地 `dirty` 队列按账号归属过滤后推上去。
+2. 写前比 `modified_at`，云端更新就拦下并把该条标为 `conflict`，进「待解决」。
+3. 云端有、本地没有 → 拉下来；本地干净 → 以云端为准，但保留本机提醒状态。
+4. 退出登录 → 降级「游客本地模式」，数据留本机；再登录同账号自动合并。
+5. 换账号 → 先清掉属于上一个账号的本地残留（同账号才认领，不串号）。
+6. 首次登录若本机有数据 → 弹一屏让用户选「上传本地 / 只拉云端 / 先清空再拉」。
 
-登录流程由 `AuthContext` 驱动：`verifyOtp` 成功后立即刷新会话并触发同步，同步期间展示「正在同步账号数据」，完成后以 Toast 汇总本次拉取与补传数量。
+### 规则防漂移
+
+业务规则在 TS 与 Kotlin 各有一份实现（`shared/types/typescript/couponRules.*`、
+`shared/types/kotlin/CouponRules.kt`），靠契约测试强制对齐：
+
+```bash
+node --experimental-strip-types scripts/contract-check.mjs          # 校验
+node --experimental-strip-types scripts/contract-check.mjs --write  # 规则改动后重新生成期望值
+```
+
+- 店铺名单必须与 `shared/data/stores.json` 逐项一致。
+- `shared/data/contract-cases.json` 的固定用例在固定时刻下，两端结论必须完全相同。
+- Android 侧对应单测：`CouponRulesContractTest`。
+- CI：`.github/workflows/shared-contract.yml`。
+
+> 已修的真实分歧：已过期券的「剩余天数」，网页端算 -1、安卓端算 0。
+> 根因是 Kotlin `/` 向零截断、JS `Math.floor` 向负无穷取整；现统一为地板除法。
 
 ## 快速开始
 
@@ -61,11 +79,15 @@ cd android
 ./gradlew assembleDebug
 ```
 
-发布 release 时推送标签即可自动打包 APK：
+本机若工程路径含中文，需要 `android/gradle.properties` 里的 `android.overridePathCheck=true`；
+单测在中文路径下还需给 Gradle 传 `-Dorg.gradle.jvmargs="-Xmx2g -Dfile.encoding=GBK"`，
+否则测试 JVM 读不了含中文的 classpath 参数文件（CI 路径是 ASCII，不受影响）。
+
+发布 release 时推送标签即可自动打包：
 
 ```bash
-git tag v2.0.6
-git push origin v2.0.6
+git tag v2.1.0
+git push origin v2.1.0
 ```
 
 ### 网页
@@ -73,17 +95,12 @@ git push origin v2.0.6
 ```bash
 cd web
 npm install
-npm run dev
-```
-
-构建产物：
-
-```bash
-npm run build   # 输出到 web/dist
+npm run dev      # 开发预览；加 ?demo=1 填充示例数据
+npm run build    # 输出到 web/dist
 ```
 
 ## 文档
 
-- [重构分析与分阶段计划](./docs/REFACTOR_ANALYSIS.md)
+- [数据一致性协议](./shared/rules/sync-protocol.md)
 - [优惠券业务规则](./shared/rules/coupon-rules.md)
-- [WebDAV 同步协议](./shared/rules/sync-protocol.md)
+- [重构分析与分阶段计划](./docs/REFACTOR_ANALYSIS.md)

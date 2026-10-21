@@ -29,8 +29,8 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # 不再调 android-actions/setup-android：ubuntu-latest 自带 Android SDK，
+      # 且 ANDROID_HOME 已指向它，AGP 能直接找到。
 
       - name: Grant execute permission for gradlew
         run: chmod +x android/gradlew

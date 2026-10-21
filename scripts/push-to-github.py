@@ -127,8 +127,14 @@ def main():
     new_tree_sha = new_tree["sha"]
     print(f"新 tree: {new_tree_sha}")
 
+    # 提交信息：优先用环境变量 PUSH_MESSAGE，否则用默认值。
+    # 之前写死一条 message，导致每次推送都顶着同一句与内容不符的说明。
+    message = os.environ.get("PUSH_MESSAGE", "").strip()
+    if not message:
+        message = "chore: 同步工作区改动"
+
     new_commit = api("POST", "/git/commits", {
-        "message": "feat: 接入 WorkBuddy 云服务，修复 Android 打包缺失 Gradle Wrapper",
+        "message": message,
         "tree": new_tree_sha,
         "parents": [base_commit_sha],
     })

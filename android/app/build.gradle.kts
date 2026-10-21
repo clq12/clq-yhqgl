@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -7,9 +9,37 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
+// 发布签名：keystore.properties 不进仓库（.gitignore 已挡），缺省时回退到不签名。
+// 之前 assembleRelease 直接产出 app-release-unsigned.apk，装不上手机（Android 要求 APK 必须签名），
+// 所以这里必须显式配置，否则 CI 出的 release 包等于废文件。
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) {
+        keystorePropsFile.inputStream().use { load(it) }
+    }
+}
+
 android {
     namespace = "com.clq.yhqgl"
     compileSdk = 35
+
+    signingConfigs {
+        if (keystoreProps.getProperty("storeFile") != null) {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
+        }
+    }
 
     defaultConfig {
         applicationId = "com.clq.yhqgl"

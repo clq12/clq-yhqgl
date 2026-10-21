@@ -90,6 +90,9 @@ def should_ignore(path: Path) -> bool:
         return True
     if name == "local.properties":
         return True
+    # 签名材料绝不进仓库
+    if name.endswith(".jks") or name.endswith(".keystore") or name == "keystore.properties":
+        return True
     return False
 
 

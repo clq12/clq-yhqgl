@@ -16,6 +16,11 @@ local.properties
 *.aab
 *.genie
 
+# 签名材料（绝不进仓库）
+keystore.properties
+*.jks
+*.keystore
+
 # 工作区数据
 .workbuddy/
 .DS_Store

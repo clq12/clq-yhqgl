@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { AlertCircle, Save, X } from 'lucide-react';
 import type { Coupon, DiscountType } from '../types/coupon';
 import { beijingNow } from '../rules/couponRules';
-import { listCoupons, putCoupon, SyncConflictError } from '../db/appDb';
-import { normalizeTags } from '../rules/couponRules';
+import { getSettings, listCoupons, putCoupon, SyncConflictError } from '../db/appDb';
+import { normalizeTags, tagLibraryOf } from '../rules/couponRules';
 import { bumpVersion } from '../sync/syncEngine';
 import { notifyDataChanged } from '../lib/dataBus';
 import { Button, Card, Input, Select, Textarea, useToast } from './ui';
@@ -48,6 +48,8 @@ export function CouponForm({ coupon, onCancel, onSaved }: CouponFormProps) {
   const [tags, setTags] = useState<string[]>(normalizeTags(coupon?.tags ?? []));
   // 历史券只为统计用过哪些标签，读一次就够
   const [allCoupons, setAllCoupons] = useState<Coupon[]>([]);
+  // 标签库：设置页里改过的常用标签
+  const [tagLibrary, setTagLibrary] = useState<string[] | undefined>(undefined);
 
   useEffect(() => {
     let alive = true;
@@ -58,6 +60,11 @@ export function CouponForm({ coupon, onCancel, onSaved }: CouponFormProps) {
       .catch(() => {
         // 读不到历史也不影响保存，标签栏退化成只剩常用标签
       });
+    getSettings()
+      .then((s) => {
+        if (alive) setTagLibrary(tagLibraryOf(s?.tagLibrary));
+      })
+      .catch(() => {});
     return () => {
       alive = false;
     };
@@ -273,7 +280,13 @@ export function CouponForm({ coupon, onCancel, onSaved }: CouponFormProps) {
           placeholder="例如：需要会员日使用（可选）"
         />
 
-        <TagEditor value={tags} onChange={setTags} contextText={title} allCoupons={allCoupons} />
+        <TagEditor
+          value={tags}
+          onChange={setTags}
+          contextText={title}
+          allCoupons={allCoupons}
+          library={tagLibrary}
+        />
       </Card>
 
       <div className="flex justify-end gap-2">

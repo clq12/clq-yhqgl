@@ -73,6 +73,7 @@ function settingsToRow(s: AppSettings): Record<string, unknown> {
     sync: s.sync,
     reminder: s.reminder,
     ai: s.ai,
+    tags: s.tagLibrary ?? [],
     updated_at: s.schemaVersion ? new Date().toISOString() : null,
   };
 }
@@ -93,6 +94,7 @@ function rowToSettings(row: Record<string, unknown>): AppSettings {
     sync: sync ?? { autoSync: true, syncIntervalMinutes: 15, syncOnWifiOnly: false },
     reminder: reminder ?? { enabled: true, remindDays: [7, 3, 1], quietStart: null, quietEnd: null },
     ai: ai ?? { provider: 'agnes', apiKey: null, baseUrl: null, model: null },
+    tagLibrary: Array.isArray(row.tags) ? (row.tags as unknown[]).map(String) : [],
   };
 }
 
@@ -286,6 +288,7 @@ const EMPTY_SETTINGS: AppSettings = {
   sync: { autoSync: true, syncIntervalMinutes: 15, syncOnWifiOnly: false },
   reminder: { enabled: true, remindDays: [7, 3, 1], quietStart: null, quietEnd: null },
   ai: { provider: 'agnes', apiKey: null, baseUrl: null, model: null },
+  tagLibrary: [],
 };
 
 /**

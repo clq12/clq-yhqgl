@@ -7,6 +7,7 @@ import {
   RefreshCw,
   Save,
   ShieldCheck,
+  Tags,
   TestTube,
   UserRound,
 } from 'lucide-react';
@@ -15,6 +16,8 @@ import { WebDAVClient } from '../sync/webdav';
 import type { AppSettings } from '../types/coupon';
 import { useAuth } from '../context/AuthContext';
 import { Button, Card, Input, Skeleton, useToast } from './ui';
+import { TagLibraryEditor } from './TagLibraryEditor';
+import { defaultTags, tagLibraryOf } from '../rules/couponRules';
 
 const defaultSettings: AppSettings = {
   schemaVersion: 2,
@@ -22,6 +25,7 @@ const defaultSettings: AppSettings = {
   sync: { autoSync: true, syncIntervalMinutes: 15, syncOnWifiOnly: false },
   reminder: { enabled: true, remindDays: [7, 3, 1], quietStart: null, quietEnd: null },
   ai: { provider: 'agnes', apiKey: null, baseUrl: null, model: null },
+  tagLibrary: [],
 };
 
 function Section({
@@ -282,6 +286,19 @@ export function SettingsPanel() {
             placeholder="https://api.example.com/v1"
           />
         </div>
+      </Section>
+
+      <Section
+        icon={<Tags className="h-4 w-4" />}
+        title="标签"
+        description="录入优惠券时「常用」里出现的就是这些标签，可增删改"
+      >
+        <TagLibraryEditor
+          library={tagLibraryOf(settings.tagLibrary)}
+          defaultLibrary={defaultTags}
+          onChange={(next) => update({ tagLibrary: next })}
+          notify={(message, tone) => showToast(message, tone === 'error' ? 'error' : 'success')}
+        />
       </Section>
 
       <Section

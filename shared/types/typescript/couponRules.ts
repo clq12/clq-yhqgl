@@ -241,7 +241,9 @@ export function normalizeTags(list: Array<string | null | undefined> | null | un
 export function suggestTags(
   coupons: Array<{ tags?: string[] | null }>,
   exclude: string[] = [],
-  limit = 8
+  limit = 8,
+  /** 兜底名单：默认用内侧的常用标签，设置页里改过标签库就可以传进来 */
+  fallback: string[] = defaultTags
 ): string[] {
   const counts = new Map<string, number>();
   for (const c of coupons) {
@@ -258,11 +260,22 @@ export function suggestTags(
     .sort((a, b) => (b[1] - a[1]) || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
     .map(([t]) => t);
 
-  for (const t of defaultTags) {
+  for (const t of fallback) {
     if (ranked.length >= limit) break;
     if (!excluded.has(t) && !ranked.includes(t)) ranked.push(t);
   }
   return ranked.slice(0, limit);
+}
+
+/**
+ * 实际生效的标签库：设置里没配置过（空数组）就用默认名单。
+ *
+ * 为什么要这层：默认名单是常量，用户删掉其中一个之后如果仍然是"空 = 用默认"，
+ * 下次打开又全回来了。所以设置页任何一次编辑都会把当前可见列表落成显式数组。
+ */
+export function tagLibraryOf(library: string[] | null | undefined): string[] {
+  const normalized = normalizeTags(library ?? []);
+  return normalized.length > 0 ? normalized : [...defaultTags];
 }
 
 /**

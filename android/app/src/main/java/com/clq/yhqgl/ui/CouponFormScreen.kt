@@ -75,9 +75,14 @@ fun CouponFormScreen(
     var tagDraft by remember { mutableStateOf("") }
     // 历史券只为统计"用过哪些标签"，进页面读一次
     var allCoupons by remember { mutableStateOf<List<Coupon>>(emptyList()) }
+    // 设置页里维护的标签库，历史标签不够时用它补位
+    var tagLibrary by remember {
+        mutableStateOf(CouponRules.tagLibraryOf(ServiceLocator.settingsStore.settings.tagLibrary))
+    }
 
     LaunchedEffect(Unit) {
         allCoupons = runCatching { ServiceLocator.repository.localCoupons() }.getOrDefault(emptyList())
+        tagLibrary = CouponRules.tagLibraryOf(ServiceLocator.settingsStore.settings.tagLibrary)
     }
 
     var typeExpanded by remember { mutableStateOf(false) }
@@ -234,7 +239,7 @@ fun CouponFormScreen(
                             tagDraft = ""
                         },
                         onRemove = { tag -> tags = tags - tag },
-                        suggestions = CouponRules.suggestTags(allCoupons, tags, 8),
+                        suggestions = CouponRules.suggestTags(allCoupons, tags, 8, tagLibrary),
                         detected = CouponRules.detectTags(title).filter { !tags.contains(it) }
                     )
 

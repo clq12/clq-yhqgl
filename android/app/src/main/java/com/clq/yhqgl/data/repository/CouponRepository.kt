@@ -214,6 +214,66 @@ class CouponRepository(
     /** 冲突卡片上展示"云端版本"用 */
     suspend fun remoteVersionOf(id: String): Result<Coupon?> = syncEngine.fetchRemote(id)
 
+    // ------------------------------------------------------------------ 标签库
+
+    /**
+     * 标签改名：把所有券上的旧标签换成新名字（与已有标签重复就合并）。
+     *
+     * 标签是冗余存在每张券上的，只改设置里的名单会在券上留下旧名字，
+     * 结果就是「列表里筛得出来、标签库里却没有」的幽灵标签。
+     *
+     * @return 实际改动的券数
+     */
+    suspend fun renameTag(oldTag: String, newTag: String): Int {
+        val from = CouponRules.normalizeTag(oldTag) ?: return 0
+        val to = CouponRules.normalizeTag(newTag) ?: return 0
+        if (from == to) return 0
+        return rewriteTags { tags ->
+            if (!tags.contains(from)) {
+                null
+            } else {
+                CouponRules.normalizeTags(tags.map { if (it == from) to else it })
+            }
+        }
+    }
+
+    /** 标签删除：从所有券上摘掉它。@return 实际改动的券数 */
+    suspend fun deleteTag(tag: String): Int {
+        val target = CouponRules.normalizeTag(tag) ?: return 0
+        return rewriteTags { tags ->
+            if (!tags.contains(target)) null else tags.filter { it != target }
+        }
+    }
+
+    /** 有多少张券用了这个标签（删之前拿它给用户一个数） */
+    suspend fun countTagUsage(tag: String): Int {
+        val target = CouponRules.normalizeTag(tag) ?: return 0
+        return dao.getAllActive().count { CouponRules.normalizeTags(it.toDomain().tags).contains(target) }
+    }
+
+    /**
+     * 批量改券上的标签。返回 null 表示这张不用改。
+     * 属于别的账号的本地残留直接跳过，不能把上一个账号的数据改掉再推给新账号。
+     */
+    private suspend fun rewriteTags(transform: (List<String>) -> List<String>?): Int {
+        val session = auth.currentSession()
+        var changed = 0
+        for (entity in dao.getAllActive()) {
+            if (entity.ownerId != null && entity.ownerId != session?.userId) continue
+
+            val coupon = entity.toDomain()
+            val current = CouponRules.normalizeTags(coupon.tags)
+            val next = transform(current) ?: continue
+            if (next == current) continue
+
+            val bumped = syncEngine.bumpVersion(coupon.copy(tags = next))
+            dao.insert(bumped.toEntity(dirty = true, ownerId = session?.userId ?: entity.ownerId))
+            changed += 1
+        }
+        if (changed > 0) autoSync()
+        return changed
+    }
+
     private suspend fun autoSync() {
         if (!auth.isSignedIn()) return
         if (!settingsStore.settings.sync.autoSync) return

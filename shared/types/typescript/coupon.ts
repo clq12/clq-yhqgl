@@ -85,4 +85,10 @@ export interface AppSettings {
   };
   reminder: ReminderSettings;
   ai: AISettings;
+  /**
+   * 用户维护的标签库（设置页里增删改的就是它）。
+   * 空数组 = 还没动过，用 shared/data/tags.json 的默认名单。
+   * 一旦编辑过就落成显式列表 —— 否则「删掉某个默认标签」下次又会被默认名单带回来。
+   */
+  tagLibrary: string[];
 }

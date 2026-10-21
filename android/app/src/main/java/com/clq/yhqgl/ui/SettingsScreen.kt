@@ -11,15 +11,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -47,6 +52,7 @@ import com.clq.yhqgl.data.sync.WebDAVClient
 import com.clq.yhqgl.di.ServiceLocator
 import com.clq.yhqgl.model.AISettings
 import com.clq.yhqgl.model.WebDAVSettings
+import com.clq.yhqgl.rules.CouponRules
 import com.clq.yhqgl.ui.theme.Danger
 import kotlinx.coroutines.launch
 
@@ -85,6 +91,14 @@ fun SettingsScreen(
 
     var autoSync by remember { mutableStateOf(settings.sync.autoSync) }
     var reminderEnabled by remember { mutableStateOf(settings.reminder.enabled) }
+
+    // 标签库：空配置时展示默认名单（tagLibraryOf 负责兜底）
+    var tagLibrary by remember { mutableStateOf(CouponRules.tagLibraryOf(settings.tagLibrary)) }
+    var tagDraft by remember { mutableStateOf("") }
+    var renamingTag by remember { mutableStateOf<String?>(null) }
+    var renameDraft by remember { mutableStateOf("") }
+    var removingTag by remember { mutableStateOf<String?>(null) }
+    var removingUsage by remember { mutableStateOf<Int?>(null) }
 
     var testing by remember { mutableStateOf(false) }
     var backingUp by remember { mutableStateOf(false) }
@@ -346,6 +360,106 @@ fun SettingsScreen(
             ) { Text("保存 AI 设置") }
         }
 
+        // ------------------------------------------------------------ 标签
+        SettingsCard("标签") {
+            Text(
+                "录入优惠券时「常用」里出现的就是这些标签。改名或删除会同步更新已打过该标签的券。",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(8.dp))
+
+            tagLibrary.forEach { tag ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(tag, fontSize = 13.sp)
+                    Row {
+                        TextButton(
+                            onClick = {
+                                renamingTag = tag
+                                renameDraft = tag
+                            }
+                        ) {
+                            Icon(Icons.Default.Edit, contentDescription = "改名", modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("改名", fontSize = 12.sp)
+                        }
+                        TextButton(
+                            onClick = {
+                                removingTag = tag
+                                removingUsage = null
+                                scope.launch {
+                                    removingUsage = runCatching { repo.countTagUsage(tag) }.getOrDefault(0)
+                                }
+                            }
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "删除",
+                                modifier = Modifier.size(15.dp),
+                                tint = Danger
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text("删除", fontSize = 12.sp, color = Danger)
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = tagDraft,
+                    onValueChange = { tagDraft = it },
+                    label = { Text("新增标签") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+                Button(
+                    onClick = {
+                        val tag = CouponRules.normalizeTag(tagDraft)
+                        when {
+                            tag == null -> Unit
+                            tagLibrary.contains(tag) -> {
+                                Toast.makeText(context, "「$tag」已经在列表里了", Toast.LENGTH_SHORT).show()
+                            }
+                            else -> {
+                                val next = tagLibrary + tag
+                                tagLibrary = next
+                                store.updateTagLibrary(next)
+                                tagDraft = ""
+                            }
+                        }
+                    },
+                    enabled = tagDraft.isNotBlank()
+                ) { Text("添加") }
+            }
+
+            Spacer(Modifier.height(4.dp))
+            TextButton(
+                onClick = {
+                    val next = CouponRules.defaultTags
+                    tagLibrary = next
+                    store.updateTagLibrary(next)
+                }
+            ) { Text("恢复默认标签", fontSize = 12.sp) }
+
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "标签只影响录入时的推荐，不影响已有数据；改名/删除才会动券。",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.outline
+            )
+        }
+
         // ------------------------------------------------------------ 提醒
         SettingsCard("同步与提醒") {
             Row(
@@ -421,6 +535,94 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { confirmRestore = false }) { Text("取消") }
+            }
+        )
+    }
+
+    // ------------------------------------------------------------ 标签：改名 / 删除
+    renamingTag?.let { from ->
+        AlertDialog(
+            onDismissRequest = { renamingTag = null },
+            title = { Text("标签改名") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = renameDraft,
+                        onValueChange = { renameDraft = it },
+                        label = { Text("新名字") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "改名会把所有券上的「$from」一起换掉。",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val next = CouponRules.normalizeTag(renameDraft)
+                    when {
+                        next == null -> Toast.makeText(context, "标签不能为空", Toast.LENGTH_SHORT).show()
+                        next == from -> renamingTag = null
+                        tagLibrary.contains(next) ->
+                            Toast.makeText(context, "「$next」已经在列表里了", Toast.LENGTH_SHORT).show()
+                        else -> {
+                            val updated = tagLibrary.map { if (it == from) next else it }
+                            tagLibrary = updated
+                            store.updateTagLibrary(updated)
+                            renamingTag = null
+                            scope.launch {
+                                val changed = runCatching { repo.renameTag(from, next) }.getOrDefault(0)
+                                Toast.makeText(
+                                    context,
+                                    if (changed > 0) "已改名，更新 $changed 张券" else "已改名",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    }
+                }) { Text("确定") }
+            },
+            dismissButton = {
+                TextButton(onClick = { renamingTag = null }) { Text("取消") }
+            }
+        )
+    }
+
+    removingTag?.let { tag ->
+        AlertDialog(
+            onDismissRequest = { removingTag = null },
+            title = { Text("删除标签") },
+            text = {
+                Text(
+                    when (val usage = removingUsage) {
+                        null -> "正在统计有多少张券在用「$tag」…"
+                        0 -> "没有券在用「$tag」，可以直接删除。"
+                        else -> "已有 $usage 张券打了「$tag」，删除后会一并从这些券上移除。"
+                    }
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val updated = tagLibrary.filter { it != tag }
+                    tagLibrary = updated
+                    store.updateTagLibrary(updated)
+                    removingTag = null
+                    scope.launch {
+                        val changed = runCatching { repo.deleteTag(tag) }.getOrDefault(0)
+                        Toast.makeText(
+                            context,
+                            if (changed > 0) "已删除，从 $changed 张券上移除" else "已删除",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }) { Text("删除", color = Danger) }
+            },
+            dismissButton = {
+                TextButton(onClick = { removingTag = null }) { Text("取消") }
             }
         )
     }

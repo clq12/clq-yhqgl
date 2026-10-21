@@ -247,7 +247,9 @@ import java.time.format.DateTimeFormatter
     fun suggestTags(
         coupons: List<Coupon>,
         exclude: List<String> = emptyList(),
-        limit: Int = 8
+        limit: Int = 8,
+        /** 兜底名单：默认用常用标签，设置页里改过标签库就传进来 */
+        fallback: List<String> = defaultTags
     ): List<String> {
         val counts = mutableMapOf<String, Int>()
         for (c in coupons) {
@@ -265,11 +267,22 @@ import java.time.format.DateTimeFormatter
             .map { it.key }
             .toMutableList()
 
-        for (t in defaultTags) {
+        for (t in fallback) {
             if (ranked.size >= limit) break
             if (!excluded.contains(t) && !ranked.contains(t)) ranked.add(t)
         }
         return ranked.take(limit)
+    }
+
+    /**
+     * 实际生效的标签库：设置里没配置过（空）就用默认名单。
+     *
+     * 默认名单是常量，用户删掉其中一个之后如果仍然"空 = 用默认"，
+     * 下次打开又全回来了。所以设置页任何一次编辑都会落成显式列表。
+     */
+    fun tagLibraryOf(library: List<String>?): List<String> {
+        val normalized = normalizeTags(library)
+        return if (normalized.isNotEmpty()) normalized else defaultTags
     }
 
     /** 从文本里识别标签（录入时按标题自动点选） */

@@ -51,5 +51,12 @@ import kotlinx.serialization.Serializable
     val webdav: WebDAVSettings? = null,
     val sync: SyncSettings = SyncSettings(),
     val reminder: ReminderSettings = ReminderSettings(),
-    val ai: AISettings = AISettings()
+    val ai: AISettings = AISettings(),
+    /**
+     * 用户维护的标签库（设置页里增删改的就是它）。
+     * 空列表 = 还没动过，用 shared/data/tags.json 的默认名单。
+     * 一旦编辑过就落成显式列表 —— 否则「删掉某个默认标签」下次又会被默认名单带回来。
+     */
+    @SerialName("tagLibrary")
+    val tagLibrary: List<String> = emptyList()
 )

@@ -55,7 +55,10 @@ import kotlinx.serialization.json.Json
                 apiKey = prefs.getString("aiApiKey", null),
                 baseUrl = prefs.getString("aiBaseUrl", null),
                 model = prefs.getString("aiModel", null)
-            )
+            ),
+            tagLibrary = prefs.getString("tagLibrary", null)?.let {
+                json.decodeFromString(ListSerializer(String.serializer()), it)
+            } ?: emptyList()
         )
         set(value) {
             prefs.edit {
@@ -71,6 +74,10 @@ import kotlinx.serialization.json.Json
                 putString("aiApiKey", value.ai.apiKey)
                 putString("aiBaseUrl", value.ai.baseUrl)
                 putString("aiModel", value.ai.model)
+                putString(
+                    "tagLibrary",
+                    json.encodeToString(ListSerializer(String.serializer()), value.tagLibrary)
+                )
             }
         }
 
@@ -86,5 +93,9 @@ import kotlinx.serialization.json.Json
 
     fun updateAI(ai: AISettings) {
         settings = settings.copy(ai = ai)
+    }
+
+    fun updateTagLibrary(library: List<String>) {
+        settings = settings.copy(tagLibrary = library)
     }
 }

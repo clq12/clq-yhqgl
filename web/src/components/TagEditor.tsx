@@ -10,6 +10,8 @@ interface TagEditorProps {
   contextText?: string;
   /** 历史券，用来按使用频次推荐标签（自动复用核心） */
   allCoupons: Coupon[];
+  /** 设置页里维护的标签库；历史不够时用它补位 */
+  library?: string[];
 }
 
 /**
@@ -20,13 +22,13 @@ interface TagEditorProps {
  * 2. 没有历史时用常用标签补位（抖音/拼多多/淘宝/美团…）
  * 3. 标题里认出平台名时给一个「一键添加」，但**不自动加**，避免用户没注意就被打上标签
  */
-export function TagEditor({ value, onChange, contextText = '', allCoupons }: TagEditorProps) {
+export function TagEditor({ value, onChange, contextText = '', allCoupons, library }: TagEditorProps) {
   const [draft, setDraft] = useState('');
 
   const selected = useMemo(() => normalizeTags(value), [value]);
   const suggestions = useMemo(
-    () => suggestTags(allCoupons, selected, 8),
-    [allCoupons, selected],
+    () => suggestTags(allCoupons, selected, 8, library),
+    [allCoupons, selected, library],
   );
   const detected = useMemo(
     () => detectTags(contextText).filter((t) => !selected.includes(t)),

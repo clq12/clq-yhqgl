@@ -30,7 +30,10 @@ v2 的 WebDAV 同步中枢方案已连同旧规划文档一并删除，需要回
   - 未登录时进入「游客本地模式」：数据只存本机、功能照常；首次登录若本机已有数据，
     会弹一屏让你选「上传本地 / 只拉云端 / 先清空再拉」，换账号则清掉上一个账号的本地残留、不串号。
 - **安卓 APK**：[Releases](https://github.com/clq12/clq-yhqgl/releases)
-  - 推送 `v*.*.*` 标签后 GitHub Actions 自动构建并上传 APK。
+  - 推送 `v*.*.*` 标签后 GitHub Actions 自动构建并上传 APK（`scripts/tag-release.py` 可在本机
+    `git push` 不可用时直接打附注标签）。
+  - 也可以手动触发 `Android Release APK` 工作流：跑完在 Actions 该次运行底部下载
+    `app-release-apk` 制品（14 天保留）。手动触发**不会**发布 Release。
   - Release 包用固定 keystore 签名（材料在仓库 Secrets：`ANDROID_KEYSTORE_B64` /
     `ANDROID_STORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD`），
     后续版本可直接覆盖安装升级。

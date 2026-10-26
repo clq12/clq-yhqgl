@@ -1,6 +1,6 @@
 import { beijingNow, normalizeTag, normalizeTags } from '../rules/couponRules';
 import { listCoupons, putCoupon } from '../db/appDb';
-import { bumpVersion } from '../sync/syncEngine';
+import { bumpVersion } from '../sync/version';
 
 /**
  * 标签改名 / 删除时，把已有优惠券上的标签一起改掉。

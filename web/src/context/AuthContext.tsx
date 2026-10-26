@@ -29,6 +29,8 @@ interface AuthContextValue {
   loading: boolean;
   syncState: SyncState;
   syncResult: AccountSyncResult | null;
+  /** 最近一次成功同步的时间戳（ms）；用于设置页展示「上次同步」 */
+  lastSyncAt: number | null;
   dataVersion: number;
   refreshSession: () => Promise<void>;
   refreshData: () => Promise<void>;
@@ -42,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [syncState, setSyncState] = useState<SyncState>('idle');
   const [syncResult, setSyncResult] = useState<AccountSyncResult | null>(null);
+  const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
   const syncingRef = useRef(false);
 
@@ -53,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await syncAccountData();
       setSyncResult(result);
       setSyncState(result.ok ? 'ready' : 'error');
+      if (result.ok) setLastSyncAt(Date.now());
     } catch (e) {
       setSyncResult({
         ok: false,
@@ -86,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setSyncState('idle');
     setSyncResult(null);
+    setLastSyncAt(null);
     setDataVersion((v) => v + 1);
   }, []);
 
@@ -136,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(null);
         setSyncState('idle');
         setSyncResult(null);
+        setLastSyncAt(null);
         setDataVersion((v) => v + 1);
       }
     });
@@ -153,6 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         syncState,
         syncResult,
+        lastSyncAt,
         dataVersion,
         refreshSession,
         refreshData,

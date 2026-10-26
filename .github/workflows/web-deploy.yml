@@ -15,6 +15,16 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
+          node-version: '22'
+
+      # 契约门禁：店铺名单两端一致 + 行为用例与 expected 吻合 + schema↔协议无漂移。
+      # 任一漂移（含把 isReminded/remindedDays 误标成 required、sync.json 残留 vectorClock）立即变红。
+      - name: Contract gate (stores + behaviour + schema)
+        run: node --experimental-strip-types scripts/contract-check.mjs
+
+      - name: Setup Node (web)
+        uses: actions/setup-node@v4
+        with:
           node-version: '20'
 
       - name: Install and build
@@ -22,6 +32,11 @@ jobs:
         run: |
           npm ci
           npm run build
+
+      # 网页端若有单测（vitest）则跑；没有也不阻塞（用 --if-present 兜底）。
+      - name: Web unit tests (if present)
+        working-directory: ./web
+        run: npm test --if-present
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

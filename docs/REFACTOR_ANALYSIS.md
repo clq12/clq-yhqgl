@@ -1,3 +1,5 @@
+> ⚠️ **本文档已废弃（2026-10-26 标注）**。当前实现已推翻本文的「WebDAV 同步中枢 + 版本向量 + 字段级合并」方案，改为 **云端数据库为唯一真相源 + 乐观锁 + 离线优先**（见 [`docs/ARCHITECTURE.md`](./ARCHITECTURE.md) 与 `shared/rules/sync-protocol.md` v3）。最新架构、模块划分、任务分配与 Mermaid 图以新文档为准。
+
 # clq-yhqgl 重构方案：安卓原生 App + 电脑网页端
 
 > 目标：把现有 Next.js + WebDAV 单端应用，改造成「安卓原生 App + 电脑网页端」双端形态，保留 WebDAV 作为自托管同步中枢，新增本地离线存储、状态栏提醒、可插拔 AI。

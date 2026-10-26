@@ -1,15 +1,11 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { Coupon, SyncCheckpoint, AppSettings } from '../types/coupon';
+import type { Coupon, AppSettings } from '../types/coupon';
 
 interface YhqDB extends DBSchema {
   coupons: {
     key: string;
     value: Coupon;
     indexes: { 'by-end-date': string };
-  };
-  sync: {
-    key: string;
-    value: SyncCheckpoint;
   };
   settings: {
     key: number;
@@ -26,9 +22,6 @@ function upgradeDatabase(database: IDBPDatabase<YhqDB>) {
   if (!database.objectStoreNames.contains('coupons')) {
     const store = database.createObjectStore('coupons', { keyPath: 'id' });
     store.createIndex('by-end-date', 'endDate');
-  }
-  if (!database.objectStoreNames.contains('sync')) {
-    database.createObjectStore('sync', { keyPath: 'deviceId' });
   }
   if (!database.objectStoreNames.contains('settings')) {
     database.createObjectStore('settings', { keyPath: 'schemaVersion' });
@@ -122,17 +115,6 @@ export async function deleteCouponLocal(id: string): Promise<void> {
 export async function clearCoupons(): Promise<void> {
   const d = await getDB();
   await d.clear('coupons');
-}
-
-// Sync
-export async function getSyncCheckpoint(deviceId: string): Promise<SyncCheckpoint | undefined> {
-  const d = await getDB();
-  return d.get('sync', deviceId);
-}
-
-export async function putSyncCheckpoint(checkpoint: SyncCheckpoint): Promise<void> {
-  const d = await getDB();
-  await d.put('sync', checkpoint);
 }
 
 // Settings

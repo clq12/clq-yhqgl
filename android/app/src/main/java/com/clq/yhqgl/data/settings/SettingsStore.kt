@@ -97,14 +97,6 @@ import kotlinx.serialization.json.Json
             settings = settings.copy(webdav = value)
         }
 
-    fun updateWebDAV(webdav: WebDAVSettings) {
-        this.webdav = webdav
-    }
-
-    fun updateAI(ai: AISettings) {
-        settings = settings.copy(ai = ai)
-    }
-
     fun updateAssistants(assistants: List<AiAssistant>, activeId: String?) {
         settings = settings.copy(aiAssistants = assistants, activeAssistantId = activeId)
     }

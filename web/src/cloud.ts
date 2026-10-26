@@ -15,4 +15,3 @@ export const cloud = createWorkBuddyCloud<Database>({
   publishableKey: publicConfig.publishableKey,
 });
 
-export type WorkBuddyCloud = typeof cloud;

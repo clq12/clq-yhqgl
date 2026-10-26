@@ -195,7 +195,8 @@ import java.time.format.DateTimeFormatter
                 usedCount = prev.usedCount + if (c.isUsed) 1 else 0
             )
         }
-        return map.values.sortedByDescending { it.amount }
+        // 同额时按店铺名升序：否则两端排序结果会不一样
+        return map.values.sortedWith(compareByDescending<StoreStat> { it.amount }.thenBy { it.name })
     }
     // ---------------------------------------------------------------- 标签
 

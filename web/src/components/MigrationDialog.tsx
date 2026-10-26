@@ -115,7 +115,7 @@ function Option({
           </div>
         </div>
         <Button
-          variant={danger ? 'secondary' : 'secondary'}
+          variant={danger ? 'danger' : 'secondary'}
           size="sm"
           loading={loading}
           disabled={disabled}

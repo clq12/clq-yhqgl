@@ -9,7 +9,11 @@
     { "raw": "　饿了么　", "note": "全角空格" },
     { "raw": "   ", "note": "纯空白 → null" },
     { "raw": "#", "note": "只有井号 → null" },
-    { "raw": "一二三四五六七八九十一二三", "note": "超长截断到 12" }
+    { "raw": "一二三四五六七八九十一二三", "note": "超长截断到 12" },
+    { "raw": "抖\u00a0音", "note": "不间断空格 NBSP(U+00A0) 也是空白，压成一个普通空格" },
+    { "raw": "\t淘宝\n", "note": "制表符/换行也是空白" },
+    { "raw": "## 京东 ", "note": "井号后带空格：去井号再 trim" },
+    { "raw": "饿了么#外卖", "note": "中间的井号不动，只去开头" }
   ],
   "suggestCase": {
     "$comment": "existing 是已有的券各自的标签；suggest 应先按频次、同频按字符序，不够 limit 再用常用标签补位。",
@@ -33,7 +37,9 @@
       { "id": "b-soon", "endDate": "2026-10-23", "endHour": 12, "endMinute": 0, "isUsed": false, "discountAmount": 100 },
       { "id": "b-later", "endDate": "2026-11-10", "endHour": 23, "endMinute": 59, "isUsed": false, "discountAmount": 50 },
       { "id": "b-expired", "endDate": "2026-10-20", "endHour": 23, "endMinute": 59, "isUsed": false, "discountAmount": 80 },
-      { "id": "b-rich", "endDate": "2026-10-25", "endHour": 23, "endMinute": 59, "isUsed": false, "discountAmount": 200 }
+      { "id": "b-rich", "endDate": "2026-10-25", "endHour": 23, "endMinute": 59, "isUsed": false, "discountAmount": 200 },
+      { "id": "b-today-midnight", "endDate": "2026-10-21", "endHour": 0, "endMinute": 0, "isUsed": false, "discountAmount": 10 },
+      { "id": "b-boundary-3d", "endDate": "2026-10-24", "endHour": 23, "endMinute": 59, "isUsed": false, "discountAmount": 60 }
     ]
   },
   "cases": [
@@ -170,6 +176,213 @@
         "isUsed": false,
         "notes": null,
         "createdAt": "2026-10-06T09:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      }
+    },
+    {
+      "name": "截止时刻为当天 00:00（最小边界）",
+      "coupon": {
+        "id": "77777777-7777-4777-8777-777777777777",
+        "title": "零点场电影票",
+        "description": null,
+        "discountType": "amount",
+        "discountAmount": 12,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-10-21",
+        "endHour": 0,
+        "endMinute": 0,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T09:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      }
+    },
+    {
+      "name": "时分缺省（null 兜底 23:59）",
+      "coupon": {
+        "id": "88888888-8888-4888-8888-888888888888",
+        "title": "盒马 全场通用券",
+        "description": null,
+        "discountType": "amount",
+        "discountAmount": 20,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-10-21",
+        "endHour": null,
+        "endMinute": null,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T09:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      }
+    },
+    {
+      "name": "尚未开始（未过期即算有效）",
+      "coupon": {
+        "id": "99999999-9999-4999-8999-999999999999",
+        "title": "优衣库 双十二券",
+        "description": null,
+        "discountType": "full",
+        "discountAmount": 50,
+        "fullAmount": 300,
+        "startDate": "2026-12-01",
+        "endDate": "2026-12-31",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-10T09:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      }
+    },
+    {
+      "name": "折扣为小数（8.5 折）",
+      "coupon": {
+        "id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "title": "喜茶 8.5 折券",
+        "description": null,
+        "discountType": "percentage",
+        "discountAmount": 8.5,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-11-05",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T09:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      }
+    },
+    {
+      "name": "满减缺门槛（脏数据兜底成 ¥0）",
+      "coupon": {
+        "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        "title": "永辉 满减券",
+        "description": null,
+        "discountType": "full",
+        "discountAmount": 20,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-11-20",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T09:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      }
+    },
+    {
+      "name": "店铺识别：标题含两个店铺名（按名单顺序取前面的）",
+      "coupon": {
+        "id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+        "title": "京东 淘宝 通用红包",
+        "description": null,
+        "discountType": "amount",
+        "discountAmount": 8,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-11-01",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T09:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      }
+    },
+    {
+      "name": "店铺识别：标题以空格开头（首段为空要兜底）",
+      "coupon": {
+        "id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+        "title": "  小王小店 5 元代金券",
+        "description": null,
+        "discountType": "amount",
+        "discountAmount": 5,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-11-02",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T09:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      }
+    },
+    {
+      "name": "店铺识别：标题只有空格（兜底「其他」）",
+      "coupon": {
+        "id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+        "title": "   ",
+        "description": null,
+        "discountType": null,
+        "discountAmount": null,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-11-03",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T09:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      }
+    },
+    {
+      "name": "店铺识别：英文店铺名",
+      "coupon": {
+        "id": "ffffffff-ffff-4fff-8fff-ffffffffffff",
+        "title": "Costco 会员券",
+        "description": null,
+        "discountType": "amount",
+        "discountAmount": 15,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-11-04",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T09:00:00+08:00",
         "updatedAt": null,
         "version": null,
         "modifiedAt": null

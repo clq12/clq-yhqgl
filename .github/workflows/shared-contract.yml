@@ -19,9 +19,14 @@ jobs:
           node-version: '22'
 
       # 直接跑 TypeScript 规则（node 的类型擦除），不做额外编译。
-      # 校验两件事：店铺名单两端不漂移；固定用例下两端结论一致。
-      - name: Contract check (stores + behaviour fixtures)
+      # 校验三件事：店铺名单两端不漂移；固定用例下两端结论一致；schema↔协议无漂移。
+      - name: Contract check (stores + behaviour fixtures + schema)
         run: node --experimental-strip-types scripts/contract-check.mjs
+
+      # 并发写回归：拿网页端生产用的 decideWrite 跑一遍双设备/三设备回合，
+      # 断言「乐观锁拦下、覆盖后不复发、软删除不复活、提醒字段不被云端覆盖」。
+      - name: Concurrency regression (optimistic lock)
+        run: node --experimental-strip-types scripts/concurrency-check.mjs
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4

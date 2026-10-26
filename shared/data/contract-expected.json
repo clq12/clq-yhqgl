@@ -119,6 +119,94 @@
       "b-today-midnight"
     ]
   },
+  "remindCase": {
+    "days": {
+      "r-7d": 7,
+      "r-3d": 3,
+      "r-1d": 1,
+      "r-today": 1,
+      "r-done": 0,
+      "r-used": 0,
+      "r-expired": 0,
+      "r-custom": 7
+    },
+    "altDays": {
+      "r-7d": 0,
+      "r-3d": 0,
+      "r-1d": 2,
+      "r-today": 2,
+      "r-done": 2,
+      "r-used": 0,
+      "r-expired": 0,
+      "r-custom": 0
+    }
+  },
+  "validateCase": {
+    "results": [
+      {
+        "ok": true,
+        "error": null
+      },
+      {
+        "ok": true,
+        "error": null
+      },
+      {
+        "ok": false,
+        "error": "标题不能为空且长度不超过255"
+      },
+      {
+        "ok": false,
+        "error": "标题不能为空且长度不超过255"
+      },
+      {
+        "ok": false,
+        "error": "截止日期不能早于开始日期"
+      },
+      {
+        "ok": false,
+        "error": "截止时间时分不合法"
+      },
+      {
+        "ok": false,
+        "error": "截止时间时分不合法"
+      },
+      {
+        "ok": false,
+        "error": "满减优惠必须填写满金额和减免金额"
+      },
+      {
+        "ok": false,
+        "error": "折扣金额必须大于0"
+      },
+      {
+        "ok": true,
+        "error": null
+      }
+    ]
+  },
+  "storeGroupCase": {
+    "rows": [
+      {
+        "name": "京东",
+        "amount": 30,
+        "count": 2,
+        "usedCount": 0
+      },
+      {
+        "name": "淘宝",
+        "amount": 30,
+        "count": 2,
+        "usedCount": 1
+      },
+      {
+        "name": "某小店",
+        "amount": 5,
+        "count": 1,
+        "usedCount": 0
+      }
+    ]
+  },
   "cases": [
     {
       "name": "今天到期（不足一天）",

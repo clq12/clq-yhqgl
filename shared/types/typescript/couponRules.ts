@@ -88,7 +88,7 @@ export function currentRemindDays(
  * 验证优惠券
  */
 export function validateCoupon(coupon: Coupon): { ok: true } | { ok: false; error: string } {
-  if (!coupon.title || coupon.title.length > 255) {
+  if (!coupon.title || coupon.title.trim().length === 0 || coupon.title.length > 255) {
     return { ok: false, error: '标题不能为空且长度不超过255' };
   }
   if (coupon.endDate < coupon.startDate) {
@@ -184,9 +184,10 @@ export function groupByStore(coupons: Coupon[]) {
     if (c.isUsed) prev.usedCount += 1;
     map.set(store, prev);
   }
+  // 同额时按店铺名升序：不然两端排序结果会不一样（JS/Kotlin 的稳定排序依据不同）
   return Array.from(map.entries())
     .map(([name, data]) => ({ name, ...data }))
-    .sort((a, b) => b.amount - a.amount);
+    .sort((a, b) => b.amount - a.amount || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
 // ---------------------------------------------------------------- 标签

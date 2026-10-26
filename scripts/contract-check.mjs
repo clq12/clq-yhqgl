@@ -169,6 +169,38 @@ const computed = {
       expired: ids(buckets.expired),
     };
   })(),
+  // 提醒档位：0 表示这一轮不该提醒
+  remindCase: (() => {
+    const rc = casesFile.remindCase;
+    if (!rc) return null;
+    const daysMap = (list) =>
+      Object.fromEntries(rc.coupons.map((c) => [c.id, rules.currentRemindDays(c, list, nowMs)]));
+    return {
+      days: daysMap(rc.remindDays ?? []),
+      altDays: Array.isArray(rc.remindDaysAlt) ? daysMap(rc.remindDaysAlt) : null,
+    };
+  })(),
+  // 录入校验：是否通过 + 错误文案
+  validateCase: (() => {
+    const vc = casesFile.validateCase;
+    if (!vc) return null;
+    return {
+      results: vc.items.map((c) => {
+        const r = rules.validateCoupon(c);
+        return r.ok ? { ok: true, error: null } : { ok: false, error: r.error };
+      }),
+    };
+  })(),
+  // 按店铺聚合：金额降序、同额按名字升序
+  storeGroupCase: (() => {
+    const sg = casesFile.storeGroupCase;
+    if (!sg) return null;
+    return {
+      rows: rules
+        .groupByStore(sg.coupons)
+        .map(({ name, amount, count, usedCount }) => ({ name, amount, count, usedCount })),
+    };
+  })(),
   cases: casesFile.cases.map(({ name, coupon }) => ({
     name,
     deadlineMs: rules.deadlineTimestamp(coupon),
@@ -193,7 +225,7 @@ if (write) {
     problems.push(`[契约] nowMs 不一致：expected=${expected.nowMs} 现在=${computed.nowMs}`);
   }
   // 标签归一化与推荐顺序：单独比对，格式和上面的一致性检查无关
-  for (const key of ['tagCases', 'suggestCase', 'bucketCase']) {
+  for (const key of ['tagCases', 'suggestCase', 'bucketCase', 'remindCase', 'validateCase', 'storeGroupCase']) {
     if (JSON.stringify(expected[key]) !== JSON.stringify(computed[key])) {
       problems.push(
         `[契约] ${key} 变了：expected=${JSON.stringify(expected[key])} 现在=${JSON.stringify(computed[key])}（规则改动是有意的就重跑 --write）`,
@@ -260,4 +292,4 @@ if (problems.length) {
   for (const p of problems) console.error(' - ' + p);
   process.exit(1);
 }
-console.log('契约检查通过：店铺名单两端一致，行为用例与 expected 吻合，Schema 与协议无漂移。');
+console.log('契约检查通过：店铺名单两端一致，行为/提醒/校验/店铺聚合用例与 expected 吻合，Schema 与协议无漂移。');

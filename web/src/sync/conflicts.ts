@@ -64,10 +64,6 @@ export function conflictCount(): number {
   return listConflicts().length;
 }
 
-export function hasConflict(id: string): boolean {
-  return read().some((c) => c.id === id);
-}
-
 /** 记一条冲突（同一张券重复命中就覆盖成最新的一版） */
 export function recordConflict(local: Coupon, remote: Coupon): void {
   const next = read().filter((c) => c.id !== local.id);

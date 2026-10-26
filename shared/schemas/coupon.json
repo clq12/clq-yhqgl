@@ -2,117 +2,30 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/clq12/clq-yhqgl/shared/schemas/coupon.json",
   "title": "Coupon",
-  "description": "优惠券数据模型，v2 版本。双端（Android / Web）必须保持一致。",
+  "description": "优惠券数据模型，v3 版本（云端数据库为唯一真相源）。双端（Android / Web）必须保持一致。",
   "type": "object",
-  "required": ["id", "title", "startDate", "endDate", "isUsed", "isReminded", "remindedDays", "createdAt"],
+  "required": ["id", "title", "startDate", "endDate", "isUsed", "createdAt"],
   "properties": {
-    "id": {
-      "type": "string",
-      "format": "uuid",
-      "description": "优惠券唯一标识"
-    },
-    "title": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 255,
-      "description": "标题，如：瑞幸5折咖啡券"
-    },
-    "description": {
-      "type": ["string", "null"],
-      "description": "描述/优惠内容"
-    },
-    "discountType": {
-      "type": ["string", "null"],
-      "enum": ["amount", "percentage", "full", "group", null],
-      "description": "折扣类型：amount减免金额、percentage折扣比例、full满减、group团购券"
-    },
-    "discountAmount": {
-      "type": ["number", "null"],
-      "description": "折扣金额或折扣比例，根据 discountType 解释"
-    },
-    "fullAmount": {
-      "type": ["number", "null"],
-      "description": "满减门槛金额，仅 discountType=full 时有效"
-    },
-    "startDate": {
-      "type": "string",
-      "format": "date",
-      "description": "开始日期，北京时间，YYYY-MM-DD"
-    },
-    "endDate": {
-      "type": "string",
-      "format": "date",
-      "description": "截止日期，北京时间，YYYY-MM-DD"
-    },
-    "endHour": {
-      "type": ["integer", "null"],
-      "minimum": 0,
-      "maximum": 23,
-      "description": "截止小时，0-23，null 表示 23"
-    },
-    "endMinute": {
-      "type": ["integer", "null"],
-      "minimum": 0,
-      "maximum": 59,
-      "description": "截止分钟，0-59，null 表示 59"
-    },
-    "isReminded": {
-      "type": "boolean",
-      "description": "是否已触发过提醒（保留字段，v2 主要用 remindedDays）"
-    },
-    "remindedDays": {
-      "type": "array",
-      "items": { "type": "integer", "enum": [1, 3, 7] },
-      "description": "已经提醒过的天数"
-    },
-    "isUsed": {
-      "type": "boolean",
-      "description": "是否已使用"
-    },
-    "notes": {
-      "type": ["string", "null"],
-      "description": "备注"
-    },
-    "tags": {
-      "type": "array",
-      "items": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 12
-      },
-      "uniqueItems": true,
-      "default": [],
-      "description": "标签，如 抖音 / 拼多多 / 淘宝 / 美团。已归一化去重，录入时自动复用历史标签"
-    },
-    "createdAt": {
-      "type": "string",
-      "format": "date-time",
-      "description": "创建时间，北京时间 ISO 8601（带 +08:00 或无时区按北京时间解释）"
-    },
-    "updatedAt": {
-      "type": ["string", "null"],
-      "format": "date-time",
-      "description": "最后修改时间，北京时间 ISO 8601"
-    },
-    "version": {
-      "type": "object",
-      "required": ["deviceId", "counter"],
-      "properties": {
-        "deviceId": { "type": "string" },
-        "counter": { "type": "integer", "minimum": 1 }
-      },
-      "description": "数据版本向量，用于冲突检测"
-    },
-    "modifiedAt": {
-      "type": "string",
-      "format": "date-time",
-      "description": "本条记录最后修改时间（与 updatedAt 语义一致，用于字段级合并）"
-    },
-    "deletedAt": {
-      "type": ["string", "null"],
-      "format": "date-time",
-      "description": "软删除标记。非 null 表示已删除；这是判断删除状态的唯一依据，不要再引第二个布尔字段"
-    }
+    "id": { "type": "string", "format": "uuid", "description": "优惠券唯一标识" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 255, "description": "标题，如：瑞幸5折咖啡券" },
+    "description": { "type": ["string", "null"], "description": "描述/优惠内容" },
+    "discountType": { "type": ["string", "null"], "enum": ["amount", "percentage", "full", "group", null], "description": "折扣类型：amount减免金额、percentage折扣比例、full满减、group团购券" },
+    "discountAmount": { "type": ["number", "null"], "description": "折扣金额或折扣比例，根据 discountType 解释" },
+    "fullAmount": { "type": ["number", "null"], "description": "满减门槛金额，仅 discountType=full 时有效" },
+    "startDate": { "type": "string", "format": "date", "description": "开始日期，北京时间，YYYY-MM-DD" },
+    "endDate": { "type": "string", "format": "date", "description": "截止日期，北京时间，YYYY-MM-DD" },
+    "endHour": { "type": ["integer", "null"], "minimum": 0, "maximum": 23, "description": "截止小时，0-23，null 表示 23" },
+    "endMinute": { "type": ["integer", "null"], "minimum": 0, "maximum": 59, "description": "截止分钟，0-59，null 表示 59" },
+    "isReminded": { "type": "boolean", "x-local-only": true, "description": "本地提醒状态，不参与同步；pull 覆盖云端数据时保留本机值。仅作本地提醒记录。" },
+    "remindedDays": { "type": "array", "items": { "type": "integer", "enum": [1, 3, 7] }, "x-local-only": true, "description": "已经提醒过的天数（本地记录，不参与同步；按设备各算，不污染云数据）" },
+    "isUsed": { "type": "boolean", "description": "是否已使用" },
+    "notes": { "type": ["string", "null"], "description": "备注" },
+    "tags": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 12 }, "uniqueItems": true, "default": [], "description": "标签，如 抖音 / 拼多多 / 淘宝 / 美团。已归一化去重，录入时自动复用历史标签" },
+    "createdAt": { "type": "string", "format": "date-time", "description": "创建时间，北京时间 ISO 8601（带 +08:00 或无时区按北京时间解释）" },
+    "updatedAt": { "type": ["string", "null"], "format": "date-time", "description": "最后修改时间，北京时间 ISO 8601" },
+    "version": { "type": "object", "required": ["deviceId", "counter"], "properties": { "deviceId": { "type": "string" }, "counter": { "type": "integer", "minimum": 1 } }, "description": "记录最后修改设备与计数，仅审计/展示用途；冲突检测由 modified_at 乐观锁负责，不做版本向量合并" },
+    "modifiedAt": { "type": "string", "format": "date-time", "description": "本条记录最后修改时间（与 updatedAt 语义一致），乐观锁比较依据；写前比云端 modified_at，较新则整条拦下进「待解决」，不做字段级合并" },
+    "deletedAt": { "type": ["string", "null"], "format": "date-time", "description": "软删除标记。非 null 表示已删除；这是判断删除状态的唯一依据，不要再引第二个布尔字段" }
   },
   "additionalProperties": false
 }

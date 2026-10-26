@@ -18,13 +18,16 @@
 - **本地离线优先**：所有写操作先落本地（Room / IndexedDB）并打 `dirty` 标记，联网后补传。
 - **乐观锁代替合并**：写前比较云端 `modified_at`，云端更新则整条拦下并提示，不做字段级合并。
 - **软删除**：`deleted_at` 非空即已删除，两端都不会把已删除的数据「复活」。
-- **WebDAV 只是备份**：安卓设置页两个手动按钮（备份 / 恢复），不参与同步、不自动跑。
+- **WebDAV 只是备份**：网页端与安卓端设置页各有两个手动按钮（备份 / 恢复），
+  不参与同步、不自动跑；**未配置 WebDAV 完全不影响云同步**。
 - **提醒按设备各算**：提醒状态只存本地，电脑上提醒过不会让手机静默。
 
 ## 在线使用
 
 - **网页端**：https://clq-yhqgl-web.app.workbuddy.host/?sharecode=EHMXXINRSS
   - 首次使用需邮箱验证码登录；登录后数据存在云端，换设备直接可用。
+  - 未登录时进入「游客本地模式」：数据只存本机、功能照常；首次登录若本机已有数据，
+    会弹一屏让你选「上传本地 / 只拉云端 / 先清空再拉」，换账号则清掉上一个账号的本地残留、不串号。
 - **安卓 APK**：[Releases](https://github.com/clq12/clq-yhqgl/releases)
   - 推送 `v*.*.*` 标签后 GitHub Actions 自动构建并上传 APK。
   - Release 包用固定 keystore 签名（材料在仓库 Secrets：`ANDROID_KEYSTORE_B64` /
@@ -169,4 +172,6 @@ npm run build    # 输出到 web/dist
 - [项目架构（v3，当前事实来源）](./docs/ARCHITECTURE.md)
 - [数据一致性协议](./shared/rules/sync-protocol.md)
 - [优惠券业务规则](./shared/rules/coupon-rules.md)
+- [v2 → v3 迁移指南](./docs/MIGRATION.md)
+- [风险与运维手册](./docs/OPERATIONS.md)
 - [重构分析与分阶段计划（⚠️ 已废弃，见上方架构文档）](./docs/REFACTOR_ANALYSIS.md)

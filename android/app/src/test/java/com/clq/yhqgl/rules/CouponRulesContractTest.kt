@@ -175,6 +175,90 @@ class CouponRulesContractTest {
             assertEquals("[今日待办] highValue", ids("highValue"), buckets.highValue.map { it.id })
             assertEquals("[今日待办] expired", ids("expired"), buckets.expired.map { it.id })
         }
+
+        // ---- 提醒档位：0 表示这一轮不提醒；档位从大到小试，命中且该档没提醒过才返回
+        val remindCase = casesRoot["remindCase"]?.jsonObject
+        val remindExpected = expectedRoot["remindCase"]?.jsonObject
+        if (remindCase != null && remindExpected != null) {
+            val remindDays = remindCase["remindDays"]!!.jsonArray.mapNotNull { it.jsonPrimitive.intOrNull }
+            val expectedDays = remindExpected["days"]!!.jsonObject
+            for (row in remindCase["coupons"]!!.jsonArray) {
+                val coupon = toCoupon(row.jsonObject)
+                assertEquals(
+                    "[提醒 ${coupon.id}] currentRemindDays",
+                    expectedDays[coupon.id]!!.jsonPrimitive.intOrNull,
+                    CouponRules.currentRemindDays(coupon, remindDays, nowUtc)
+                )
+            }
+            val altExpected = remindExpected["altDays"] as? JsonObject
+            val altDays = remindCase["remindDaysAlt"]?.jsonArray?.mapNotNull { it.jsonPrimitive.intOrNull }
+            if (altExpected != null && altDays != null) {
+                for (row in remindCase["coupons"]!!.jsonArray) {
+                    val coupon = toCoupon(row.jsonObject)
+                    val want = altExpected[coupon.id]?.jsonPrimitive?.intOrNull ?: continue
+                    assertEquals(
+                        "[提醒 ${coupon.id}] currentRemindDays(自定义档位)",
+                        want,
+                        CouponRules.currentRemindDays(coupon, altDays, nowUtc)
+                    )
+                }
+            }
+        }
+
+        // ---- 录入校验：是否通过 + 错误文案（两端一字不差）
+        val validateCase = casesRoot["validateCase"]?.jsonObject
+        val validateExpected = expectedRoot["validateCase"]?.jsonObject
+        if (validateCase != null && validateExpected != null) {
+            val items = validateCase["items"]!!.jsonArray.map { it.jsonObject }
+            val results = validateExpected["results"]!!.jsonArray.map { it.jsonObject }
+            assertEquals("校验用例数量与期望值不一致", results.size, items.size)
+            for (i in items.indices) {
+                val coupon = toCoupon(items[i])
+                val want = results[i]
+                val result = CouponRules.validate(coupon)
+                assertEquals(
+                    "[校验 ${coupon.id}] ok",
+                    want["ok"]!!.jsonPrimitive.booleanOrNull,
+                    result.isSuccess
+                )
+                if (!result.isSuccess) {
+                    assertEquals(
+                        "[校验 ${coupon.id}] error",
+                        want["error"]?.jsonPrimitive?.contentOrNull,
+                        result.exceptionOrNull()?.message
+                    )
+                }
+            }
+        }
+
+        // ---- 按店铺聚合：金额降序，同额按店铺名升序
+        val groupCase = casesRoot["storeGroupCase"]?.jsonObject
+        val groupExpected = expectedRoot["storeGroupCase"]?.jsonObject
+        if (groupCase != null && groupExpected != null) {
+            val coupons = groupCase["coupons"]!!.jsonArray.map { toCoupon(it.jsonObject) }
+            val wantRows = groupExpected["rows"]!!.jsonArray.map { it.jsonObject }
+            val got = CouponRules.groupByStore(coupons)
+            assertEquals("店铺分组数量与期望值不一致", wantRows.size, got.size)
+            for (i in wantRows.indices) {
+                assertEquals("[店铺 #${i + 1}] name", wantRows[i]["name"]!!.jsonPrimitive.content, got[i].name)
+                assertEquals(
+                    "[店铺 #${i + 1}] count",
+                    wantRows[i]["count"]!!.jsonPrimitive.intOrNull,
+                    got[i].count
+                )
+                assertEquals(
+                    "[店铺 #${i + 1}] usedCount",
+                    wantRows[i]["usedCount"]!!.jsonPrimitive.intOrNull,
+                    got[i].usedCount
+                )
+                assertEquals(
+                    "[店铺 #${i + 1}] amount",
+                    wantRows[i]["amount"]!!.jsonPrimitive.content.toDouble(),
+                    got[i].amount,
+                    1e-9
+                )
+            }
+        }
     }
 
     private fun toCoupon(obj: JsonObject): Coupon {

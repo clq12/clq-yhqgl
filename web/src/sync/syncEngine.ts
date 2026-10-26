@@ -1,3 +1,21 @@
+/**
+ * ⚠️ DEPRECATED — 死代码，请勿引用，应从仓库删除（git rm）。
+ *
+ * 本文件实现的是 v2 架构下的「WebDAV 自动三向合并同步」
+ * （版本向量时钟 vectorClock + 字段级合并 + deletedIds 硬删除）。
+ *
+ * 自 v3 起，设备间同步的唯一通道是 WorkBuddy 云端数据库（见 src/db/appDb.ts）：
+ *   - 乐观锁以 modified_at 为准，冲突时整条记录进入「待解决」，不再做字段级合并；
+ *   - 删除为软删除（deleted_at），不再依赖本文件的 deletedIds 列表；
+ *   - 向量时钟（SyncCheckpoint.vectorClock）不再用于冲突判定
+ *     （见 shared/schemas/sync.json 的【遗留字段】标注）。
+ *
+ * 当前本文件未被任何活跃代码引用（AuthContext / appDb 均已走云端），属孤立死代码。
+ * 因 GitHub MCP 不支持删除文件，请在本机执行：
+ *     git rm web/src/sync/syncEngine.ts
+ * 后再提交。详见 docs/ARCHITECTURE.md 与 shared/rules/sync-protocol.md。
+ */
+
 import type { Coupon, CouponDataPackage, SyncCheckpoint } from '../types/coupon';
 import {
   clearCoupons,

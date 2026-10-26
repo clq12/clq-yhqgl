@@ -1,4 +1,4 @@
- # 风险与运维手册
+# 风险与运维手册
 
 面向排障与运维，逐项可核对。架构与协议细节见
 [shared/rules/sync-protocol.md](./sync-protocol.md) 与 [docs/ARCHITECTURE.md](./ARCHITECTURE.md)。
@@ -44,13 +44,18 @@ AI 助手（建议标签、过期分组、识图添加）需要用户自己的 A
 
 - **网页端**：`settings.ai.apiKey` 存于 IndexedDB（`clq-yhqgl-v2` 的 `settings` store），
   属本地域存储；若未来要进一步隔离，可迁移到 `crypto.subtle` 经用户口令派生的密钥加密后再存。
+  **写云前由 `appDb.stripSecrets()` 剥掉**（含每个助手的 key），云端恒为 `null`，
+  读回时 `withLocalSecrets()` 用本机缓存补上。
 - **安卓端**：`EncryptedSharedPreferences`（基于 Android Keystore 的 `masterKey`）存储 AI Key，
   明文不出设备。
 
 **核对**：
 
 - 任何网络请求里，AI Key 仅作为调用第三方模型（如用户配置的 AgnesProvider）的 Bearer，
-  不出现在 WorkBuddy 云同步的 `coupons` / `settings` 列里（云端的 `settings` 表不存 `ai.apiKey`）。
+  不出现在 WorkBuddy 云同步的 `coupons` / `settings` 列里。
+- 实测核对：登录取一次 `settings` 行，`ai.apiKey` 与 `ai_assistants[].apiKey` 都应为 `null`；
+  若看到明文 `sk-...`，说明 `stripSecrets` 被绕过了，立即按事故处理。
+- 换台设备登录后 Key 为空是**预期行为**（自持密钥不上云），不要当成配置丢失。
 - 换账号 / 退出登录时，本地 AI Key 留在设备（按设备持有，符合「用户自持密钥」原则），
   但切换账号会清掉上一个账号的本地设置残留，需在 UI 提示用户 Key 是否保留。
 

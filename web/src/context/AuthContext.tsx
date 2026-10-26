@@ -17,7 +17,7 @@ import {
   type MigrationProbe,
 } from '../db/appDb';
 import * as localDB from '../db/indexedDB';
-import { conflictCount, subscribeConflicts } from '../sync/conflicts';
+import { clearConflicts, conflictCount, subscribeConflicts } from '../sync/conflicts';
 import { MigrationGate } from '../components/MigrationDialog';
 
 export interface User {
@@ -151,6 +151,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await cloud.auth.signOut();
+    // 冲突记录是「这个账号在这台设备上的待办」，登出后不该留给下一个账号看
+    clearConflicts();
     setSession(null);
     setSyncState('idle');
     setSyncResult(null);

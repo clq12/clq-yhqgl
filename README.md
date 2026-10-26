@@ -61,7 +61,11 @@
 3. 云端有、本地没有 → 拉下来；本地干净 → 以云端为准，但保留本机提醒状态。
 4. 退出登录 → 降级「游客本地模式」，数据留本机；再登录同账号自动合并。
 5. 换账号 → 先清掉属于上一个账号的本地残留（同账号才认领，不串号）。
-6. 首次登录若本机有数据 → 弹一屏让用户选「上传本地 / 只拉云端 / 先清空再拉」。
+6. 首次登录若本机有数据 → 弹一屏让用户选「上传本地 / 只拉云端 / 先清空再拉」
+   （`web/src/components/MigrationDialog.tsx`；选完记住账号，之后不再打扰）。
+7. 冲突不是弹个 toast 就完事：网页端把两边都存进「待解决」清单
+   （`web/src/sync/conflicts.ts`），设置页顶部逐条给出字段差异 + 「以云端为准 / 用我的覆盖」。
+   覆盖时 `modified_at` 推到 `now + 1ms`，否则下一轮同步会再次判成冲突。
 
 ### 到期提醒与今日待办
 
@@ -75,6 +79,8 @@
 - 已使用的不提醒；已过期的不提醒（只出现在「已过期未使用」里等你清理）。
 - 每档**只提醒一次**：`remindedDays` 记在这台设备本地，同档位不会重复弹。
 - 提醒状态**不参与云端同步** —— 电脑上提醒过，手机仍会提醒（按设备各算）。
+- **静默时段**（`quietStart` / `quietEnd`，支持跨零点）：命中就跳过这一轮，且不标记已提醒，
+  安静结束后补弹；格式不合法按「没配」处理。两端同一套判定。
 
 **通知渠道**（取决于平台权限，不保证每端都有）：
 
@@ -122,8 +128,9 @@
 `shared/types/kotlin/CouponRules.kt`），靠契约测试强制对齐：
 
 ```bash
-node --experimental-strip-types scripts/contract-check.mjs          # 校验
+node --experimental-strip-types scripts/contract-check.mjs          # 校验（含 schema↔协议）
 node --experimental-strip-types scripts/contract-check.mjs --write  # 规则改动后重新生成期望值
+node --experimental-strip-types scripts/concurrency-check.mjs       # 乐观锁/软删除/提醒字段回归
 ```
 
 - 店铺名单必须与 `shared/data/stores.json` 逐项一致；常用标签名单必须与 `shared/data/tags.json`

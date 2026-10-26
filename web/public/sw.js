@@ -87,12 +87,42 @@ function remainingHours(coupon) {
   return Math.floor((deadlineTimestamp(coupon) - Date.now()) / (1000 * 60 * 60));
 }
 
+/**
+ * 静默时段（HH:mm，支持跨零点，如 22:00-08:00）。
+ *
+ * 只跳过弹通知，**不**标记已提醒 —— 否则用户在静默期里的券会被永久吞掉，
+ * 等静默结束就再也不弹了。按北京时间判断，和截止时刻同一个时区。
+ */
+function inQuietHours(settings) {
+  const start = settings?.reminder?.quietStart;
+  const end = settings?.reminder?.quietEnd;
+  if (!start || !end) return false;
+  const toMinutes = (value) => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(String(value).trim());
+    if (!m) return null;
+    const h = Number(m[1]);
+    const min = Number(m[2]);
+    if (h > 23 || min > 59) return null;
+    return h * 60 + min;
+  };
+  const s = toMinutes(start);
+  const e = toMinutes(end);
+  if (s === null || e === null || s === e) return false;
+  const now = new Date();
+  const beijing = new Date(now.getTime() + (now.getTimezoneOffset() + 480) * 60000);
+  const cur = beijing.getHours() * 60 + beijing.getMinutes();
+  return s < e ? cur >= s && cur < e : cur >= s || cur < e;
+}
+
 async function checkAndNotify() {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
 
   // 用户在设置里关掉了提醒就彻底不弹；云端模式下本地可能没有设置，那就按默认开处理
   const settings = await readSettingsFromSW().catch(() => null);
   if (settings?.reminder?.enabled === false) return;
+
+  // 静默时段：到点但还在静默期就整轮跳过（不标记，静默结束后的下一轮会补上）
+  if (inQuietHours(settings)) return;
 
   // 用户可能把档位全取消（明确表示"别提醒"）——这时不能用默认值兜底，否则等于无视设置
   const configured = settings?.reminder?.remindDays;

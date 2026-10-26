@@ -1,5 +1,5 @@
 /**
- * 浏览器端轻量 WebDAV 客户端 —— 仅用于【手动备份导出】。
+ * 浏览器端轻量 WebDAV 客户端 —— 仅用于【手动备份 / 恢复】。
  *
  * ⚠️ 注意：本客户端不再参与任何「自动同步」。
  * v3 架构下设备间同步的唯一通道是 WorkBuddy 云端数据库（见 src/db/appDb.ts），
@@ -77,5 +77,35 @@ export class WebDAVClient {
       headers: this.headers(),
     });
     return res.ok ? res.headers.get('ETag') : null;
+  }
+
+  /**
+   * 列出目录下的 .json 文件（用于恢复时在 backups/ 里挑最新一份）。
+   * 基于 PROPFIND Depth:1，解析 XML 中的 <href>，只返回文件名。
+   */
+  async listDir(path: string): Promise<string[]> {
+    const res = await fetch(this.url(path), {
+      method: 'PROPFIND',
+      headers: { ...this.headers(), Depth: '1' },
+    });
+    if (!res.ok) return [];
+    const text = await res.text();
+    let names: string[] = [];
+    try {
+      const doc = new DOMParser().parseFromString(text, 'application/xml');
+      const responses = Array.from(doc.getElementsByTagName('response'));
+      for (const r of responses) {
+        const hrefEl = r.getElementsByTagName('href')[0];
+        if (!hrefEl || !hrefEl.textContent) continue;
+        const href = hrefEl.textContent;
+        if (href.endsWith('/')) continue; // 跳过目录自身
+        const idx = href.lastIndexOf('/');
+        const name = idx >= 0 ? href.slice(idx + 1) : href;
+        if (name.endsWith('.json')) names.push(name);
+      }
+    } catch {
+      names = [];
+    }
+    return names.sort();
   }
 }

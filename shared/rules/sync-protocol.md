@@ -9,7 +9,7 @@
 
 - 网页端：已登录直接读写云库；未登录回退 IndexedDB（纯本地）。
 - 安卓端：本地 Room 作为缓存 + 离线写缓冲，登录后与云库对齐。
-- **WebDAV 不是同步通道**，只是安卓端手动点的「备份 / 恢复」两个动作。
+- **WebDAV 不是同步通道**，只是安卓端/网页端手动点的「备份 / 恢复」两个动作。
 
 两端都不需要自建后端：安卓直连云服务的 REST 接口，语义是标准 PostgREST。
 
@@ -38,6 +38,9 @@
 | `is_reminded` / `reminded_days` | **不参与同步**，只作云端历史值；提醒状态以各设备本地为准 |
 
 领域模型里 `deletedAt` 是唯一真相，`isDeleted` 只是它的派生（`deletedAt != null`）。
+
+`sync.json`（即 `BackupMetadata`）在 v3 下**仅作手动备份元数据**（`lastBackupAt` / `lastBackupPath`），
+不再包含任何向量时钟或同步/冲突语义——v2 的 `vectorClock` 已移除。
 
 ## 4. 写路径
 
@@ -81,20 +84,25 @@
 
 ## 8. 提醒
 
-- 按设备各自提醒。`ReminderWorker` 只写本地 `isReminded` / `remindedDaysJson`，不置 `dirty`。
+- 按设备各自提醒。`ReminderWorker` / 网页 `sw.js` 只写本地 `isReminded` / `remindedDays`，不置 `dirty`。
 - 因此电脑上提醒过，不会让手机静默。
 
-## 9. WebDAV 备份（手动）
+## 9. WebDAV 备份（手动，仅元数据）
 
 ```
 {rootPath}/               # 默认 /yhqgl/v2
-  data.json               # 最近一次备份（全量 + deletedIds）
-  backups/backup-{ts}.json
+  data.json               # 最近一次备份（全量）
+  backups/backup-{ts}.json # 带时间戳的历史快照，可回滚
 ```
 
-- **备份**：从云端拉最新数据写一份快照（含时间戳），不覆盖历史。
-- **恢复**：读 `data.json`，**覆盖**云端与本地 —— 云端有、备份里没有的券会被软删除。
-- 不做自动备份，不做双向合并。
+- WebDAV **不是同步通道**，只是可选的「一键手动备份」出口。备份仅写本地数据的快照，
+  **不读回、不合并**，避免与云端真相源产生歧义。
+- 备份元数据（`sync.json` / `BackupMetadata`）只记录 `lastBackupAt` / `lastBackupPath` 等，
+  **不含任何同步 / 冲突语义**；v3 已移除 v2 的向量时钟（`vectorClock`）。
+- **备份**：从本地/云端拉最新数据写一份快照（含时间戳），不覆盖历史。
+- **恢复**：读 `data.json`（或 `backups/` 里最新一份），**覆盖**本地（已登录时同步云端）
+  —— 云端有、备份里没有的券会被软删除。
+- 不做自动备份，不做双向合并。**未配置 WebDAV 完全不影响云同步。**
 
 ## 10. 规则防漂移
 

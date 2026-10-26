@@ -8,8 +8,17 @@ import {
   type ReactNode,
 } from 'react';
 import { cloud } from '../cloud';
-import { syncAccountData, type AccountSyncResult } from '../db/appDb';
+import {
+  applyMigration,
+  probeMigration,
+  syncAccountData,
+  type AccountSyncResult,
+  type MigrationMode,
+  type MigrationProbe,
+} from '../db/appDb';
 import * as localDB from '../db/indexedDB';
+import { conflictCount, subscribeConflicts } from '../sync/conflicts';
+import { MigrationGate } from '../components/MigrationDialog';
 
 export interface User {
   id: string;
@@ -31,6 +40,12 @@ interface AuthContextValue {
   syncResult: AccountSyncResult | null;
   /** 最近一次成功同步的时间戳（ms）；用于设置页展示「上次同步」 */
   lastSyncAt: number | null;
+  /** 「待解决」冲突条数，供设置页/角标展示 */
+  conflicts: number;
+  /** 首次登录待用户选择的迁移模式；null 表示不需要选 */
+  migration: MigrationProbe | null;
+  /** 用户选完迁移三选后调用 */
+  resolveMigration: (mode: MigrationMode) => Promise<void>;
   dataVersion: number;
   refreshSession: () => Promise<void>;
   refreshData: () => Promise<void>;
@@ -45,18 +60,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [syncState, setSyncState] = useState<SyncState>('idle');
   const [syncResult, setSyncResult] = useState<AccountSyncResult | null>(null);
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
+  const [conflicts, setConflicts] = useState<number>(() => conflictCount());
+  const [migration, setMigration] = useState<MigrationProbe | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
   const syncingRef = useRef(false);
+
+  const absorb = useCallback((result: AccountSyncResult) => {
+    setSyncResult(result);
+    setSyncState(result.ok ? 'ready' : 'error');
+    if (result.ok) setLastSyncAt(Date.now());
+    setDataVersion((v) => v + 1);
+  }, []);
 
   const runSync = useCallback(async () => {
     if (syncingRef.current) return;
     syncingRef.current = true;
     setSyncState('syncing');
     try {
-      const result = await syncAccountData();
-      setSyncResult(result);
-      setSyncState(result.ok ? 'ready' : 'error');
-      if (result.ok) setLastSyncAt(Date.now());
+      absorb(await syncAccountData());
     } catch (e) {
       setSyncResult({
         ok: false,
@@ -67,19 +88,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         error: e instanceof Error ? e.message : '同步失败',
       });
       setSyncState('error');
+      setDataVersion((v) => v + 1);
     } finally {
       syncingRef.current = false;
-      setDataVersion((v) => v + 1);
     }
-  }, []);
+  }, [absorb]);
+
+  /**
+   * 登录后的入口：先看要不要弹「首次登录三选」。
+   *
+   * 需要选的时候**不能**直接 runSync —— 那会默认把本地数据推上云，
+   * 等于替用户做了选择（选「只拉云端」的人会发现本机旧数据污染了云端）。
+   */
+  const startOrMigrate = useCallback(async () => {
+    setSyncState('syncing');
+    try {
+      const probe = await probeMigration();
+      if (probe.needed) {
+        setMigration(probe);
+        setSyncState('idle');
+        return;
+      }
+    } catch {
+      // 探针失败不阻塞登录，退回默认合并逻辑
+    }
+    await runSync();
+  }, [runSync]);
+
+  const resolveMigration = useCallback(
+    async (mode: MigrationMode) => {
+      setSyncState('syncing');
+      try {
+        absorb(await applyMigration(mode));
+      } catch (e) {
+        setSyncState('error');
+        setSyncResult({
+          ok: false,
+          cloudCount: 0,
+          pushed: 0,
+          total: 0,
+          settingsPushed: false,
+          error: e instanceof Error ? e.message : '迁移失败',
+        });
+      } finally {
+        setMigration(null);
+      }
+    },
+    [absorb],
+  );
 
   const refreshSession = useCallback(async () => {
     const { data, error } = await cloud.auth.getSession();
     if (!error && data?.user) {
       setSession({ user: data.user as User });
-      await runSync();
+      await startOrMigrate();
     }
-  }, [runSync]);
+  }, [startOrMigrate]);
 
   const refreshData = useCallback(async () => {
     await runSync();
@@ -91,8 +155,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSyncState('idle');
     setSyncResult(null);
     setLastSyncAt(null);
+    setMigration(null);
     setDataVersion((v) => v + 1);
   }, []);
+
+  // 冲突条数跟着「待解决」清单走：任何地方裁决完都会通知这里
+  useEffect(() => subscribeConflicts(() => setConflicts(conflictCount())), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,7 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         if (!error && data?.user) {
           setSession({ user: data.user as User });
-          await runSync();
+          await startOrMigrate();
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -136,12 +204,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       if (newSession?.user) {
         setSession({ user: newSession.user as User });
-        if (event === 'SIGNED_IN') void runSync();
+        if (event === 'SIGNED_IN') void startOrMigrate();
       } else {
         setSession(null);
         setSyncState('idle');
         setSyncResult(null);
         setLastSyncAt(null);
+        setMigration(null);
         setDataVersion((v) => v + 1);
       }
     });
@@ -150,7 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       cancelled = true;
       unsubscribe();
     };
-  }, [runSync]);
+  }, [startOrMigrate]);
 
   return (
     <AuthContext.Provider
@@ -160,6 +229,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         syncState,
         syncResult,
         lastSyncAt,
+        conflicts,
+        migration,
+        resolveMigration,
         dataVersion,
         refreshSession,
         refreshData,
@@ -167,6 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
+      <MigrationGate migration={migration} onChoose={resolveMigration} />
     </AuthContext.Provider>
   );
 }

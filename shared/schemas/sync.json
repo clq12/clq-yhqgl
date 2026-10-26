@@ -2,14 +2,14 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/clq12/clq-yhqgl/shared/schemas/sync.json",
   "title": "SyncCheckpoint",
-  "description": "WebDAV 同步元数据，记录各设备向量时钟与最后一次同步时间。",
+  "description": "【已废弃同步语义】原 v2 架构下用于 WebDAV 同步的元数据，记录各设备向量时钟与最后一次同步时间。自 v3 起，同步通道改为云端数据库（WorkBuddy 云，以 modified_at 乐观锁判定冲突），本文件不再参与任何自动同步流程。现仅作历史参考与「手动 WebDAV 备份」的元数据载体（如备份清单时间戳），向量时钟已无冲突判定用途。详见 docs/ARCHITECTURE.md 与 shared/rules/sync-protocol.md。",
   "type": "object",
   "required": ["schemaVersion", "deviceId", "vectorClock", "lastSyncAt"],
   "properties": {
     "schemaVersion": {
       "type": "integer",
       "minimum": 2,
-      "description": "数据协议版本，当前为 2"
+      "description": "数据协议版本，当前为 2（v3 同步层已不再依赖此字段做合并，仅保留兼容）。"
     },
     "deviceId": {
       "type": "string",
@@ -26,22 +26,22 @@
         "type": "integer",
         "minimum": 0
       },
-      "description": "各设备计数器映射，key 为 deviceId"
+      "description": "【遗留字段】v2 各设备计数器映射（key 为 deviceId）。v3 乐观锁以 modified_at 为准，向量时钟不再用于冲突判定，仅作历史备份元数据保留，新代码不应读取或写入同步语义。"
     },
     "lastSyncAt": {
       "type": ["string", "null"],
       "format": "date-time",
-      "description": "最后一次成功同步时间"
+      "description": "最后一次成功同步/备份时间。v3 下指向「手动备份」时间戳，自动云同步不写入此字段（云同步以各记录的 modified_at 为准）。"
     },
     "pendingChanges": {
       "type": "integer",
       "minimum": 0,
-      "description": "当前设备待上传的本地变更数量"
+      "description": "【遗留字段】当前设备待上传的本地变更数量。v3 云同步采用离线上传队列，不再依赖此计数。"
     },
     "conflictCount": {
       "type": "integer",
       "minimum": 0,
-      "description": "上次同步检测到但未解决的冲突数量"
+      "description": "【遗留字段】上次同步检测到但未解决的冲突数量。v3 冲突以「整条记录写入待解决队列」处理，不在此计数。"
     }
   },
   "additionalProperties": false

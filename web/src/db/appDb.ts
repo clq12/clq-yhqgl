@@ -1,6 +1,8 @@
 import { cloud } from '../cloud';
 import type { Coupon, AppSettings } from '../types/coupon';
 import * as localDB from './indexedDB';
+import { decideWrite, mergeCloudOverLocal, timestampOf } from '../sync/decideWrite';
+import { recordConflict, dropConflict } from '../sync/conflicts';
 
 // 云端数据库与本地 IndexedDB 的统一数据层。
 // 当用户已登录时优先走 WorkBuddy Cloud（数据跨设备同步），
@@ -148,10 +150,55 @@ export class SyncConflictError extends Error {
   }
 }
 
-function timestampOf(c: Coupon): number {
-  const raw = c.modifiedAt || c.updatedAt || c.createdAt;
-  const t = raw ? Date.parse(raw) : NaN;
-  return Number.isNaN(t) ? 0 : t;
+/**
+ * 冲突裁决：以云端为准。
+ * 把云端版本落回本地（保留本机的提醒状态），并清掉「待解决」记录。
+ */
+export async function resolveConflictKeepRemote(remote: Coupon): Promise<void> {
+  const local = await localDB.getCoupon(remote.id);
+  await localDB.putCoupon(mergeCloudOverLocal(local as unknown as Record<string, unknown>, remote as unknown as Record<string, unknown>) as unknown as Coupon);
+  dropConflict(remote.id);
+}
+
+/**
+ * 冲突裁决：用本地版本覆盖云端。
+ * 关键是把 modified_at 推到当前时刻，否则下一轮同步会再次判成冲突。
+ */
+export async function resolveConflictKeepLocal(local: Coupon): Promise<void> {
+  const nowIso = new Date(Date.now() + 1).toISOString();
+  const bumped: Coupon = { ...local, modifiedAt: nowIso, updatedAt: nowIso };
+  await putCoupon(bumped);
+  dropConflict(local.id);
+}
+
+/**
+ * 云端不存 AI Key。
+ *
+ * `settings.ai.apiKey` 与每个助手的 `apiKey` 是用户自持的密钥，只允许留在本机
+ * （网页端存 IndexedDB，安卓存 EncryptedSharedPreferences）。写云前必须剥掉，
+ * 否则「用户自持、服务端不经手」这句就是假的。
+ */
+function stripSecrets(s: AppSettings): AppSettings {
+  return {
+    ...s,
+    ai: { ...s.ai, apiKey: null },
+    aiAssistants: (s.aiAssistants ?? []).map((a) => ({ ...a, apiKey: null })),
+  };
+}
+
+/** 读云端设置后，把本机缓存里的 Key 补回去（云端那份是 null） */
+async function withLocalSecrets(fromCloud: AppSettings): Promise<AppSettings> {
+  const local = await localDB.getSettings();
+  if (!local) return fromCloud;
+  const localKeys = new Map((local.aiAssistants ?? []).map((a) => [a.id, a.apiKey]));
+  return {
+    ...fromCloud,
+    ai: { ...fromCloud.ai, apiKey: local.ai.apiKey ?? fromCloud.ai.apiKey },
+    aiAssistants: (fromCloud.aiAssistants ?? []).map((a) => ({
+      ...a,
+      apiKey: localKeys.get(a.id) ?? a.apiKey ?? null,
+    })),
+  };
 }
 
 export async function putCoupon(coupon: Coupon): Promise<void> {
@@ -168,9 +215,10 @@ export async function putCoupon(coupon: Coupon): Promise<void> {
     }
     const row = couponToRow(coupon);
     if (existing) {
-      // 乐观锁：云端更晚才被改过，就拒绝这次写入
       const remote = rowToCoupon(existing as Record<string, unknown>);
-      if (timestampOf(remote) > timestampOf(coupon)) {
+      // 乐观锁：云端更晚才被改过就整条拦下，不做字段级合并（判定逻辑见 sync/decideWrite.ts）
+      if (decideWrite(coupon, remote) === 'conflict') {
+        recordConflict(coupon, remote);
         throw new SyncConflictError(remote);
       }
       const { error } = await cloud.database.from('coupons').update(row as any).eq('id', coupon.id);
@@ -179,6 +227,8 @@ export async function putCoupon(coupon: Coupon): Promise<void> {
         await localDB.putCoupon(coupon);
         return;
       }
+      // 写入成功：这张券之前若有「待解决」记录，说明已被这次编辑覆盖，清掉
+      dropConflict(coupon.id);
     } else {
       const { error } = await cloud.database.from('coupons').insert(row as any);
       if (error) {
@@ -186,6 +236,7 @@ export async function putCoupon(coupon: Coupon): Promise<void> {
         await localDB.putCoupon(coupon);
         return;
       }
+      dropConflict(coupon.id);
     }
   }
   await localDB.putCoupon(coupon);
@@ -245,7 +296,7 @@ export async function getSettings(): Promise<AppSettings | undefined> {
       return localDB.getSettings();
     }
     if (!data) return undefined;
-    return rowToSettings(data as Record<string, unknown>);
+    return withLocalSecrets(rowToSettings(data as Record<string, unknown>));
   }
   return localDB.getSettings();
 }
@@ -253,15 +304,17 @@ export async function getSettings(): Promise<AppSettings | undefined> {
 export async function putSettings(settings: AppSettings): Promise<void> {
   if (await isCloudReady()) {
     const { data: existing } = await cloud.database.from('settings').select('id').eq('id', 'current').maybeSingle();
-    const row = settingsToRow(settings);
+    // 先落本地（含 AI Key），再写云（剥掉 Key）—— 顺序不能反，否则本机 Key 会丢
+    await localDB.putSettings(settings);
+    const row = settingsToRow(stripSecrets(settings));
     const { error } = existing
       ? await cloud.database.from('settings').update(row as any).eq('id', 'current')
       : await cloud.database.from('settings').insert(row as any);
     if (error) {
       console.warn('[cloud] putSettings failed, fallback to local:', error.message);
-      await localDB.putSettings(settings);
       return;
     }
+    return;
   }
   await localDB.putSettings(settings);
 }
@@ -283,13 +336,62 @@ export interface AccountSyncResult {
   error?: string;
 }
 
-function recordTime(c: Coupon): number {
-  const raw = c.modifiedAt || c.updatedAt || c.createdAt;
-  const t = raw ? Date.parse(raw) : NaN;
-  return Number.isNaN(t) ? 0 : t;
+const LAST_USER_KEY = 'yhqgl-last-user';
+
+/** 这台设备上一次登录过的账号 id；用于判断「换账号」还是「首次登录」 */
+export function lastSyncedUserId(): string | null {
+  try {
+    return localStorage.getItem(LAST_USER_KEY);
+  } catch {
+    return null;
+  }
 }
 
-const LAST_USER_KEY = 'yhqgl-last-user';
+export type MigrationMode = 'upload' | 'pull' | 'clear-pull';
+
+export interface MigrationProbe {
+  /** 是否需要在登录后弹「三选一」 */
+  needed: boolean;
+  /** 本机现有券数 */
+  localCount: number;
+  /** 云端现有券数 */
+  cloudCount: number;
+}
+
+/**
+ * 首次登录探针：本机有数据、但这个设备从没登录过 → 让用户选怎么合。
+ *
+ * 不弹的两种情况：
+ * - 本机没有数据（没什么可选的，直接拉云端）；
+ * - 这台设备登录过（同账号自动合并、换账号自动清理，都不该再打扰）。
+ */
+export async function probeMigration(): Promise<MigrationProbe> {
+  const localCount = (await localDB.listCoupons()).length;
+  if (localCount === 0 || lastSyncedUserId()) {
+    return { needed: false, localCount, cloudCount: 0 };
+  }
+  const { data, error } = await cloud.database.from('coupons').select('id');
+  const cloudCount = error ? 0 : (data ?? []).length;
+  return { needed: true, localCount, cloudCount };
+}
+
+/**
+ * 按用户选的模式做首次迁移，然后走一次常规对齐。
+ *
+ * - upload     上传本地：本机数据补传上云（本地有、云端没有的）
+ * - pull       只拉云端：丢弃本机旧数据，以云端为准
+ * - clear-pull 先清空再拉：本机全删，纯拉云端（本机数据脏/重复时用）
+ */
+export async function applyMigration(mode: MigrationMode): Promise<AccountSyncResult> {
+  if (mode === 'upload') return syncAccountData({ pushLocal: true });
+  await localDB.clearCoupons();
+  return syncAccountData({ pushLocal: false });
+}
+
+export interface SyncOptions {
+  /** 是否把本地券补传到云端；默认 true。首次迁移选「只拉云端」时传 false */
+  pushLocal?: boolean;
+}
 
 const EMPTY_SETTINGS: AppSettings = {
   schemaVersion: 2,
@@ -309,7 +411,8 @@ const EMPTY_SETTINGS: AppSettings = {
  * - 云端有、本地没有 → 直接拉取
  * 完成后把结果写回本地 IndexedDB，保证离线打开也有数据。
  */
-export async function syncAccountData(): Promise<AccountSyncResult> {
+export async function syncAccountData(options: SyncOptions = {}): Promise<AccountSyncResult> {
+  const pushLocal = options.pushLocal !== false;
   const { data: session, error: sessionError } = await cloud.auth.getSession();
   if (sessionError || !session) {
     return { ok: false, cloudCount: 0, pushed: 0, total: 0, settingsPushed: false, error: '未登录' };
@@ -350,13 +453,13 @@ export async function syncAccountData(): Promise<AccountSyncResult> {
   const cloudMap = new Map(cloudCoupons.map((c) => [c.id, c]));
 
   const toPush: Coupon[] = [];
-  if (sameOwner) {
+  if (sameOwner && pushLocal) {
     for (const local of localCoupons) {
       if (local.deletedAt) continue; // 已删除的本地记录不再推上云
       const remote = cloudMap.get(local.id);
       if (!remote) {
         toPush.push(local);
-      } else if (recordTime(local) > recordTime(remote)) {
+      } else if (timestampOf(local) > timestampOf(remote)) {
         toPush.push(local);
       }
     }
@@ -380,7 +483,7 @@ export async function syncAccountData(): Promise<AccountSyncResult> {
       .eq('id', 'current')
       .maybeSingle();
     if (!settingsError && !cloudSettings) {
-      const row = settingsToRow(localSettings);
+      const row = settingsToRow(stripSecrets(localSettings));
       const { error } = await cloud.database.from('settings').insert(row as any);
       settingsPushed = !error;
     }
@@ -416,7 +519,8 @@ export async function syncAccountData(): Promise<AccountSyncResult> {
     .maybeSingle();
 
   if (cloudSettings) {
-    await localDB.putSettings(rowToSettings(cloudSettings as Record<string, unknown>));
+    // 云端那份的 AI Key 是 null，落本地前要用本机缓存的 Key 补回来
+    await localDB.putSettings(await withLocalSecrets(rowToSettings(cloudSettings as Record<string, unknown>)));
   } else if (!sameOwner) {
     // 切换账号且新账号还没有设置：清空上一个账号残留的本地设置（含 AI Key）
     await localDB.putSettings(EMPTY_SETTINGS);

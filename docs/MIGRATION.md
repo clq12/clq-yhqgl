@@ -70,4 +70,5 @@ v3 的备份只是本地快照，不参与同步；请勿把 v2 的 `data.json` 
 
 v3 不改变本地数据格式，迁移前的数据仍留在本机 IndexedDB / Room 缓存里，
 不上传即可保持原样。若对云端数据不满意，退出登录后本机旧数据仍在；
-如需彻底回退到 v2 方案，参考 [docs/REFACTOR_ANALYSIS.md](./REFACTOR_ANALYSIS.md)（已废弃，仅供参考）。
+如需查看被放弃的 v2 方案（WebDAV 同步中枢 + 字段级合并），见 `git log -- docs/REFACTOR_ANALYSIS.md`——
+该文档已删除，不再随仓库分发，避免有人照着它实现。

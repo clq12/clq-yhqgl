@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import type { Coupon } from '../types/coupon';
 import { deleteCouponLocal, putCoupon, SyncConflictError } from '../db/appDb';
-import { bumpVersion } from '../sync/syncEngine';
+import { bumpVersion } from '../sync/version';
 import { dueBuckets, extractStore, isExpired, remainingDays, statusLabel } from '../rules/couponRules';
 import { notifyDataChanged } from '../lib/dataBus';
 import { useCoupons } from '../hooks/useCoupons';

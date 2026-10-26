@@ -24,6 +24,7 @@ web/src/
 │   └── indexedDB.ts      # 本地库（coupons / settings）
 ├── sync/
 │   ├── decideWrite.ts    # 乐观锁判定（纯函数，scripts/concurrency-check.mjs 直接测它）
+│   ├── version.ts        # 写券前盖章 version={deviceId,counter} + modifiedAt
 │   ├── conflicts.ts      # 「待解决」冲突清单（localStorage）
 │   ├── backup.ts         # WebDAV 手动备份 / 恢复
 │   └── webdav.ts         # 轻量 WebDAV 客户端（仅手动备份用）

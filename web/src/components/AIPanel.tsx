@@ -3,7 +3,7 @@ import { AlertCircle, Bot, Check, ImagePlus, Sparkles, Trash2, Wand2, X } from '
 import type { AIContext, AiIntent } from '../ai/provider';
 import { createProvider } from '../ai/agnesProvider';
 import { deleteCouponLocal, getSettings, listCoupons, putCoupon } from '../db/appDb';
-import { bumpVersion } from '../sync/syncEngine';
+import { bumpVersion } from '../sync/version';
 import type { Coupon, DiscountType } from '../types/coupon';
 import { beijingNow, normalizeTags } from '../rules/couponRules';
 import { activeAssistant, toContext, visionAssistants } from '../ai/assistants';

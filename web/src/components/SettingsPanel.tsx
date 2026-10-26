@@ -19,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 import { Button, Card, Input, Skeleton, useToast } from './ui';
 import { TagLibraryEditor } from './TagLibraryEditor';
 import { AiAssistantSettings } from './AiAssistantSettings';
+import { ConflictPanel } from './ConflictPanel';
 import { activeAssistant, effectiveAssistants } from '../ai/assistants';
 import { defaultTags, tagLibraryOf } from '../rules/couponRules';
 
@@ -69,7 +70,7 @@ function Section({
 }
 
 export function SettingsPanel() {
-  const { session, syncState, syncResult, lastSyncAt, refreshData, signOut } = useAuth();
+  const { session, syncState, syncResult, lastSyncAt, conflicts, refreshData, signOut } = useAuth();
   const { showToast } = useToast();
 
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
@@ -235,10 +236,11 @@ export function SettingsPanel() {
             <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" aria-hidden />
               {syncState === 'ready'
-                ? `云端已有 ${syncResult?.cloudCount ?? 0} 条记录`
+                ? `云端 ${syncResult?.cloudCount ?? 0} 条 / 本地 ${syncResult?.total ?? 0} 条`
                 : syncState === 'error'
                   ? '云端同步异常'
                   : '正在检查云端状态'}
+              {conflicts > 0 ? ` · 待解决 ${conflicts} 张` : ''}
             </p>
             {lastSyncAt ? (
               <p className="mt-0.5 text-xs text-slate-400">
@@ -262,6 +264,9 @@ export function SettingsPanel() {
           </div>
         </div>
       </Section>
+
+      {/* 乐观锁命中的券：不处理掉会一直卡着，所以放在最靠上的位置 */}
+      <ConflictPanel />
 
       <Section
         icon={<Cloud className="h-4 w-4" />}
@@ -417,6 +422,51 @@ export function SettingsPanel() {
           </div>
           <p className="mt-2 text-[11px] text-slate-400">
             到点后会按最接近的那一档提醒一次，提醒过的不再重复；已使用和已过期的券不提醒。
+          </p>
+        </div>
+
+        <div className="rounded-lg border border-slate-200 px-3 py-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-slate-700">静默时段（不弹通知）</span>
+            <span className="text-[11px] text-slate-400">按北京时间</span>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <input
+              type="time"
+              aria-label="静默开始"
+              value={settings.reminder.quietStart ?? ''}
+              onChange={(e) =>
+                update({
+                  reminder: { ...settings.reminder, quietStart: e.target.value || null },
+                })
+              }
+              className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700"
+            />
+            <span>至</span>
+            <input
+              type="time"
+              aria-label="静默结束"
+              value={settings.reminder.quietEnd ?? ''}
+              onChange={(e) =>
+                update({ reminder: { ...settings.reminder, quietEnd: e.target.value || null } })
+              }
+              className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700"
+            />
+            {(settings.reminder.quietStart || settings.reminder.quietEnd) && (
+              <button
+                type="button"
+                onClick={() =>
+                  update({ reminder: { ...settings.reminder, quietStart: null, quietEnd: null } })
+                }
+                className="text-[11px] text-slate-400 underline-offset-2 hover:text-rose-600 hover:underline"
+              >
+                清除
+              </button>
+            )}
+          </div>
+          <p className="mt-2 text-[11px] text-slate-400">
+            支持跨零点（如 22:00 至 08:00）。静默期内不弹通知，也不会被标记成「已提醒」，
+            安静结束后下一轮会补上；两端都留空表示不启用。
           </p>
         </div>
       </Section>

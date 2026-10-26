@@ -169,7 +169,9 @@ import java.time.format.DateTimeFormatter
             if (title.contains(store)) return store
         }
         val idx = title.indexOf(' ')
-        return if (idx > 0) title.substring(0, idx) else title.ifBlank { "其他" }
+        // 首段为空（标题以空格开头）时不能直接返回原串：网页端那边是 title.trim() || '其他'，
+        // 这里必须同样先 trim，否则同一个标题两端会得到「  小王小店…」和「小王小店…」两种店铺名。
+        return if (idx > 0) title.substring(0, idx) else title.trim().ifBlank { "其他" }
     }
 
     /**
@@ -210,7 +212,10 @@ import java.time.format.DateTimeFormatter
         "屈臣氏", "加油", "电影票", "话费"
     )
 
-    private val TAG_BLANK = Regex("[\\s\\u3000]+")
+    // 必须显式列出 Unicode 空白：Java/Kotlin 的 \s 只有 [ \t\n\x0B\f\r]，
+    // 而 JS 的 \s 还包含 NBSP(U+00A0)、全角空格(U+3000)、U+2000~U+200A 等。
+    // 从网页复制来的标签常常带 NBSP，不补齐的话两端归一化结果会不一样。
+    private val TAG_BLANK = Regex("[\\s\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]+")
 
     /**
      * 归一化单个标签：

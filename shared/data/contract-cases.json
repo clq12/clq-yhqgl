@@ -2,44 +2,649 @@
   "$comment": "双端业务规则的契约用例。nowIso 是固定的『当前时间』，让两端可以在同一时刻下比对结果。expected 由 scripts/contract-check.mjs 用 TypeScript 实现生成，Android 单测必须跑出完全一致的结论。",
   "nowIso": "2026-10-21T10:00:00+08:00",
   "tagCases": [
-    { "raw": " 抖音 ", "note": "首尾空格" },
-    { "raw": "＃淘宝", "note": "全角井号前缀" },
-    { "raw": "##拼多多", "note": "多个井号前缀" },
-    { "raw": "美  团", "note": "连续空格压成一个" },
-    { "raw": "　饿了么　", "note": "全角空格" },
-    { "raw": "   ", "note": "纯空白 → null" },
-    { "raw": "#", "note": "只有井号 → null" },
-    { "raw": "一二三四五六七八九十一二三", "note": "超长截断到 12" },
-    { "raw": "抖\u00a0音", "note": "不间断空格 NBSP(U+00A0) 也是空白，压成一个普通空格" },
-    { "raw": "\t淘宝\n", "note": "制表符/换行也是空白" },
-    { "raw": "## 京东 ", "note": "井号后带空格：去井号再 trim" },
-    { "raw": "饿了么#外卖", "note": "中间的井号不动，只去开头" }
+    {
+      "raw": " 抖音 ",
+      "note": "首尾空格"
+    },
+    {
+      "raw": "＃淘宝",
+      "note": "全角井号前缀"
+    },
+    {
+      "raw": "##拼多多",
+      "note": "多个井号前缀"
+    },
+    {
+      "raw": "美  团",
+      "note": "连续空格压成一个"
+    },
+    {
+      "raw": "　饿了么　",
+      "note": "全角空格"
+    },
+    {
+      "raw": "   ",
+      "note": "纯空白 → null"
+    },
+    {
+      "raw": "#",
+      "note": "只有井号 → null"
+    },
+    {
+      "raw": "一二三四五六七八九十一二三",
+      "note": "超长截断到 12"
+    },
+    {
+      "raw": "抖 音",
+      "note": "不间断空格 NBSP(U+00A0) 也是空白，压成一个普通空格"
+    },
+    {
+      "raw": "\t淘宝\n",
+      "note": "制表符/换行也是空白"
+    },
+    {
+      "raw": "## 京东 ",
+      "note": "井号后带空格：去井号再 trim"
+    },
+    {
+      "raw": "饿了么#外卖",
+      "note": "中间的井号不动，只去开头"
+    }
   ],
   "suggestCase": {
     "$comment": "existing 是已有的券各自的标签；suggest 应先按频次、同频按字符序，不够 limit 再用常用标签补位。",
     "existing": [
-      ["美团", "抖音"],
-      ["美团", "淘宝"],
-      ["美团"],
-      ["拼多多", "抖音"],
-      ["淘宝"],
+      [
+        "美团",
+        "抖音"
+      ],
+      [
+        "美团",
+        "淘宝"
+      ],
+      [
+        "美团"
+      ],
+      [
+        "拼多多",
+        "抖音"
+      ],
+      [
+        "淘宝"
+      ],
       [],
-      [" 抖音 "]
+      [
+        " 抖音 "
+      ]
     ],
-    "exclude": ["淘宝"],
+    "exclude": [
+      "淘宝"
+    ],
     "limit": 5
   },
   "bucketCase": {
     "$comment": "今日待办分组。nowIso 是 2026-10-21 10:00（北京时间），所以「今天」= 2026-10-21。",
     "coupons": [
-      { "id": "b-today", "endDate": "2026-10-21", "endHour": 23, "endMinute": 59, "isUsed": false, "discountAmount": 20 },
-      { "id": "b-today-used", "endDate": "2026-10-21", "endHour": 23, "endMinute": 59, "isUsed": true, "discountAmount": 30 },
-      { "id": "b-soon", "endDate": "2026-10-23", "endHour": 12, "endMinute": 0, "isUsed": false, "discountAmount": 100 },
-      { "id": "b-later", "endDate": "2026-11-10", "endHour": 23, "endMinute": 59, "isUsed": false, "discountAmount": 50 },
-      { "id": "b-expired", "endDate": "2026-10-20", "endHour": 23, "endMinute": 59, "isUsed": false, "discountAmount": 80 },
-      { "id": "b-rich", "endDate": "2026-10-25", "endHour": 23, "endMinute": 59, "isUsed": false, "discountAmount": 200 },
-      { "id": "b-today-midnight", "endDate": "2026-10-21", "endHour": 0, "endMinute": 0, "isUsed": false, "discountAmount": 10 },
-      { "id": "b-boundary-3d", "endDate": "2026-10-24", "endHour": 23, "endMinute": 59, "isUsed": false, "discountAmount": 60 }
+      {
+        "id": "b-today",
+        "endDate": "2026-10-21",
+        "endHour": 23,
+        "endMinute": 59,
+        "isUsed": false,
+        "discountAmount": 20
+      },
+      {
+        "id": "b-today-used",
+        "endDate": "2026-10-21",
+        "endHour": 23,
+        "endMinute": 59,
+        "isUsed": true,
+        "discountAmount": 30
+      },
+      {
+        "id": "b-soon",
+        "endDate": "2026-10-23",
+        "endHour": 12,
+        "endMinute": 0,
+        "isUsed": false,
+        "discountAmount": 100
+      },
+      {
+        "id": "b-later",
+        "endDate": "2026-11-10",
+        "endHour": 23,
+        "endMinute": 59,
+        "isUsed": false,
+        "discountAmount": 50
+      },
+      {
+        "id": "b-expired",
+        "endDate": "2026-10-20",
+        "endHour": 23,
+        "endMinute": 59,
+        "isUsed": false,
+        "discountAmount": 80
+      },
+      {
+        "id": "b-rich",
+        "endDate": "2026-10-25",
+        "endHour": 23,
+        "endMinute": 59,
+        "isUsed": false,
+        "discountAmount": 200
+      },
+      {
+        "id": "b-today-midnight",
+        "endDate": "2026-10-21",
+        "endHour": 0,
+        "endMinute": 0,
+        "isUsed": false,
+        "discountAmount": 10
+      },
+      {
+        "id": "b-boundary-3d",
+        "endDate": "2026-10-24",
+        "endHour": 23,
+        "endMinute": 59,
+        "isUsed": false,
+        "discountAmount": 60
+      }
+    ]
+  },
+  "remindCase": {
+    "$comment": "提醒档位：currentRemindDays 选出本次该提醒的天数（0=不提醒）。档位从大到小试，命中且该档未提醒过的才返回。",
+    "remindDays": [
+      7,
+      3,
+      1
+    ],
+    "remindDaysAlt": [
+      2,
+      1
+    ],
+    "coupons": [
+      {
+        "id": "r-7d",
+        "title": "七天档",
+        "description": null,
+        "discountType": null,
+        "discountAmount": null,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-10-27",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      },
+      {
+        "id": "r-3d",
+        "title": "三天档（已提醒过 7 天）",
+        "description": null,
+        "discountType": null,
+        "discountAmount": null,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-10-23",
+        "endHour": 12,
+        "endMinute": 0,
+        "isReminded": false,
+        "remindedDays": [
+          7
+        ],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      },
+      {
+        "id": "r-1d",
+        "title": "一天档（已提醒过 7/3）",
+        "description": null,
+        "discountType": null,
+        "discountAmount": null,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-10-22",
+        "endHour": 9,
+        "endMinute": 0,
+        "isReminded": false,
+        "remindedDays": [
+          7,
+          3
+        ],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      },
+      {
+        "id": "r-today",
+        "title": "今天到期（已提醒过 7/3）",
+        "description": null,
+        "discountType": null,
+        "discountAmount": null,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-10-21",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [
+          7,
+          3
+        ],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      },
+      {
+        "id": "r-done",
+        "title": "三档都提醒过",
+        "description": null,
+        "discountType": null,
+        "discountAmount": null,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-10-22",
+        "endHour": 9,
+        "endMinute": 0,
+        "isReminded": true,
+        "remindedDays": [
+          7,
+          3,
+          1
+        ],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      },
+      {
+        "id": "r-used",
+        "title": "已使用",
+        "description": null,
+        "discountType": null,
+        "discountAmount": null,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-10-22",
+        "endHour": 9,
+        "endMinute": 0,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": true,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      },
+      {
+        "id": "r-expired",
+        "title": "已过期",
+        "description": null,
+        "discountType": null,
+        "discountAmount": null,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-10-20",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      },
+      {
+        "id": "r-custom",
+        "title": "自定义档位用",
+        "description": null,
+        "discountType": null,
+        "discountAmount": null,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-10-25",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      }
+    ]
+  },
+  "validateCase": {
+    "$comment": "validateCoupon：是否通过 + 错误文案（两端必须一字不差）。",
+    "items": [
+      {
+        "id": "v-ok-percent",
+        "title": "瑞幸 5 折",
+        "description": null,
+        "discountType": "percentage",
+        "discountAmount": 5,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-10-31",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      },
+      {
+        "id": "v-ok-none",
+        "title": "某小店代金券",
+        "description": null,
+        "discountType": null,
+        "discountAmount": null,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-12-31",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      },
+      {
+        "id": "v-blank-title",
+        "title": "   ",
+        "description": null,
+        "discountType": "amount",
+        "discountAmount": 10,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-12-31",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      },
+      {
+        "id": "v-long-title",
+        "title": "长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长长",
+        "description": null,
+        "discountType": "amount",
+        "discountAmount": 10,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-12-31",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      },
+      {
+        "id": "v-reversed",
+        "title": "日期反了",
+        "description": null,
+        "discountType": "amount",
+        "discountAmount": 10,
+        "fullAmount": null,
+        "startDate": "2026-10-10",
+        "endDate": "2026-10-01",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      },
+      {
+        "id": "v-bad-hour",
+        "title": "小时越界",
+        "description": null,
+        "discountType": "amount",
+        "discountAmount": 10,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-12-31",
+        "endHour": 24,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      },
+      {
+        "id": "v-bad-minute",
+        "title": "分钟越界",
+        "description": null,
+        "discountType": "amount",
+        "discountAmount": 10,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-12-31",
+        "endHour": 23,
+        "endMinute": 60,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      },
+      {
+        "id": "v-full-missing",
+        "title": "满减缺门槛",
+        "description": null,
+        "discountType": "full",
+        "discountAmount": 30,
+        "fullAmount": 0,
+        "startDate": "2026-10-01",
+        "endDate": "2026-12-31",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      },
+      {
+        "id": "v-amount-zero",
+        "title": "金额为 0",
+        "description": null,
+        "discountType": "amount",
+        "discountAmount": 0,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-12-31",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      },
+      {
+        "id": "v-group-ok",
+        "title": "团购券",
+        "description": null,
+        "discountType": "group",
+        "discountAmount": null,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-12-31",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      }
+    ]
+  },
+  "storeGroupCase": {
+    "$comment": "groupByStore：按店铺聚合，金额降序、同额按店铺名升序（顺序必须两端一致）。",
+    "coupons": [
+      {
+        "id": "g1",
+        "title": "京东 满 100 减 20",
+        "description": null,
+        "discountType": "full",
+        "discountAmount": 20,
+        "fullAmount": 100,
+        "startDate": "2026-10-01",
+        "endDate": "2026-12-31",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      },
+      {
+        "id": "g2",
+        "title": "淘宝 红包",
+        "description": null,
+        "discountType": "amount",
+        "discountAmount": 15,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-12-31",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": true,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      },
+      {
+        "id": "g3",
+        "title": "京东 家电券",
+        "description": null,
+        "discountType": "amount",
+        "discountAmount": 10,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-12-31",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      },
+      {
+        "id": "g4",
+        "title": "淘宝 通用券",
+        "description": null,
+        "discountType": "amount",
+        "discountAmount": 15,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-12-31",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      },
+      {
+        "id": "g5",
+        "title": "某小店 5 元代金券",
+        "description": null,
+        "discountType": "amount",
+        "discountAmount": 5,
+        "fullAmount": null,
+        "startDate": "2026-10-01",
+        "endDate": "2026-12-31",
+        "endHour": 23,
+        "endMinute": 59,
+        "isReminded": false,
+        "remindedDays": [],
+        "isUsed": false,
+        "notes": null,
+        "createdAt": "2026-10-01T00:00:00+08:00",
+        "updatedAt": null,
+        "version": null,
+        "modifiedAt": null
+      }
     ]
   },
   "cases": [
@@ -80,7 +685,9 @@
         "endHour": 23,
         "endMinute": 59,
         "isReminded": false,
-        "remindedDays": [7],
+        "remindedDays": [
+          7
+        ],
         "isUsed": false,
         "notes": "全品类",
         "createdAt": "2026-10-02T12:30:00+08:00",
@@ -126,7 +733,10 @@
         "endHour": null,
         "endMinute": null,
         "isReminded": true,
-        "remindedDays": [7, 3],
+        "remindedDays": [
+          7,
+          3
+        ],
         "isUsed": true,
         "notes": null,
         "createdAt": "2026-10-03T18:00:00+08:00",

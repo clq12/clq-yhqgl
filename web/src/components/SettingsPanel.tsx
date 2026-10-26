@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { getSettings, putSettings } from '../db/appDb';
 import { WebDAVClient } from '../sync/webdav';
-import { backupToWebDAV } from '../sync/backup';
+import { backupToWebDAV, restoreFromWebDAV } from '../sync/backup';
 import type { AppSettings } from '../types/coupon';
 import { useAuth } from '../context/AuthContext';
 import { Button, Card, Input, Skeleton, useToast } from './ui';
@@ -69,7 +69,7 @@ function Section({
 }
 
 export function SettingsPanel() {
-  const { session, syncState, syncResult, refreshData, signOut } = useAuth();
+  const { session, syncState, syncResult, lastSyncAt, refreshData, signOut } = useAuth();
   const { showToast } = useToast();
 
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
@@ -79,6 +79,7 @@ export function SettingsPanel() {
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [backing, setBacking] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   // 浏览器通知权限：只有 granted 时 Service Worker 才弹得出来，所以要在界面上说清楚
   const remindDays = useMemo(
@@ -178,6 +179,27 @@ export function SettingsPanel() {
     }
   };
 
+  const handleRestore = async () => {
+    if (!window.confirm('从 WebDAV 恢复会覆盖当前本地数据，确定继续？')) return;
+    setRestoring(true);
+    try {
+      const result = await restoreFromWebDAV(settings);
+      if (result.ok) {
+        showToast(
+          `已从 WebDAV 恢复 ${result.count ?? 0} 条${result.pushedToCloud ? '（已同步云端）' : ''}`,
+          'success',
+        );
+        await refreshData();
+      } else {
+        showToast(result.error ?? '恢复失败', 'error');
+      }
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : '恢复失败', 'error');
+    } finally {
+      setRestoring(false);
+    }
+  };
+
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
@@ -218,6 +240,11 @@ export function SettingsPanel() {
                   ? '云端同步异常'
                   : '正在检查云端状态'}
             </p>
+            {lastSyncAt ? (
+              <p className="mt-0.5 text-xs text-slate-400">
+                上次同步：{new Date(lastSyncAt).toLocaleString()}
+              </p>
+            ) : null}
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -239,7 +266,7 @@ export function SettingsPanel() {
       <Section
         icon={<Cloud className="h-4 w-4" />}
         title="WebDAV 手动备份（可选）"
-        description="仅用于把当前数据【手动】导出备份到你的 WebDAV 网盘，不参与设备间同步（同步由云端完成）。建议先点「测试连接」确认配置可用，再点「备份到 WebDAV」。"
+        description="仅用于把当前数据【手动】导出备份到你的 WebDAV 网盘，不参与设备间同步（同步由云端完成）。建议先点「测试连接」确认配置可用，再点「备份到 WebDAV」。「从 WebDAV 恢复」会用备份覆盖本地（已登录时同步云端）。"
       >
         <div className="grid gap-3 sm:grid-cols-2">
           <Input
@@ -287,6 +314,15 @@ export function SettingsPanel() {
           >
             备份到 WebDAV
           </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleRestore}
+            loading={restoring}
+            icon={<Cloud className="h-4 w-4" />}
+          >
+            从 WebDAV 恢复
+          </Button>
           {testStatus && <span className="text-xs text-slate-500">{testStatus}</span>}
         </div>
       </Section>
@@ -320,18 +356,9 @@ export function SettingsPanel() {
 
       <Section
         icon={<HardDrive className="h-4 w-4" />}
-        title="同步与提醒"
-        description="控制自动同步频率与到期提醒"
+        title="提醒设置"
+        description="控制到期提醒"
       >
-        <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2.5">
-          <span className="text-sm text-slate-700">自动同步</span>
-          <input
-            type="checkbox"
-            checked={settings.sync.autoSync}
-            onChange={(e) => update({ sync: { ...settings.sync, autoSync: e.target.checked } })}
-            className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
-          />
-        </label>
         <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 py-2.5">
           <span className="text-sm text-slate-700">启用到期提醒</span>
           <input

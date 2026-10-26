@@ -90,23 +90,3 @@ import kotlinx.serialization.Serializable
     val deletedIds: List<String> = emptyList()
 )
 
-/**
- * 同步元数据
- */
-@Serializable
- data class SyncCheckpoint(
-    @SerialName("schemaVersion")
-    val schemaVersion: Int = 2,
-    @SerialName("deviceId")
-    val deviceId: String,
-    @SerialName("deviceName")
-    val deviceName: String? = null,
-    @SerialName("vectorClock")
-    val vectorClock: Map<String, Int> = emptyMap(),
-    @SerialName("lastSyncAt")
-    val lastSyncAt: String? = null,
-    @SerialName("pendingChanges")
-    val pendingChanges: Int = 0,
-    @SerialName("conflictCount")
-    val conflictCount: Int = 0
-)

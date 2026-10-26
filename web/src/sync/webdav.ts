@@ -1,6 +1,10 @@
 /**
- * 浏览器端轻量 WebDAV 客户端
- * 注意：目标 WebDAV 服务需要支持 CORS，否则需要反向代理。
+ * 浏览器端轻量 WebDAV 客户端 —— 仅用于【手动备份导出】。
+ *
+ * ⚠️ 注意：本客户端不再参与任何「自动同步」。
+ * v3 架构下设备间同步的唯一通道是 WorkBuddy 云端数据库（见 src/db/appDb.ts），
+ * WebDAV 已降级为可选的「一键手动备份」出口（把本地数据导出到用户自己的 WebDAV 网盘）。
+ * 目标 WebDAV 服务需要支持 CORS，否则需要反向代理。
  */
 
 export interface WebDAVConfig {

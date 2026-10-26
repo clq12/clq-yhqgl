@@ -2,12 +2,14 @@
 /**
  * 双端业务规则契约检查。
  *
- * 做两件事：
+ * 做三件事：
  * 1) 店铺名单不得漂移 —— shared/data/stores.json 是唯一真相源，
  *    TS 与 Kotlin 里那两份内联拷贝必须和它逐项一致。
  * 2) 行为契约 —— 用 shared/data/contract-cases.json 里的固定用例，
  *    在固定的「当前时间」下算出结果写入 contract-expected.json；
  *    Android 单测拿同一份用例跑 Kotlin 实现，必须得出完全相同的结论。
+ * 3) Schema 与协议一致性 —— 防止有人把「应仅本地」的字段误标成 required，
+ *    或让 sync.json 残留同步通道语义（v3 已改为仅备份元数据）。
  *
  * 用法：
  *   node scripts/contract-check.mjs           校验（CI 用，不一致就非 0 退出）
@@ -29,6 +31,8 @@ const CASES_JSON = resolve(root, 'shared/data/contract-cases.json');
 const EXPECTED_JSON = resolve(root, 'shared/data/contract-expected.json');
 const TS_RULES = resolve(root, 'shared/types/typescript/couponRules.ts');
 const KT_RULES = resolve(root, 'shared/types/kotlin/CouponRules.kt');
+const COUPON_SCHEMA = resolve(root, 'shared/schemas/coupon.json');
+const SYNC_SCHEMA = resolve(root, 'shared/schemas/sync.json');
 
 const write = process.argv.includes('--write');
 const problems = [];
@@ -213,10 +217,47 @@ if (write) {
   }
 }
 
+// ------------------------------------------ 3. Schema 与协议一致性（D4）
+// 防止把「应仅本地」的字段误标成 required，或让 sync.json 残留同步通道语义。
+function checkSchemaDrift() {
+  let couponSchema;
+  let syncSchema;
+  try {
+    couponSchema = JSON.parse(readFileSync(COUPON_SCHEMA, 'utf8'));
+    syncSchema = JSON.parse(readFileSync(SYNC_SCHEMA, 'utf8'));
+  } catch (e) {
+    problems.push(`[Schema] 读取 Schema 失败：${e instanceof Error ? e.message : String(e)}`);
+    return;
+  }
+
+  const required = new Set(couponSchema.required ?? []);
+  for (const field of ['isReminded', 'remindedDays']) {
+    if (required.has(field)) {
+      problems.push(
+        `[Schema] coupon.json 的 required 含有本地字段 ${field}：它不应参与同步，请移出 required 并标 x-local-only`,
+      );
+    }
+    const prop = couponSchema.properties?.[field];
+    if (prop && prop['x-local-only'] !== true) {
+      problems.push(
+        `[Schema] coupon.json 的 ${field} 缺少 x-local-only: true：它仅本地存储、禁止上云`,
+      );
+    }
+  }
+
+  // sync.json 在 v3 下只应作为「手动备份元数据」，不得再出现向量时钟等同步语义
+  if ('vectorClock' in (syncSchema.properties ?? {})) {
+    problems.push(
+      '[Schema] sync.json 仍定义 vectorClock：v3 已移除同步通道，请改为 lastBackupAt 等备份元数据',
+    );
+  }
+}
+checkSchemaDrift();
+
 // ---------------------------------------------------------------- 结果
 if (problems.length) {
   console.error('\n契约检查未通过：');
   for (const p of problems) console.error(' - ' + p);
   process.exit(1);
 }
-console.log('契约检查通过：店铺名单两端一致，行为用例与 expected 吻合。');
+console.log('契约检查通过：店铺名单两端一致，行为用例与 expected 吻合，Schema 与协议无漂移。');

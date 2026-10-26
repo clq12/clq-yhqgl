@@ -41,6 +41,26 @@
       "raw": "一二三四五六七八九十一二三",
       "note": "超长截断到 12",
       "normalized": "一二三四五六七八九十一二"
+    },
+    {
+      "raw": "抖 音",
+      "note": "不间断空格 NBSP(U+00A0) 也是空白，压成一个普通空格",
+      "normalized": "抖 音"
+    },
+    {
+      "raw": "\t淘宝\n",
+      "note": "制表符/换行也是空白",
+      "normalized": "淘宝"
+    },
+    {
+      "raw": "## 京东 ",
+      "note": "井号后带空格：去井号再 trim",
+      "normalized": "京东"
+    },
+    {
+      "raw": "饿了么#外卖",
+      "note": "中间的井号不动，只去开头",
+      "normalized": "饿了么#外卖"
     }
   ],
   "suggestCase": {
@@ -86,15 +106,17 @@
       "b-today"
     ],
     "soon": [
-      "b-soon"
+      "b-soon",
+      "b-boundary-3d"
     ],
     "highValue": [
       "b-rich",
       "b-soon",
-      "b-later"
+      "b-boundary-3d"
     ],
     "expired": [
-      "b-expired"
+      "b-expired",
+      "b-today-midnight"
     ]
   },
   "cases": [
@@ -163,6 +185,105 @@
       "statusTone": "success",
       "discountLabel": "无门槛",
       "store": "某小店代金券"
+    },
+    {
+      "name": "截止时刻为当天 00:00（最小边界）",
+      "deadlineMs": 1792512059000,
+      "remainingDays": -1,
+      "expired": true,
+      "active": false,
+      "statusText": "已过期",
+      "statusTone": "danger",
+      "discountLabel": "减 ¥12",
+      "store": "零点场电影票"
+    },
+    {
+      "name": "时分缺省（null 兜底 23:59）",
+      "deadlineMs": 1792598399000,
+      "remainingDays": 0,
+      "expired": false,
+      "active": true,
+      "statusText": "仅剩 0 天",
+      "statusTone": "warning",
+      "discountLabel": "减 ¥20",
+      "store": "盒马"
+    },
+    {
+      "name": "尚未开始（未过期即算有效）",
+      "deadlineMs": 1798732799000,
+      "remainingDays": 71,
+      "expired": false,
+      "active": true,
+      "statusText": "剩余 71 天",
+      "statusTone": "success",
+      "discountLabel": "满 ¥300 减 ¥50",
+      "store": "优衣库"
+    },
+    {
+      "name": "折扣为小数（8.5 折）",
+      "deadlineMs": 1793894399000,
+      "remainingDays": 15,
+      "expired": false,
+      "active": true,
+      "statusText": "剩余 15 天",
+      "statusTone": "success",
+      "discountLabel": "8.5 折",
+      "store": "喜茶"
+    },
+    {
+      "name": "满减缺门槛（脏数据兜底成 ¥0）",
+      "deadlineMs": 1795190399000,
+      "remainingDays": 30,
+      "expired": false,
+      "active": true,
+      "statusText": "剩余 30 天",
+      "statusTone": "success",
+      "discountLabel": "满 ¥0 减 ¥20",
+      "store": "永辉"
+    },
+    {
+      "name": "店铺识别：标题含两个店铺名（按名单顺序取前面的）",
+      "deadlineMs": 1793548799000,
+      "remainingDays": 11,
+      "expired": false,
+      "active": true,
+      "statusText": "剩余 11 天",
+      "statusTone": "success",
+      "discountLabel": "减 ¥8",
+      "store": "淘宝"
+    },
+    {
+      "name": "店铺识别：标题以空格开头（首段为空要兜底）",
+      "deadlineMs": 1793635199000,
+      "remainingDays": 12,
+      "expired": false,
+      "active": true,
+      "statusText": "剩余 12 天",
+      "statusTone": "success",
+      "discountLabel": "减 ¥5",
+      "store": "小王小店 5 元代金券"
+    },
+    {
+      "name": "店铺识别：标题只有空格（兜底「其他」）",
+      "deadlineMs": 1793721599000,
+      "remainingDays": 13,
+      "expired": false,
+      "active": true,
+      "statusText": "剩余 13 天",
+      "statusTone": "success",
+      "discountLabel": "无门槛",
+      "store": "其他"
+    },
+    {
+      "name": "店铺识别：英文店铺名",
+      "deadlineMs": 1793807999000,
+      "remainingDays": 14,
+      "expired": false,
+      "active": true,
+      "statusText": "剩余 14 天",
+      "statusTone": "success",
+      "discountLabel": "减 ¥15",
+      "store": "Costco"
     }
   ]
 }

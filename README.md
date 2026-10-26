@@ -7,6 +7,8 @@
 - `shared/`：双端共享的数据模型、JSON Schema、业务规则、契约用例
 - `scripts/`：契约检查与仓库工具
 
+> 架构以 [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) 为当前唯一事实来源。旧版 `docs/REFACTOR_ANALYSIS.md`（WebDAV 同步中枢方案）已废弃。
+
 ## 核心设计
 
 - **云数据库是唯一真相源**。表 `coupons` / `settings`，RLS 按 `owner_id = auth.uid()` 隔离。
@@ -164,6 +166,7 @@ npm run build    # 输出到 web/dist
 
 ## 文档
 
+- [项目架构（v3，当前事实来源）](./docs/ARCHITECTURE.md)
 - [数据一致性协议](./shared/rules/sync-protocol.md)
 - [优惠券业务规则](./shared/rules/coupon-rules.md)
-- [重构分析与分阶段计划](./docs/REFACTOR_ANALYSIS.md)
+- [重构分析与分阶段计划（⚠️ 已废弃，见上方架构文档）](./docs/REFACTOR_ANALYSIS.md)

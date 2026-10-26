@@ -38,22 +38,6 @@ export interface Coupon {
   deletedAt?: string | null;
 }
 
-export interface CouponDataPackage {
-  schemaVersion: number;
-  coupons: Coupon[];
-  deletedIds: string[];
-}
-
-export interface SyncCheckpoint {
-  schemaVersion: number;
-  deviceId: string;
-  deviceName: string | null;
-  vectorClock: Record<string, number>;
-  lastSyncAt: string | null;
-  pendingChanges: number;
-  conflictCount: number;
-}
-
 export interface WebDAVSettings {
   url: string;
   username: string;

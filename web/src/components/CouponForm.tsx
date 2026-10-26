@@ -4,7 +4,7 @@ import type { Coupon, DiscountType } from '../types/coupon';
 import { beijingNow } from '../rules/couponRules';
 import { getSettings, listCoupons, putCoupon, SyncConflictError } from '../db/appDb';
 import { normalizeTags, tagLibraryOf } from '../rules/couponRules';
-import { bumpVersion } from '../sync/syncEngine';
+import { bumpVersion } from '../sync/version';
 import { notifyDataChanged } from '../lib/dataBus';
 import { Button, Card, Input, Select, Textarea, useToast } from './ui';
 import { TagEditor } from './TagEditor';

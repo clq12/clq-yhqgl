@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { getSettings, putSettings } from '../db/appDb';
 import { WebDAVClient } from '../sync/webdav';
+import { backupToWebDAV } from '../sync/backup';
 import type { AppSettings } from '../types/coupon';
 import { useAuth } from '../context/AuthContext';
 import { Button, Card, Input, Skeleton, useToast } from './ui';
@@ -77,6 +78,7 @@ export function SettingsPanel() {
   const [testStatus, setTestStatus] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [backing, setBacking] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   // 浏览器通知权限：只有 granted 时 Service Worker 才弹得出来，所以要在界面上说清楚
   const remindDays = useMemo(
@@ -109,7 +111,7 @@ export function SettingsPanel() {
   /**
    * 开关到期提醒。
    *
-   * 浏览器通知不是"打开开关就能用"——必须先拿到 Notification 权限，
+   * 浏览器通知不是“打开开关就能用”——必须先拿到 Notification 权限，
    * 而且 requestPermission 只能在用户手势里调，所以放在这个 onChange 里而不是 effect 里。
    */
   const toggleReminder = async (checked: boolean) => {
@@ -157,6 +159,22 @@ export function SettingsPanel() {
       setTestStatus('连接失败：' + (e instanceof Error ? e.message : String(e)));
     } finally {
       setTesting(false);
+    }
+  };
+
+  const handleBackup = async () => {
+    setBacking(true);
+    try {
+      const result = await backupToWebDAV(settings);
+      if (result.ok) {
+        showToast('已备份到 WebDAV', 'success');
+      } else {
+        showToast(result.error ?? '备份失败', 'error');
+      }
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : '备份失败', 'error');
+    } finally {
+      setBacking(false);
     }
   };
 
@@ -220,8 +238,8 @@ export function SettingsPanel() {
 
       <Section
         icon={<Cloud className="h-4 w-4" />}
-        title="WebDAV 同步（可选）"
-        description="用于与安卓端或其他支持 WebDAV 的工具同步"
+        title="WebDAV 手动备份（可选）"
+        description="仅用于把当前数据【手动】导出备份到你的 WebDAV 网盘，不参与设备间同步（同步由云端完成）。建议先点「测试连接」确认配置可用，再点「备份到 WebDAV」。"
       >
         <div className="grid gap-3 sm:grid-cols-2">
           <Input
@@ -259,6 +277,15 @@ export function SettingsPanel() {
             icon={<TestTube className="h-4 w-4" />}
           >
             测试连接
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleBackup}
+            loading={backing}
+            icon={<Cloud className="h-4 w-4" />}
+          >
+            备份到 WebDAV
           </Button>
           {testStatus && <span className="text-xs text-slate-500">{testStatus}</span>}
         </div>

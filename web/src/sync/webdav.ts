@@ -71,14 +71,6 @@ export class WebDAVClient {
     return res.ok;
   }
 
-  async etag(path: string): Promise<string | null> {
-    const res = await fetch(this.url(path), {
-      method: 'HEAD',
-      headers: this.headers(),
-    });
-    return res.ok ? res.headers.get('ETag') : null;
-  }
-
   /**
    * 列出目录下的 .json 文件（用于恢复时在 backups/ 里挑最新一份）。
    * 基于 PROPFIND Depth:1，解析 XML 中的 <href>，只返回文件名。

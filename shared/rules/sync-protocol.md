@@ -39,6 +39,10 @@
 
 领域模型里 `deletedAt` 是唯一真相，`isDeleted` 只是它的派生（`deletedAt != null`）。
 
+`settings.ai.apiKey` 与 `aiAssistants[].apiKey` 是**用户自持密钥**：两端写云前都会剥掉
+（网页端 `appDb.stripSecrets`），云端这两处恒为 `null`，读回时再用本机缓存补上。
+也就是说「换台设备要重新填 Key」是设计使然，不是丢配置。
+
 `sync.json`（即 `BackupMetadata`）在 v3 下**仅作手动备份元数据**（`lastBackupAt` / `lastBackupPath`），
 不再包含任何向量时钟或同步/冲突语义——v2 的 `vectorClock` 已移除。
 
@@ -69,6 +73,11 @@
 
 - 本地写入被拦 → 该条 `conflict = 1`、`dirty = 0`，在「待解决」列表里高亮。
 - 用户处理方式：以云端为准（放弃本地改动）或重新编辑覆盖（`modified_at` 推到当前时刻）。
+- **网页端**：命中的两边都存进 localStorage 的「待解决」清单（`web/src/sync/conflicts.ts`），
+  设置页顶部逐条给出「字段级差异 + 两个按钮」，不处理就一直留着。
+  覆盖时走 `resolveConflictKeepLocal`，时间戳取 `now + 1ms`，否则下一轮同步会再次判冲突。
+- **安卓端**：`ConflictScreen` + `dao.markConflict(id)`，语义一致。
+- 判定函数只有一份：`web/src/sync/decideWrite.ts`，`scripts/concurrency-check.mjs` 直接拿它做回归。
 
 ## 7. 账号与游客
 
@@ -86,6 +95,9 @@
 
 - 按设备各自提醒。`ReminderWorker` / 网页 `sw.js` 只写本地 `isReminded` / `remindedDays`，不置 `dirty`。
 - 因此电脑上提醒过，不会让手机静默。
+- **静默时段**（`reminder.quietStart` / `quietEnd`，`HH:mm`，支持跨零点）双端同一套判定：
+  命中就整轮跳过，**且不标记已提醒** —— 标记了等于把这张券永久吞掉，安静结束后就不会再补。
+  格式非法或起止相同一律当作「没配」，不要因为脏数据把提醒停掉。
 
 ## 9. WebDAV 备份（手动，仅元数据）
 
@@ -112,6 +124,9 @@
 - 店铺名单必须与 `shared/data/stores.json` 逐项一致。
 - `shared/data/contract-cases.json` 的固定用例，在固定「当前时间」下，
   TS 端算出 `shared/data/contract-expected.json`，Android 单测用 Kotlin 实现重算，必须完全相同。
+
+并发写另有独立回归：`node --experimental-strip-types scripts/concurrency-check.mjs`
+（双设备回合、覆盖后不复发、软删除不复活、提醒字段不被云端覆盖）。
 
 已知必修的坑：`remainingHours` / `remainingDays` 必须用**地板除法**
 （JS `Math.floor`、Kotlin `Math.floorDiv`）。用截断除法时，已过期的券两端会差一天。

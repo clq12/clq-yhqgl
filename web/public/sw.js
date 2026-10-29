@@ -170,6 +170,29 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
+/**
+ * 只接管「页面导航」，并且强制走网络。
+ *
+ * 为什么需要这一段：静态托管给不了我们自定义响应头，`index.html` 只有 `Last-Modified`。
+ * 浏览器对没有 Cache-Control 的文档会启用启发式缓存（默认取「距上次修改时长」的 10%），
+ * 老用户第二天进来仍然拿着上一版的 HTML，于是一个劲地问「怎么还是旧界面」——
+ * 而 HTML 里指的是带 hash 的 JS 文件名，只要 HTML 是旧的，新功能就永远出不来。
+ *
+ * 有了这个 fetch handler，导航请求用 `cache: 'no-store'` 直连网络，发布即生效；
+ * 其它请求（带 hash 的 js/css）不拦截，交给浏览器正常缓存，不牺牲性能。
+ * 断网时导航会失败，这与没有 SW 时的表现一致，不算退化。
+ */
+self.addEventListener('fetch', (event) => {
+  if (event.request.mode !== 'navigate') return;
+  event.respondWith(
+    fetch(event.request, { cache: 'no-store' }).catch(async () => {
+      // 我们不做离线缓存，断网时如实返回网络错误，而不是编一个空壳页面
+      const cached = await caches.match(event.request);
+      return cached || Response.error();
+    })
+  );
+});
+
 self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
   setInterval(() => {

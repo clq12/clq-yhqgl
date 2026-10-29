@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { cloud } from '../cloud';
 import { useAuth } from '../context/AuthContext';
+import { WEB_VERSION } from '../version';
 import { Button, Input, Tabs } from './ui';
 
 /** 登录页的三种入口：验证码登录 / 账号密码登录 / 注册新账号 */
@@ -415,7 +416,10 @@ export function LoginScreen() {
                 正在处理…
               </>
             ) : (
-              '登录即表示同意将数据保存在云端，仅用于本应用'
+              <>
+                登录即表示同意将数据保存在云端，仅用于本应用
+                <span className="text-slate-300">· v{WEB_VERSION}</span>
+              </>
             )}
           </p>
         </div>

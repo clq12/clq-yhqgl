@@ -31,5 +31,19 @@
             android:name="androidx.work.impl.background.systemjob.SystemJobService"
             android:permission="android.permission.BIND_JOB_SERVICE"
             android:exported="true" />
+
+        <!--
+          AI 页「拍照识图」用 ACTION_IMAGE_CAPTURE，需要把临时文件的 Uri 交给系统相机 App。
+          不申请 CAMERA 权限：相机由系统 App 负责，申了反而多一道运行时授权（拒了就废）。
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 </manifest>

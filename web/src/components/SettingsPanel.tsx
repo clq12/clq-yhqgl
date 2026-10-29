@@ -20,6 +20,7 @@ import { Button, Card, Input, Skeleton, useToast } from './ui';
 import { TagLibraryEditor } from './TagLibraryEditor';
 import { AiAssistantSettings } from './AiAssistantSettings';
 import { ConflictPanel } from './ConflictPanel';
+import { PasswordSettings } from './PasswordSettings';
 import { activeAssistant, effectiveAssistants } from '../ai/assistants';
 import { defaultTags, tagLibraryOf } from '../rules/couponRules';
 
@@ -263,6 +264,9 @@ export function SettingsPanel() {
             </Button>
           </div>
         </div>
+
+        {/* 改密放在账号区里：它属于「账号凭据」，不是同步设置 */}
+        <PasswordSettings email={session?.user.email || ''} />
       </Section>
 
       {/* 乐观锁命中的券：不处理掉会一直卡着，所以放在最靠上的位置 */}

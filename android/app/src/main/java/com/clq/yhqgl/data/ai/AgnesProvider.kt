@@ -20,6 +20,9 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
+/** 提示词里最多塞多少张券：够模型认标题，又不至于把上下文撑爆 */
+private const val MAX_CONTEXT_COUPONS = 40
+
 /**
  * 默认 Agnes Provider（OpenAI 兼容接口）
  */
@@ -66,11 +69,26 @@ import java.util.concurrent.TimeUnit
 
     override suspend fun parseIntent(text: String, context: AIContext): Result<AiIntent> {
         val systemPrompt = buildString {
-            appendLine("你是优惠券管理助手。请把用户的自然语言命令解析为结构化 JSON。")
-            appendLine("字段：intent(create/update/delete/query/chat)、targetId、changes(Map<String,String?>)、filters(Map<String,String?>)、reasoning")
-            appendLine("日期格式 YYYY-MM-DD，折扣类型只能是 amount/percentage/full/group 之一。")
-            appendLine("当前共有 ${context.coupons.size} 张优惠券。")
-            appendLine("只输出合法 JSON，不要多余解释。")
+            appendLine("你是「优惠券管理」App 的助手。把用户的话解析成一个 JSON 对象，不要输出多余解释。")
+            appendLine("字段：")
+            appendLine("- intent：create / update / delete / query / chat")
+            appendLine("- targetId：字符串或 null。update/delete 优先填券的 id；不知道 id 就填券标题原文")
+            appendLine("- changes：对象。create/update 用，可用键 title、description、discountType、discountAmount、fullAmount、startDate、endDate、endHour、endMinute、notes、tags、isUsed")
+            appendLine("- filters：对象。query 用，可用键 preset（today/soon/week/month/expired/used/unused/all）、days、keyword、tag、minAmount")
+            appendLine("- reasoning：一句话说明你的理解")
+            appendLine("规则：")
+            appendLine("- 日期一律 YYYY-MM-DD，今天是 ${context.today}（北京时间）。「这周」按 7 天内算。")
+            appendLine("- discountType 只能是 amount（立减金额）/ percentage（几折）/ full（满减）/ group（团购）。")
+            appendLine("- update 只填要改的键；没提到的键不要出现（写了空值会把原值清掉）。")
+            appendLine("- 用户只是问「有没有 / 哪些 / 多少 / 什么时候到期」时用 query，不要 create。")
+            appendLine("- 图片里没有、用户也没说的信息不要编造。")
+            appendLine("当前共 ${context.coupons.size} 张券，格式「标题 | 到期日 | 标签」：")
+            context.coupons.take(MAX_CONTEXT_COUPONS).forEach { c ->
+                appendLine("- ${c.title} | ${c.endDate} | ${c.tags.joinToString("/")}")
+            }
+            if (context.coupons.size > MAX_CONTEXT_COUPONS) {
+                appendLine("- …（还有 ${context.coupons.size - MAX_CONTEXT_COUPONS} 张未列出）")
+            }
         }
         return chat(
             listOf(
@@ -78,13 +96,18 @@ import java.util.concurrent.TimeUnit
                 ChatMessage("user", text)
             )
         ).map { raw ->
-            val cleaned = raw.trim()
-                .removePrefix("```json")
-                .removePrefix("```")
-                .removeSuffix("```")
-                .trim()
-            json.decodeFromString(AiIntent.serializer(), cleaned)
+            json.decodeFromString(AiIntent.serializer(), cleanJson(raw))
         }
+    }
+
+    /** 模型经常把 JSON 包在 ```json 里，或前后加一句客套话，这里剥干净 */
+    private fun cleanJson(raw: String): String {
+        val trimmed = raw.trim()
+        val fenced = Regex("```(?:json)?\\s*([\\s\\S]*?)```").find(trimmed)?.groupValues?.get(1)
+        val body = (fenced ?: trimmed).trim()
+        val start = body.indexOf('{')
+        val end = body.lastIndexOf('}')
+        return if (start in 0 until end) body.substring(start, end + 1) else body
     }
 
     @Serializable
@@ -162,8 +185,7 @@ import java.util.concurrent.TimeUnit
                         .jsonObject["message"]!!.jsonObject["content"]!!.jsonPrimitive.contentOrNull
                 }.getOrNull().orEmpty()
 
-                val cleaned = content.trim()
-                    .removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+                val cleaned = cleanJson(content)
                 runCatching { json.decodeFromString(AiIntent.serializer(), cleaned) }
                     .fold(
                         onSuccess = { Result.success(it) },

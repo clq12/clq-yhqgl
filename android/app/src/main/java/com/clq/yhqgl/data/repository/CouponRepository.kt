@@ -110,11 +110,46 @@ class CouponRepository(
 
     suspend fun sendCode(email: String): Result<OtpChallenge> = auth.sendCode(email)
 
+    /** 验证码登录/注册：`password` 只在「新账号注册」那条路上用得上（默认 123456） */
     suspend fun verifyCode(
         email: String,
         challenge: OtpChallenge,
-        code: String
-    ): Result<CloudSession> = auth.verifyCode(email, challenge, code)
+        code: String,
+        password: String? = null
+    ): Result<CloudSession> = auth.verifyCode(email, challenge, code, password)
+
+    /** 账号密码登录 */
+    suspend fun signInWithPassword(email: String, password: String): Result<CloudSession> =
+        auth.signInWithPassword(email, password)
+
+    /** 账号密码注册（前置条件：已拿到 verificationToken） */
+    suspend fun signUpWithPassword(
+        email: String,
+        password: String,
+        verificationToken: String
+    ): Result<CloudSession> = auth.signUpWithPassword(email, password, verificationToken)
+
+    /** 知道旧密码时直接改密 */
+    suspend fun changePassword(oldPassword: String, newPassword: String): Result<CloudSession> =
+        auth.changePasswordWithOld(oldPassword, newPassword)
+
+    /** 忘记旧密码：发重置验证码，返回 verificationId */
+    suspend fun sendPasswordResetCode(email: String): Result<String> =
+        auth.sendPasswordResetCode(email)
+
+    /** 忘记旧密码：验码 + 重置，成功后自动登录 */
+    suspend fun resetPassword(
+        email: String,
+        verificationId: String,
+        code: String,
+        newPassword: String
+    ): Result<CloudSession> = auth.resetPasswordWithCode(email, verificationId, code, newPassword)
+
+    /** 当前账号是否还在用初始默认密码（设置页据此提示改密） */
+    val usesDefaultPassword: Boolean get() = auth.usesDefaultPassword
+
+    /** 改密后设置页要刷新账号区展示 */
+    val currentEmail: String? get() = auth.currentSession()?.email
 
     /**
      * 登录成功后的数据处理。

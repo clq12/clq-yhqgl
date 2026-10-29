@@ -50,6 +50,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.clq.yhqgl.data.sync.WebDAVClient
+import com.clq.yhqgl.data.cloud.CloudAuth
+import com.clq.yhqgl.data.cloud.SecurePrefs
 import com.clq.yhqgl.di.ServiceLocator
 import com.clq.yhqgl.data.ai.AiAssistants
 import com.clq.yhqgl.model.AISettings
@@ -120,6 +122,7 @@ fun SettingsScreen(
     var confirmRestore by remember { mutableStateOf(false) }
     var pendingCount by remember { mutableIntStateOf(0) }
     var localCount by remember { mutableIntStateOf(0) }
+    var showChangePassword by remember { mutableStateOf(false) }
 
     // 账号切换后重新读一次本地统计
     androidx.compose.runtime.LaunchedEffect(accountVersion, session) {
@@ -160,6 +163,15 @@ fun SettingsScreen(
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                // 验证码注册的账号默认密码是 123456，一直不改等于没有密码
+                if (auth.usesDefaultPassword) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "当前仍在使用初始密码 ${CloudAuth.DEFAULT_PASSWORD}，建议马上改掉",
+                        fontSize = 11.sp,
+                        color = Danger
+                    )
+                }
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
@@ -199,10 +211,25 @@ fun SettingsScreen(
                     ) { Text("退出登录", color = Danger) }
                 }
                 Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { showChangePassword = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("修改密码") }
+                Spacer(Modifier.height(8.dp))
                 Text(
                     "退出后数据仍留在本机，可当成本地 App 继续用；再次登录同一账号会自动合并。",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            // 加密存储不可用时如实告诉用户，别让他以为「登录态莫名其妙丢了」
+            if (SecurePrefs.degraded) {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "提示：本机加密存储不可用（常见于换机/恢复备份后），登录态已改用普通存储保存，功能不受影响。",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.outline
                 )
             }
         }
@@ -801,6 +828,18 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { removingTag = null }) { Text("取消") }
+            }
+        )
+    }
+
+    // ------------------------------------------------------------ 账号：修改密码
+    if (showChangePassword) {
+        ChangePasswordDialog(
+            email = session?.email,
+            onDismiss = { showChangePassword = false },
+            onSuccess = { message ->
+                showChangePassword = false
+                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
             }
         )
     }

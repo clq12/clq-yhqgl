@@ -50,6 +50,20 @@ interface AuthContextValue {
   refreshSession: () => Promise<void>;
   refreshData: () => Promise<void>;
   signOut: () => Promise<void>;
+  /**
+   * 账号密码登录。返回 null 表示成功，否则返回给用户看的错误文案。
+   *
+   * 为什么返回字符串而不是抛异常：登录页要在同一处渲染错误条，
+   * 抛异常会让每个调用点都写一遍 try/catch，还容易漏掉「验证码过期」这类业务错误。
+   */
+  loginWithPassword: (email: string, password: string) => Promise<string | null>;
+  /** 账号密码注册（需先拿到邮箱验证码的 verificationId） */
+  registerWithPassword: (
+    email: string,
+    password: string,
+    verificationId: string,
+    token: string,
+  ) => Promise<string | null>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -149,6 +163,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await runSync();
   }, [runSync]);
 
+  /**
+   * 账号密码登录。
+   *
+   * SDK 内部会落会话，这里只要在成功后立刻 `refreshSession()`：
+   * 不依赖 `onAuthStateChange` 是否触发，也能保证迁移判定与首屏同步照常走一遍。
+   */
+  const loginWithPassword = useCallback(
+    async (email: string, password: string): Promise<string | null> => {
+      const { error } = await cloud.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      if (error) return error.message || '邮箱或密码不正确';
+      await refreshSession();
+      return null;
+    },
+    [refreshSession],
+  );
+
+  /**
+   * 账号密码注册。
+   *
+   * 上游要求先验码再建号，所以这里必须带 `verificationId` + `token`，
+   * 并把 `password` 一起交给 `verifyOtp`（SDK 在 `isExistingUser:false` 时会转成 signup 带上密码）。
+   */
+  const registerWithPassword = useCallback(
+    async (
+      email: string,
+      password: string,
+      verificationId: string,
+      token: string,
+    ): Promise<string | null> => {
+      const { error } = await cloud.auth.verifyOtp({
+        email: email.trim(),
+        password,
+        verificationId,
+        token,
+        isExistingUser: false,
+      });
+      if (error) return error.message || '注册失败，请稍后重试';
+      await refreshSession();
+      return null;
+    },
+    [refreshSession],
+  );
+
   const signOut = useCallback(async () => {
     await cloud.auth.signOut();
     // 冲突记录是「这个账号在这台设备上的待办」，登出后不该留给下一个账号看
@@ -238,6 +298,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         refreshSession,
         refreshData,
         signOut,
+        loginWithPassword,
+        registerWithPassword,
       }}
     >
       {children}

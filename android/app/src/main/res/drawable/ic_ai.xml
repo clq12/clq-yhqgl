@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AI 栏图标（四角星 + 小星）。
+  没有引入 material-icons-extended（几十 MB），自绘一个 24dp 的矢量图即可；
+  颜色留黑，Compose 的 Icon 会用 LocalContentColor 自动着色，选中/未选中都对。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M11,3 L12.7,8.3 L18,10 L12.7,11.7 L11,17 L9.3,11.7 L4,10 L9.3,8.3 Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M18,14 L18.8,16.2 L21,17 L18.8,17.8 L18,20 L17.2,17.8 L15,17 L17.2,16.2 Z" />
+</vector>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  拍照临时文件的可共享目录。
+  只开放 cacheDir/ai_shots/ 一个子目录：系统相机 App 拿到的 Uri 写不进别处，
+  我们也不会把 App 私有目录整个暴露出去。
+-->
+<paths>
+    <cache-path
+        name="ai_shots"
+        path="ai_shots/" />
+</paths>

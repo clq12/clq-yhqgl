@@ -19,5 +19,15 @@ data class CloudSession(
         expiresAt > 0 && now >= expiresAt - 60_000
 }
 
-/** 发码结果：verification_id 用来换 token，isUser 决定走登录还是注册 */
-data class OtpChallenge(val verificationId: String, val isUser: Boolean)
+/**
+ * 发码结果：verification_id 用来换 token。
+ *
+ * [isUser] 决定验码之后走 `/v1/signin`（老用户）还是 `/v1/signup`（新用户）。
+ * [isUserKnown] 表示上游**是否明确给了** `is_user`——上游对新邮箱会直接省略该字段，
+ * 那时代码允许在 4xx 之后换另一条链重试（详见 CloudAuth.verifyCode）。
+ */
+data class OtpChallenge(
+    val verificationId: String,
+    val isUser: Boolean,
+    val isUserKnown: Boolean = true
+)

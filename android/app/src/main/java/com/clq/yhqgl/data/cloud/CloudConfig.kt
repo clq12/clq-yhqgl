@@ -27,6 +27,13 @@ object CloudConfig {
     const val PATH_TOKEN = "$AUTH_BASE/v1/token"
     const val PATH_SIGNOUT = "$AUTH_BASE/v1/user/signout"
 
+    // 改密链（等价于 SDK 的 resetPasswordForOld / resetPasswordForEmail）
+    // 1) 知道旧密码：POST sudo {password} -> {sudo_token}，再 PATCH user/password
+    // 2) 不知道旧密码：走一次邮箱验证码，POST reset {email,new_password,verification_token}
+    const val PATH_USER_SUDO = "$AUTH_BASE/v1/user/sudo"
+    const val PATH_USER_PASSWORD = "$AUTH_BASE/v1/user/password"
+    const val PATH_RESET = "$AUTH_BASE/v1/reset"
+
     const val TABLE_COUPONS = "coupons"
     const val TABLE_SETTINGS = "settings"
 }

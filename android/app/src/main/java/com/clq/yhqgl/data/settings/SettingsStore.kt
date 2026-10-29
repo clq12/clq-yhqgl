@@ -2,8 +2,7 @@ package com.clq.yhqgl.data.settings
 
 import android.content.Context
 import androidx.core.content.edit
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
+import com.clq.yhqgl.data.cloud.SecurePrefs
 import com.clq.yhqgl.model.AISettings
 import com.clq.yhqgl.model.AiAssistant
 import com.clq.yhqgl.model.AppSettings
@@ -15,20 +14,14 @@ import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
 /**
- * 加密本地设置存储
+ * 本地设置存储（加密，失败自动降级）。
+ *
+ * 与 [com.clq.yhqgl.data.cloud.CloudAuth] 共用同一套 [SecurePrefs] 兜底：
+ * 它同样在 `ServiceLocator.init()` 阶段被创建，一旦 EncryptedSharedPreferences
+ * 建不出来就是启动崩溃 —— 而这个文件只是存 WebDAV/AI 配置，不值得为它挡住用户。
  */
  class SettingsStore(context: Context) {
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
-
-    private val prefs = EncryptedSharedPreferences.create(
-        context,
-        "yhqgl_settings",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-    )
+    private val prefs = SecurePrefs.open(context.applicationContext, "yhqgl_settings")
 
     private val json = Json { ignoreUnknownKeys = true }
 

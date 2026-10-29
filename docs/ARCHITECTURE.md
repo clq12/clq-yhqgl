@@ -23,7 +23,8 @@ graph TD
         AR["本地存储<br/>android/.../data/local (Room)"]
         AS["云同步引擎<br/>android/.../data/sync/CloudSyncEngine.kt<br/>先推后拉 · 乐观锁 · 软删除"]
         AW["提醒<br/>android/.../worker/ReminderWorker.kt<br/>仅写本地 isReminded"]
-        AAI["AI 模块<br/>android/.../data/ai (AgnesProvider.kt)"]
+        AAI["AI 模块<br/>android/.../data/ai (AgnesProvider / AiQuery / AiPlanner)<br/>ui/AiScreen.kt 底栏 AI 页"]
+        AA["认证<br/>android/.../data/cloud/CloudAuth.kt<br/>验证码链 + 密码链 + 改密链"]
     end
 
     subgraph WEB["网页端 (React / TS / Vite / IndexedDB)"]
@@ -31,6 +32,7 @@ graph TD
         WS["云同步引擎<br/>web/src/db/appDb.ts（已云化）<br/>对齐安卓乐观锁"]
         WW["提醒<br/>web/src/hooks (本地调度)"]
         WAI["AI 模块<br/>web/src/ai (agnesProvider.ts)"]
+        WA["认证<br/>web/src/context/AuthContext.tsx<br/>cloud.auth.* (SDK)"]
     end
 
     WDAV["WebDAV 旁路（仅手动备份）<br/>web/src/sync/webdav.ts · android/.../data/sync/BackupEngine.kt<br/>/yhqgl/v2/data.json + backups/"]
@@ -153,6 +155,13 @@ flowchart TD
 - **提醒按设备各算**：`is_reminded`/`reminded_days` 仅本地，不同步（电脑提醒过手机仍提醒是预期行为，非 bug）。
 - **业务规则**：TS 与 Kotlin 各一份，由 `scripts/contract-check.mjs` + `CouponRulesContractTest` 强制对齐。
 - **数值与时区**：剩余天数**地板除法**（JS `Math.floor` / Kotlin `floorDiv`）；北京时区解释所有日期（endDate+endHour:endMinute:59）。
+- **认证双链**：验证码链（`verification` → `verify` → `signin` / `signup`）与密码链
+  （`signin {username,password}`、`signup {email,password,verification_token}`）并存，
+  改密走 `user/sudo` + `PATCH user/password`，不知道旧密码时走 `usage:PASSWORD_RESET` + `reset`。
+  上游 `/v1/verification` 对新邮箱**不返回 `is_user`**，缺省必须按「新用户」处理（详见 `docs/AUTH_AI_CHANGES.md`）。
+  会话存在 `SecurePrefs`：加密存储不可用时自动降级，绝不让 App 起不来。
+- **AI 分工**：模型只输出意图（`AiIntent`），查询由 `AiQueryEngine` 在本地按 `CouponRules` 计算，
+  写操作经 `AiPlanner` 出草稿、用户确认后走 `CouponRepository`。模型不是事实来源。
 
 ## 7. 任务分配
 

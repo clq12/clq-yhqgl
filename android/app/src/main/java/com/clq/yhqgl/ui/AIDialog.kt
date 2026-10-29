@@ -35,32 +35,27 @@ import com.clq.yhqgl.data.ai.AIContext
 import com.clq.yhqgl.data.ai.AgnesProvider
 import com.clq.yhqgl.data.ai.AiAssistants
 import com.clq.yhqgl.data.ai.AiIntent
+import com.clq.yhqgl.data.ai.AiPlan
+import com.clq.yhqgl.data.ai.AiPlanner
+import com.clq.yhqgl.data.ai.readImageAsDataUrl
 import com.clq.yhqgl.di.ServiceLocator
-import com.clq.yhqgl.model.Coupon
-import com.clq.yhqgl.model.DiscountType
 import com.clq.yhqgl.rules.CouponRules
 import com.clq.yhqgl.ui.theme.Danger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
-import java.util.UUID
-
-private val ISO: DateTimeFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME.withZone(ZoneOffset.ofHours(8))
-
-private fun nowIso(): String = ISO.format(Instant.now())
 
 /**
- * AI 助手：把一句自然语言变成一条待执行的操作，**先给用户看清要改什么**，确认后才落库。
+ * AI 助手（列表页的弹窗形态）：把一句自然语言变成一条待执行的操作，
+ * **先给用户看清要改什么**，确认后才落库。
  *
  * 两个原则：
  * 1. 所有写操作都走 [com.clq.yhqgl.data.repository.CouponRepository]，
  *    不能直接写 Room —— 直接 insert 不打 dirty 标记，云端永远收不到这条数据。
  * 2. delete / update 必须先在本地找到目标券并把它的标题摆到界面上，
  *    否则用户是在「确认删除一个自己没看见的东西」。
+ *
+ * 解析规则本身在 [AiPlanner] 里，与底部导航的「AI」页共用同一份实现。
  */
 @Composable
 fun AIDialog(
@@ -77,7 +72,6 @@ fun AIDialog(
     var plan by remember { mutableStateOf<AiPlan?>(null) }
     var done by remember { mutableStateOf(false) }
     var visionLoading by remember { mutableStateOf(false) }
-    var pickedImage by remember { mutableStateOf<android.net.Uri?>(null) }
 
     fun reset() {
         intent = null
@@ -113,7 +107,6 @@ fun AIDialog(
         contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
-        pickedImage = uri
         scope.launch {
             visionLoading = true
             reset()
@@ -146,7 +139,7 @@ fun AIDialog(
                 )
                 val parsed = provider.recognizeImage(dataUrl).getOrThrow()
                 intent = parsed
-                plan = buildPlan(parsed, coupons)
+                plan = AiPlanner.build(parsed, coupons)
             } catch (e: Exception) {
                 error = e.message ?: "识图失败，换一张更清晰的截图试试"
             } finally {
@@ -202,7 +195,7 @@ fun AIDialog(
                                 )
                                 val parsed = provider.parseIntent(input, ctx).getOrThrow()
                                 intent = parsed
-                                plan = buildPlan(parsed, coupons)
+                                plan = AiPlanner.build(parsed, coupons)
                             } catch (e: Exception) {
                                 error = e.message ?: "解析失败"
                             } finally {
@@ -244,7 +237,7 @@ fun AIDialog(
                     ) {
                         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(
-                                "AI 理解：${intentLabel(i.intent)}",
+                                "AI 理解：${AiPlanner.intentLabel(i.intent)}",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold
                             )
@@ -274,28 +267,6 @@ fun AIDialog(
     )
 }
 
-/** 解析出来但还能不能执行，用一个薄封装表达，省得在 UI 里到处判断 */
-private sealed interface AiPlan {
-    val valid: Boolean
-
-    data class Create(val coupon: Coupon) : AiPlan {
-        override val valid = true
-    }
-
-    data class Update(val before: Coupon, val after: Coupon) : AiPlan {
-        override val valid = true
-    }
-
-    data class Delete(val target: Coupon) : AiPlan {
-        override val valid = true
-    }
-
-    /** query / chat 或找不到目标：只展示，不执行 */
-    data class Unsupported(val reason: String) : AiPlan {
-        override val valid = false
-    }
-}
-
 @Composable
 private fun PlanPreview(plan: AiPlan?, intent: AiIntent) {
     when (plan) {
@@ -312,7 +283,7 @@ private fun PlanPreview(plan: AiPlan?, intent: AiIntent) {
 
         is AiPlan.Update -> {
             Text("拟修改：${plan.before.title}", fontSize = 13.sp, fontWeight = FontWeight.Medium)
-            val diffs = diffRows(plan.before, plan.after)
+            val diffs = AiPlanner.diffRows(plan.before, plan.after)
             if (diffs.isEmpty()) {
                 Text("AI 没给出实际改动", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
@@ -349,159 +320,3 @@ private fun PlanPreview(plan: AiPlan?, intent: AiIntent) {
         }
     }
 }
-
-/**
- * 把 AI 意图落成一个可执行计划。
- *
- * update / delete 的目标可能给的是 id，也可能给的是标题（模型经常只给标题），
- * 所以两种都试；匹配不到就明确告诉用户「没找到」，而不是静默失败。
- */
-private fun buildPlan(intent: AiIntent, coupons: List<Coupon>): AiPlan {
-    fun findTarget(): Coupon? {
-        val raw = intent.targetId?.trim().orEmpty()
-        if (raw.isEmpty()) return null
-        coupons.firstOrNull { it.id == raw }?.let { return it }
-        return coupons.firstOrNull { it.title == raw }
-            ?: coupons.firstOrNull { it.title.contains(raw, ignoreCase = true) }
-    }
-
-    return when (intent.intent) {
-        "create" -> AiPlan.Create(newCouponFrom(intent.changes))
-
-        "update" -> {
-            val target = findTarget()
-            if (target == null) {
-                AiPlan.Unsupported("AI 想改一张券，但本地没找到目标（${intent.targetId ?: "未指定"}）")
-            } else {
-                AiPlan.Update(before = target, after = applyChanges(target, intent.changes))
-            }
-        }
-
-        "delete" -> {
-            val target = findTarget()
-            if (target == null) {
-                AiPlan.Unsupported("AI 想删一张券，但本地没找到目标（${intent.targetId ?: "未指定"}）")
-            } else {
-                AiPlan.Delete(target)
-            }
-        }
-
-        else -> AiPlan.Unsupported("这条只是问答，不需要执行操作")
-    }
-}
-
-private fun intentLabel(intent: String): String = when (intent) {
-    "create" -> "新建优惠券"
-    "update" -> "修改优惠券"
-    "delete" -> "删除优惠券"
-    "query" -> "查询"
-    else -> "闲聊"
-}
-
-private fun newCouponFrom(changes: Map<String, String?>): Coupon = Coupon(
-    id = UUID.randomUUID().toString(),
-    title = changes["title"] ?: "未命名",
-    description = changes["description"],
-    discountType = parseDiscountType(changes["discountType"]),
-    discountAmount = changes["discountAmount"]?.toDoubleOrNull(),
-    fullAmount = changes["fullAmount"]?.toDoubleOrNull(),
-    startDate = changes["startDate"] ?: LocalDate.now().toString(),
-    endDate = changes["endDate"] ?: LocalDate.now().plusDays(30).toString(),
-    endHour = changes["endHour"]?.toIntOrNull() ?: 23,
-    endMinute = changes["endMinute"]?.toIntOrNull() ?: 59,
-    isUsed = changes["isUsed"]?.toBooleanStrictOrNull() ?: false,
-    notes = changes["notes"],
-    createdAt = nowIso()
-)
-
-/** 只覆盖 AI 明确给出的字段，没提的保持原值 —— 否则改个日期会把备注清空 */
-private fun applyChanges(base: Coupon, changes: Map<String, String?>): Coupon = base.copy(
-    title = changes["title"] ?: base.title,
-    description = changes["description"] ?: base.description,
-    discountType = parseDiscountType(changes["discountType"]) ?: base.discountType,
-    discountAmount = changes["discountAmount"]?.toDoubleOrNull() ?: base.discountAmount,
-    fullAmount = changes["fullAmount"]?.toDoubleOrNull() ?: base.fullAmount,
-    startDate = changes["startDate"] ?: base.startDate,
-    endDate = changes["endDate"] ?: base.endDate,
-    endHour = changes["endHour"]?.toIntOrNull() ?: base.endHour,
-    endMinute = changes["endMinute"]?.toIntOrNull() ?: base.endMinute,
-    isUsed = changes["isUsed"]?.toBooleanStrictOrNull() ?: base.isUsed,
-    notes = changes["notes"] ?: base.notes
-)
-
-private fun parseDiscountType(raw: String?): DiscountType? = when (raw?.lowercase()) {
-    "amount" -> DiscountType.AMOUNT
-    "percentage" -> DiscountType.PERCENTAGE
-    "full" -> DiscountType.FULL
-    "group" -> DiscountType.GROUP
-    else -> null
-}
-
-/** 只列出真正变了的字段 */
-private fun diffRows(before: Coupon, after: Coupon): List<Triple<String, String, String>> {
-    val rows = mutableListOf<Triple<String, String, String>>()
-    fun add(label: String, from: String, to: String) {
-        if (from != to) rows += Triple(label, from, to)
-    }
-    add("标题", before.title, after.title)
-    add("折扣", CouponRules.discountLabel(before), CouponRules.discountLabel(after))
-    add("开始", before.startDate, after.startDate)
-    add("到期", before.endDate, after.endDate)
-    add(
-        "截止",
-        String.format("%02d:%02d", before.endHour ?: 23, before.endMinute ?: 59),
-        String.format("%02d:%02d", after.endHour ?: 23, after.endMinute ?: 59)
-    )
-    add("已用", if (before.isUsed) "是" else "否", if (after.isUsed) "是" else "否")
-    add("备注", before.notes ?: "—", after.notes ?: "—")
-    return rows
-}
-
-/**
- * 把用户选的图片压成 data URL（base64 JPEG）。
- *
- * 手机截图动辄三五 MB，base64 还要再涨三分之一，很多接口对请求体有上限。
- * 这里按 1280 长边、JPEG 80 压一遍，通常 150-400 KB，文字仍然清楚。
- * 返回 null 表示这张图读不出来（损坏 / 权限被拒）。
- */
-private fun readImageAsDataUrl(
-    context: android.content.Context,
-    uri: android.net.Uri,
-    maxSize: Int = 1280
-): String? = runCatching {
-    val resolver = context.contentResolver
-
-    // 先只读尺寸，算好采样率再真正解码，避免大图直接 OOM
-    val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    resolver.openInputStream(uri)?.use {
-        android.graphics.BitmapFactory.decodeStream(it, null, bounds)
-    }
-    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-
-    var sample = 1
-    while (bounds.outWidth / (sample * 2) >= maxSize || bounds.outHeight / (sample * 2) >= maxSize) {
-        sample *= 2
-    }
-
-    val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
-    val bitmap = resolver.openInputStream(uri)?.use {
-        android.graphics.BitmapFactory.decodeStream(it, null, opts)
-    } ?: return null
-
-    val scale = minOf(1f, maxSize.toFloat() / maxOf(bitmap.width, bitmap.height))
-    val scaled = if (scale < 1f) {
-        android.graphics.Bitmap.createScaledBitmap(
-            bitmap,
-            (bitmap.width * scale).toInt().coerceAtLeast(1),
-            (bitmap.height * scale).toInt().coerceAtLeast(1),
-            true
-        )
-    } else {
-        bitmap
-    }
-
-    val out = java.io.ByteArrayOutputStream()
-    scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, out)
-    val base64 = android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP)
-    "data:image/jpeg;base64,$base64"
-}.getOrNull()

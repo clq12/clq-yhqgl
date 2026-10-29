@@ -22,11 +22,15 @@ v2 的 WebDAV 同步中枢方案已连同旧规划文档一并删除，需要回
 - **WebDAV 只是备份**：网页端与安卓端设置页各有两个手动按钮（备份 / 恢复），
   不参与同步、不自动跑；**未配置 WebDAV 完全不影响云同步**。
 - **提醒按设备各算**：提醒状态只存本地，电脑上提醒过不会让手机静默。
+- **AI 只做翻译，不做事实源**：模型把自然语言翻成筛选条件，到期判断在本地按
+  `CouponRules` 算；新增/改/删先出草稿、用户确认才落库；识图与手打走同一条链路。
+  安卓底栏「AI」页（`ui/AiScreen.kt`）承载查询 + 新增 + 拍照识图。
 
 ## 在线使用
 
 - **网页端**：https://clq-yhqgl-web.app.workbuddy.host/?sharecode=EHMXXINRSS
-  - 首次使用需邮箱验证码登录；登录后数据存在云端，换设备直接可用。
+  - 首次使用可用邮箱验证码登录，也可以「账号密码登录 / 注册」（新账号初始密码 `123456`）。
+  - 登录后数据存在云端，换设备直接可用。
   - 未登录时进入「游客本地模式」：数据只存本机、功能照常；首次登录若本机已有数据，
     会弹一屏让你选「上传本地 / 只拉云端 / 先清空再拉」，换账号则清掉上一个账号的本地残留、不串号。
 - **安卓 APK**：[Releases](https://github.com/clq12/clq-yhqgl/releases)
@@ -46,9 +50,13 @@ v2 的 WebDAV 同步中枢方案已连同旧规划文档一并删除，需要回
 | 模块 | 说明 |
 |---|---|
 | 数据库 | `coupons`、`settings`，RLS 按 `owner_id = auth.uid()` 隔离 |
-| 认证 | 邮箱验证码（`/.cloud/auth/v1/verification` → `verify` → `signin`），两端同一条链 |
+| 认证 | 两条并存的链，同一套端点：**邮箱验证码**（`verification` → `verify` → `signin`/`signup`）与**账号密码**（`signin {username,password}`、`signup {email,password,verification_token}`） |
+| 改密 | 知道旧密码：`user/sudo` → `PATCH user/password`；不知道：`verification`(`usage:PASSWORD_RESET`) → `verify` → `reset` |
 | 删除 | 软删除，`coupons.deleted_at`（2026-10-21 新增） |
 | 冲突 | 乐观锁，比较 `modified_at` |
+
+> 验证码注册的账号**初始密码是 `123456`**，登录后在设置里可改（两端都行）。
+> 上游拒绝「只有用户名+密码」的注册，所以密码注册也必须先验一次邮箱。
 
 `coupons` 主要列：`id` / `owner_id` / `title` / `discount_type` / `discount_amount` /
 `full_amount` / `start_date` / `end_date` / `end_hour` / `end_minute` / `is_used` / `notes` /
@@ -181,6 +189,7 @@ npm run build    # 输出到 web/dist
 ## 文档
 
 - [项目架构（v3，当前事实来源）](./docs/ARCHITECTURE.md)
+- [本次改动说明：登录修复 / 账号密码 / 改密 / AI 栏](./docs/AUTH_AI_CHANGES.md)
 - [数据一致性协议](./shared/rules/sync-protocol.md)
 - [优惠券业务规则](./shared/rules/coupon-rules.md)
 - [v2 → v3 迁移指南](./docs/MIGRATION.md)

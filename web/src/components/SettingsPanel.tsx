@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Bot,
+  ChevronDown,
   Cloud,
   HardDrive,
   LogOut,
@@ -38,34 +39,59 @@ const defaultSettings: AppSettings = {
   activeAssistantId: null,
 };
 
+/**
+ * 可折叠的设置分区。
+ *
+ * 每个块都很长（WebDAV 那段描述就有三行），全展开时一屏放不下两块。
+ * 现在标题行整行可点，收起时描述压成一行摘要；内容用 `hidden` 隐藏而不是卸载 ——
+ * 块里有自己的组件状态（AI 助手的草稿、标签编辑器），卸载会让用户填了一半的东西消失。
+ */
 function Section({
   icon,
   title,
   description,
   children,
   action,
+  defaultOpen = false,
 }: {
   icon: React.ReactNode;
   title: string;
   description?: string;
   children: React.ReactNode;
   action?: React.ReactNode;
+  defaultOpen?: boolean;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <Card className="p-4">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-2.5">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="flex min-w-0 flex-1 items-start gap-2.5 text-left"
+        >
           <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
             {icon}
           </div>
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
-            {description && <p className="mt-0.5 text-xs text-slate-500">{description}</p>}
+          <div className="min-w-0 flex-1">
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+              {title}
+              <ChevronDown
+                className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}
+                aria-hidden
+              />
+            </h2>
+            {description && (
+              <p className={`mt-0.5 text-xs text-slate-500 ${open ? '' : 'line-clamp-1'}`}>
+                {description}
+              </p>
+            )}
           </div>
-        </div>
+        </button>
         {action}
       </div>
-      <div className="mt-4 space-y-3">{children}</div>
+      <div className={open ? 'mt-4 space-y-3' : 'hidden'}>{children}</div>
     </Card>
   );
 }
@@ -230,6 +256,7 @@ export function SettingsPanel() {
         icon={<UserRound className="h-4 w-4" />}
         title="账号与同步"
         description="登录后数据保存在云端，换设备用同一账号即可访问"
+        defaultOpen
       >
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2.5">
           <div className="min-w-0">

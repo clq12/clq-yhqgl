@@ -287,7 +287,7 @@ sealed interface AiPlan { Create(coupon) / Update(before, after) / Delete(target
 
 ## 6. 升级注意
 
-1. **Release 签名**：versionCode 8 → 9、versionName 2.6.0 → 2.7.0，可直接覆盖安装（签名不变）。
+1. **Release 签名**：versionCode 8 → 10、versionName 2.6.0 → 2.7.1，可直接覆盖安装（签名不变）。
 2. **老账号想用密码登录**：早期验证码注册的账号，本地那个随机密码用户并不知道 →
    用「不记得旧密码·邮箱验证」重置一次即可（网页/安卓都能改）。
 3. **加密存储降级的用户**：升级后首次启动会自动重建存储，可能需要重新登录一次；
@@ -325,3 +325,24 @@ node --experimental-strip-types scripts/concurrency-check.mjs
 - [ ] AI 栏问「这周有哪些券到期」→ 条数与列表页一致
 - [ ] AI 栏让它加一张券 → 确认后列表出现、云端也有
 - [ ] AI 栏拍照/选图识图 → 出草稿 → 确认后入库
+
+---
+
+## 8. 追加：设置块改为可折叠（2.7.1）
+
+原来五块设置全展开，手机上要滑三四屏，改一个开关得先找半天。现在：
+
+| 端 | 组件 | 行为 |
+|---|---|---|
+| 安卓 | `ui/SettingsScreen.kt` → `SettingsCard(title, subtitle, initiallyExpanded)` | 标题行整行可点，`AnimatedVisibility` 展开/收起；展开状态用 `rememberSaveable(title)` 记住 |
+| 网页 | `components/SettingsPanel.tsx` → `Section`（新增 `defaultOpen`） | 标题行是 `<button aria-expanded>`，箭头旋转；内容用 `hidden` 隐藏而**不卸载** |
+
+两个细节值得记下来：
+
+1. **收起时保留一行摘要**，否则折叠后等于把信息藏了：账号显示邮箱（或"游客本地模式"）、
+   WebDAV 显示地址（或"未配置 · 可选"）、AI 显示"3 个助手 · 默认 识图助手"、
+   标签显示"N 个标签"、提醒显示"自动同步开 · 提前 7/3/1 天"。
+2. 网页端**不能**用条件渲染来收起：`AiAssistantSettings`、`TagLibraryEditor` 有自己的组件状态，
+   卸载会把用户填了一半的草稿清掉，所以用 CSS `hidden` 保留挂载。
+
+默认只展开「账号」，其余收起。版本号 2.7.0 → 2.7.1（versionCode 10），可直接覆盖安装。

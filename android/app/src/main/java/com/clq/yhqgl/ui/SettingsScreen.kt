@@ -1,7 +1,9 @@
 package com.clq.yhqgl.ui
 
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +20,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -38,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -140,7 +145,11 @@ fun SettingsScreen(
         Text("设置", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
 
         // ------------------------------------------------------------ 账号
-        SettingsCard("账号与云同步") {
+        SettingsCard(
+            title = "账号与云同步",
+            subtitle = session?.email ?: session?.name ?: "游客本地模式（数据只在这台手机上）",
+            initiallyExpanded = true
+        ) {
             if (session == null) {
                 Text(
                     "当前是游客模式：数据只存在这台手机上，换手机就看不到。登录后自动云端同步。",
@@ -235,7 +244,10 @@ fun SettingsScreen(
         }
 
         // ------------------------------------------------------------ 备份
-        SettingsCard("备份（WebDAV）") {
+        SettingsCard(
+            title = "备份（WebDAV）",
+            subtitle = if (url.isBlank()) "未配置 · 可选，不影响云同步" else url.trim()
+        ) {
             Text(
                 "云数据库才是主数据。WebDAV 只是手动备份通道，不会自动同步，也不会和云端合并。",
                 fontSize = 12.sp,
@@ -353,7 +365,14 @@ fun SettingsScreen(
         }
 
         // ------------------------------------------------------------ AI
-        SettingsCard("AI 助手") {
+        SettingsCard(
+            title = "AI 助手",
+            subtitle = if (assistants.isEmpty()) {
+                "未配置"
+            } else {
+                "${assistants.size} 个助手 · 默认 ${assistants.firstOrNull { it.id == activeAssistantId }?.name ?: assistants.first().name}"
+            }
+        ) {
             Text(
                 "可配置多个助手。识图添加只会用勾了「支持图片」的助手，纯文本用便宜的小模型更划算。",
                 fontSize = 12.sp,
@@ -440,7 +459,10 @@ fun SettingsScreen(
 
 
         // ------------------------------------------------------------ 标签
-        SettingsCard("标签") {
+        SettingsCard(
+            title = "标签",
+            subtitle = "${tagLibrary.size} 个标签"
+        ) {
             Text(
                 "录入优惠券时「常用」里出现的就是这些标签。改名或删除会同步更新已打过该标签的券。",
                 fontSize = 12.sp,
@@ -540,7 +562,17 @@ fun SettingsScreen(
         }
 
         // ------------------------------------------------------------ 提醒
-        SettingsCard("同步与提醒") {
+        SettingsCard(
+            title = "同步与提醒",
+            subtitle = buildString {
+                append(if (autoSync) "自动同步开" else "自动同步关")
+                append(" · 提前 ")
+                append(
+                    if (remindDays.isEmpty()) "不提醒"
+                    else remindDays.sortedDescending().joinToString("/") + " 天"
+                )
+            }
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -845,8 +877,25 @@ fun SettingsScreen(
     }
 }
 
+/**
+ * 可折叠的设置卡片。
+ *
+ * 之前所有块都是全展开的，五块叠在一起要滑三四屏才看得完，改一个开关得先找半天。
+ * 现在标题行整行可点，收起时只留一行摘要（[subtitle]），扫一眼就知道里面什么状态：
+ * 「自动同步开 · 提前 7/3/1 天」「3 个助手 · 默认 识图助手」。
+ *
+ * 展开状态用 `rememberSaveable(title)` 存，转到详情页再回来、旋屏都不会重置；
+ * 默认只展开账号块，其余收起。
+ */
 @Composable
-private fun SettingsCard(title: String, content: @Composable () -> Unit) {
+private fun SettingsCard(
+    title: String,
+    subtitle: String? = null,
+    initiallyExpanded: Boolean = false,
+    content: @Composable () -> Unit
+) {
+    var expanded by rememberSaveable(title) { mutableStateOf(initiallyExpanded) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
@@ -854,10 +903,48 @@ private fun SettingsCard(title: String, content: @Composable () -> Unit) {
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(10.dp))
-            content()
+        Column {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded }
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    if (!subtitle.isNullOrBlank()) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            subtitle,
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = if (expanded) {
+                        Icons.Default.KeyboardArrowUp
+                    } else {
+                        Icons.Default.KeyboardArrowDown
+                    },
+                    contentDescription = if (expanded) "收起" else "展开",
+                    tint = MaterialTheme.colorScheme.outline
+                )
+            }
+
+            AnimatedVisibility(visible = expanded) {
+                Column(
+                    modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp)
+                ) {
+                    content()
+                }
+            }
         }
     }
 }
